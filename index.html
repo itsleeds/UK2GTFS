@@ -91,6 +91,7 @@
 <div class="page-header"><h1 id="uk2gtfs-">UK2GTFS <a href="https://itsleeds.github.io/" class="external-link"><img src="reference/figures/logo.png" align="right" height="215/"></a>
 <a class="anchor" aria-label="anchor" href="#uk2gtfs-"></a>
 </h1></div>
+<p><a href="https://codecov.io/gh/itsleeds/UK2GTFS" class="external-link"><img src="https://img.shields.io/codecov/c/github/itsleeds/UK2GTFS/master.svg" alt="Coverage Status"></a></p>
 <p>UK2GTFS is an R package to convert and work with train, tram, bus, ferry, and metro timetable data from the unfriendly and difficult to use formats used in the UK to the easy to use <a href="https://developers.google.com/transit/gtfs/" class="external-link">GTFS</a> format. The main purpose of developing the package is to support using <a href="https://github.com/ropensci/opentripplanner" class="external-link">OpenTripPlanner</a> in the UK.</p>
 <p><strong>Example results are published as <a href="https://github.com/ITSLeeds/UK2GTFS/releases" class="external-link">GitHub releases</a> these come with no guarantee of quality.</strong></p>
 <div class="section level2">
@@ -98,7 +99,7 @@
 </h2>
 <p>The UK has two main sources of public transport timetable data <a href="https://www.travelinedata.org.uk/" class="external-link"><strong>Traveline</strong></a> publishes data on buses and light rail and <a href="http://data.atoc.org/rail-industry-data" class="external-link"><strong>ATOC</strong></a> publishes data on heavy rail. Each uses a data format that is unique to that organisation and both formats are old and difficult to use. Many countries have adopted the <a href="https://developers.google.com/transit/gtfs/" class="external-link">GTFS</a> format which was developed by Google as a simple standard for publishing timetable data. Due to the wide-spread adoption of GTFS many useful tools have been developed that accept GTFS files as inputs. This package is intended to make the conversion of UK data to the GTFS format simple and easy.</p>
 <p><strong>Update November 2020</strong></p>
-<p>The <a href="https://data.bus-data.dft.gov.uk/downloads/" class="external-link">Open Bus Data Service</a> now offers a national GTFS download option based on <a href="https://www.itoworld.com" class="external-link">ITO World’s</a> TransXchange to GTFS converter. For non-expert users it will probably be easier to download there files. However this packages is still being maintained to support conversion of historical files, and because the conversion of TransXchange to GTFS is open to interpretation and having alternative converters is useful.</p>
+<p>The <a href="https://data.bus-data.dft.gov.uk/downloads/" class="external-link">Open Bus Data Service</a> now offers a national GTFS download option based on <a href="https://www.itoworld.com" class="external-link">ITO World’s</a> TransXchange to GTFS converter. These include bus an light rail but not heavy rail timetables. For non-expert users it will probably be easier to download there files. However this packages is still being maintained to support conversion of historical files, and because the conversion of TransXchange to GTFS is open to interpretation and having alternative converters is useful.</p>
 </div>
 <div class="section level2">
 <h2 id="capabilities---why-we-need-another-package">Capabilities - why we need another package<a class="anchor" aria-label="anchor" href="#capabilities---why-we-need-another-package"></a>
@@ -132,6 +133,7 @@
 <li>Compression</li>
 <li>Validation</li>
 <li>Subsetting</li>
+<li>Analysis</li>
 </ul>
 </li>
 </ol>
