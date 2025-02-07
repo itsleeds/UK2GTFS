@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">UK2GTFS</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.2.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
       </span>
     </div>
 
@@ -72,7 +72,8 @@
 <span>  startdate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">$</span><span class="va">calendar</span><span class="op">$</span><span class="va">start_date</span><span class="op">)</span>,</span>
 <span>  enddate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">$</span><span class="va">calendar</span><span class="op">$</span><span class="va">start_date</span><span class="op">)</span> <span class="op">+</span> <span class="fl">31</span>,</span>
 <span>  zone_id <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  by_mode <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  by_mode <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  ncores <span class="op">=</span> <span class="fl">1</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,6 +104,10 @@
 <dt id="arg-by-mode">by_mode<a class="anchor" aria-label="anchor" href="#arg-by-mode"></a></dt>
 <dd><p>logical, disaggregate by mode?</p></dd>
 
+
+<dt id="arg-ncores">ncores<a class="anchor" aria-label="anchor" href="#arg-ncores"></a></dt>
+<dd><p>numeric, how many cores to use in parallel processing</p></dd>
+
 </dl></div>
 
   </div>
@@ -113,11 +118,11 @@
 
 
       <footer><div class="copyright">
-  <p></p><p>Developed by Malcolm Morgan.</p>
+  <p></p><p>Developed by Malcolm Morgan, Owen O’Neill.</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.0.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
 </div>
 
       </footer></div>

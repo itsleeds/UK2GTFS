@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">UK2GTFS</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.2.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
       </span>
     </div>
 
@@ -66,7 +66,7 @@
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">gtfs_clean</span><span class="op">(</span><span class="va">gtfs</span>, removeNonPublic <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">gtfs_clean</span><span class="op">(</span><span class="va">gtfs</span>, public_only <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -77,8 +77,8 @@
 <dd><p>gtfs list</p></dd>
 
 
-<dt id="arg-removenonpublic">removeNonPublic<a class="anchor" aria-label="anchor" href="#arg-removenonpublic"></a></dt>
-<dd><p>logical if TRUE remove routes with route_type missing</p></dd>
+<dt id="arg-public-only">public_only<a class="anchor" aria-label="anchor" href="#arg-public-only"></a></dt>
+<dd><p>Logical, if TRUE remove routes with route_type missing</p></dd>
 
 </dl></div>
     <div id="details">
@@ -86,10 +86,14 @@
     <p>Task done:</p>
 <p>0. Remove stops with no coordinates
 1. Remove stops with no location information
-2. Remove stops that are never used
-3. Replace missing agency names with "MISSINGAGENCY"
-4. If service is not public and removeNonPublic=TRUE then remove it (freight, 'trips' aka charters)
-       (these have a null route_type, so loading into OpenTripPlanner fails if these are present)</p>
+2. Remove trips with less than two stops
+3. Remove stops that are never used
+4. Replace missing agency names with "MISSINGAGENCY"
+5. If service is not public and public_only=TRUE then remove it (freight, 'trips' aka charters)
+       (these have a null route_type, so loading into OpenTripPlanner fails if these are present)
+6. If public_only=TRUE then remove services with 'train_category' not for public use. e.g. EE (ECS-Empty Coaching Stock)
+7. Remove shapes that no longer have any trips
+8  Remove frequencies that no longer have any trips</p>
     </div>
 
   </div>
@@ -100,11 +104,11 @@
 
 
       <footer><div class="copyright">
-  <p></p><p>Developed by Malcolm Morgan.</p>
+  <p></p><p>Developed by Malcolm Morgan, Owen O’Neill.</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.0.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
 </div>
 
       </footer></div>
