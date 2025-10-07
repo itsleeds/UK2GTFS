@@ -13,13 +13,16 @@ This vignette outlines how to produce GTFS timetables for the heavy rail network
 
 ## Getting Data
 
-Data for train timetables can be downloaded from [ATOC](http://data.atoc.org/) you will need to register for a free account and log in.
+Data for train timetables can be downloaded from the Rail Data Portal.
 
-```{r, echo=FALSE, fig.align='center', fig.cap="\\label{fig:atoc_download}Download ATOC data"}
-knitr::include_graphics("images/atoc_download.jpg")
+```{r download}
+library(UK2GTFS)
+nrdp_timetable("myfolder/timetable.zip")
 ```
 
-You will get a zipped folder with a name like `ttis123.zip`.
+Note that you need a free account with the Rail Data Portal. Any you need to set the `NRDP_username` and `NRDP_password` values in in your `.Renviron` file. You can use `usethis::edit_r_environ()` to easily access your `.Renviron` file. Remember to restart R after updating the file.
+
+You can also use the `nrdp_fares()` and `nrdp_routing()` functions to download addtional data. 
 
 ## Converting ATOC Data to GTFS
 
@@ -31,8 +34,8 @@ To do a simple conversion to GTFS, load the package, and use the `atoc2gtfs` fun
 A simple example is shown below:
 
 ```{r atoc_example, eval=FALSE}
-library(UK2GTFS)
-path_in <- "ttis627.zip"
+
+path_in <- "myfolder/timetable.zip"
 gtfs <- atoc2gtfs(path_in = path_in,
           ncores = 3)
 ```
