@@ -83,13 +83,35 @@ importFLF <- function(file) {
     table <- table[seq(from = 1, to = (nrow(table) - 1)), ]
   }
 
-  # Bind dother a few columns
-  table[[1]] <- paste0(table[[1]], " ", table[[2]])
-  names(table) <- c(
-    "Type", "del1", "Mode", "del2", "from", "del3",
-    "to", "del4", "time", "units"
-  )
+  #Detect Type of Input we have
+  if(ncol(table) == 4){
+    table = table[table$V1 != "/!!",]
+
+    # Remove everything after END
+    end_row <- which(table$V1 == "END")
+    if (length(end_row) > 0) {
+      # Keep only rows before the first occurrence of "END"
+      table <- table[1:(end_row[1] - 1), ]
+    }
+
+    table = cbind(table[seq(1,nrow(table),by = 3),],
+                  table[seq(2,nrow(table),by = 3),],
+                  table[seq(3,nrow(table),by = 3),])
+    table[[1]] <- paste0(table[[1]], " ", table[[2]])
+    names(table) = c("Type","del1","Mode","del2","from","del3","to","del4","time","units","del5","del6")
+
+  } else {
+    # Bind together a few columns
+    table[[1]] <- paste0(table[[1]], " ", table[[2]])
+    names(table) <- c(
+      "Type", "del1", "Mode", "del2", "from", "del3",
+      "to", "del4", "time", "units"
+    )
+
+  }
+
   table <- table[, c("Type", "Mode", "from", "to", "time", "units")]
+
   return(table)
 }
 

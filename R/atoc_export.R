@@ -253,44 +253,12 @@ makeCalendar <- function(schedule, ncores = 1) {
     calendar_split <- calendar[, .(list(.SD)), by = `__TEMP__`][,V1]
 
     if (ncores > 1) {
-      # cl <- parallel::makeCluster(ncores)
-      #
-      # parallel::clusterEvalQ(cl, {
-      #   #put any setup required for all worker processes in here
-      #   options( UK2GTFS_opt_updateCachedDataOnLibaryLoad = FALSE ) #stop the child workers from calling update_data()
-      #   workerEnv=loadNamespace("UK2GTFS")
-      # })
-
-      # #copy variables from this context into global context of worker processes
-      # varList = list("TREAT_DATES_AS_INT", "WDAY_LOOKUP_MIN_VALUE", "WDAY_LOOKUP_MAX_VALUE", "WDAY_LOOKUP_MAP")
-      # parallel::clusterExport(cl=cl, varlist=varList, envir=asNamespace("UK2GTFS"))
-      #
-      # #set module level global in all workers
-      # parallel::clusterEvalQ(cl, {
-      #   copyFromGlobalEnvToPackageEnv<- function(varName){
-      #     UK2GTFS:::setValueInThisEnvironment(varName, get(varName, envir=.GlobalEnv))
-      #   }
-      #   copyFromGlobalEnvToPackageEnv("TREAT_DATES_AS_INT")
-      #   copyFromGlobalEnvToPackageEnv("WDAY_LOOKUP_MIN_VALUE")
-      #   copyFromGlobalEnvToPackageEnv("WDAY_LOOKUP_MAX_VALUE")
-      #   copyFromGlobalEnvToPackageEnv("WDAY_LOOKUP_MAP")
-      # })
-      #
-      # pbapply::pboptions(use_lb = TRUE)
-      # res <- pbapply::pblapply(calendar_split,
-      #   makeCalendarInner,
-      #   cl = cl
-      # )
-      #
-      # parallel::stopCluster(cl)
-      # rm(cl)
-
       future::plan(future::multisession, workers = ncores)
-      res <- furrr::future_map(calendar_split, .f = makeCalendarInner)
+      res <- furrr::future_map(calendar_split, .f = makeCalendarInner, .progress = TRUE)
       future::plan(future::sequential)
 
     } else {
-      res <- purrr::map(calendar_split, .f = makeCalendarInner)
+      res <- purrr::map(calendar_split, .f = makeCalendarInner, .progress = TRUE)
     }
 
 

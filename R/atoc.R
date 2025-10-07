@@ -69,7 +69,9 @@ atoc2gtfs <- function(path_in,
   {
     stops_sf = getCachedLocationData( locations )
     stops_sf = sf::st_drop_geometry(stops_sf)
-    stops_sf$geometry = NULL
+    if("geometry" %in% names(stops_sf)){
+      stops_sf$geometry = NULL
+    }
   }
 
   # Is input a zip or a folder
@@ -84,7 +86,7 @@ atoc2gtfs <- function(path_in,
   }
 
   # Are all the files we would expect there?
-  files.ext <- substr(files, nchar(files) - 3, nchar(files))
+  files.ext <- tolower(substr(files, nchar(files) - 3, nchar(files)))
   # ".alf", ".dat", ".set", ".ztr", ".tsi" Not used
   files.ext.need <- c(".flf", ".mca", ".msn")
 
@@ -102,11 +104,11 @@ atoc2gtfs <- function(path_in,
   # ztr = importMCA(files[grepl(".ztr",files)], silent = silent)
 
   if(transfers){
-    flf <- importFLF(files[grepl(".flf", files)])
+    flf <- importFLF(files[grepl(".flf", files, ignore.case = TRUE)])
   }
 
   mca <- importMCA(
-      file = files[grepl(".mca", files)],
+      file = files[grepl(".mca", files, ignore.case = TRUE)],
       silent = silent,
       ncores = 1,
       full_import = TRUE,
@@ -119,7 +121,7 @@ atoc2gtfs <- function(path_in,
   if ( TRUE==missing_tiplocs ||
        ( inherits(locations, "character") && "file"==locations ) )
   {
-    msn <- importMSN(files[grepl(".msn", files)], silent = silent)
+    msn <- importMSN(files[grepl(".msn", files, ignore.case = TRUE)], silent = silent)
     station <- msn[[1]]
     TI <- mca[["TI"]]
     stops.list <- station2stops(station = station, TI = TI)
@@ -141,9 +143,7 @@ atoc2gtfs <- function(path_in,
         stops <- stops_sf
       }
     }
-  }
-  else
-  {
+  } else {
     stops <- stops_sf
   }
 
@@ -194,7 +194,7 @@ atoc2gtfs <- function(path_in,
 
   if (transfers) {
     if(!exists("station")){
-      msn <- importMSN(files[grepl(".msn", files)], silent = silent)
+      msn <- importMSN(files[grepl(".msn", files, ignore.case = TRUE)], silent = silent)
       station <- msn[[1]]
     }
     timetables$transfers <- station2transfers(station = station, flf = flf)

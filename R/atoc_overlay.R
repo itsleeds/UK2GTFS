@@ -393,7 +393,7 @@ makeAllOneDay <- function( cal )
   repetitions = dayCount * numWeeks
 
   #replicate the calendar rows the appropriate number of times
-  replicatedcal <- cal[rep(seq_len(.N), times = repetitions)]
+  replicatedcal <- cal[rep(seq_len(nrow(cal)), times = repetitions),]
 
   #get a mask of operating days
   operatingDayLogical <- rep( split(bitmaskMat, row(bitmaskMat)), times = numWeeks)
@@ -401,9 +401,8 @@ makeAllOneDay <- function( cal )
   #set the start and end date for each calender item to the single day identified earlier
   selectedDates = dateSequence[unlist(operatingDayLogical)]
   replicatedcal$end_date <- replicatedcal$start_date <- selectedDates
-
   #tidy up the values so they are correct for the spilt items
-  replicatedcal$duration <- 1L
+  replicatedcal$duration <- difftime(Sys.Date(),Sys.Date()-1, units = "days") # make a 1 day difftime
   replicatedcal$Days = SINGLE_DAY_PATTERN_VECTOR[ local_lubridate_wday( replicatedcal$start_date, label = FALSE, week_start=1L ) ]
 
   return (replicatedcal)
@@ -426,12 +425,10 @@ expandAllWeeks <- function( cal )
   }
 
   #duration <- cal$end_date - cal$start_date + 1
-
   #make a list of dates for each object being replicated
   startDayNum = local_lubridate_wday( cal$start_date, label = FALSE, week_start=1L )
   endDayNum = local_lubridate_wday( cal$end_date, label = FALSE, week_start=1L )
   dateSequence = makeReplicationDates( cal, startDayNum, endDayNum )
-
   numWeeks <- ceiling(as.integer(cal$duration) / 7L)
 
   #replicate a logical vector for the start date and use that to select the relevant dates from the date sequence
@@ -443,17 +440,14 @@ expandAllWeeks <- function( cal )
   endDayLogical <- SINGLE_DAY_PATTERN_LIST[endDayNum]
   endDays <- rep(endDayLogical, times = numWeeks)
   endDates <- dateSequence[ unlist(endDays) ]
-
   #replicate the calendar rows the appropriate number of times
-  replicatedcal <- cal[rep(seq_len(.N), times = numWeeks)]
-
+  replicatedcal <- cal[rep(seq_len(nrow(cal)), times = numWeeks)]
   #set the start and end date for each calender item
   replicatedcal$start_date <- startDates
   replicatedcal$end_date <- endDates
 
   #tidy up the values so they are correct for the spilt items
   replicatedcal$duration <- replicatedcal$end_date - replicatedcal$start_date + 1L
-
   return (replicatedcal)
 }
 
@@ -784,12 +778,19 @@ makeCalendarInner <- function(calendarSub) {
         data.table::setkey( calendarSub, STP, duration )
         data.table::setindex( calendarSub, start_date, end_date)
 
-        calendar_new <- makeCalendarsUnique( splitDates(calendarSub) )
+        calendar_new <- try(makeCalendarsUnique( splitDates(calendarSub) ), silent = TRUE)
+        if(inherits(calendar_new,"try-error")){
+          stop("Failed to split dates for UID: ",calendarSub$UID[1])
+        }
+
         res = list(calendar_new, NA)
       }
       else # split by day pattern
       {
-        res = makeCalendarForDifferentDayPatterns( calendarSub, uniqueDayPatterns )
+        res = try(makeCalendarForDifferentDayPatterns( calendarSub, uniqueDayPatterns ), silent = TRUE)
+        if(inherits(res,"try-error")){
+          stop("Failed to makeCalendarForDifferentDayPatterns for UID: ",calendarSub$UID[1])
+        }
       }
     }
   }
@@ -822,40 +823,48 @@ makeCalendarInner <- function(calendarSub) {
 #
 makeCalendarForDifferentDayPatterns <- function( calendar, uniqueDayPatterns )
 {
-  baseType = max(calendar$STP)
-  baseTimetables =  calendar[calendar$STP == baseType]
-  overlayTimetables =  calendar[calendar$STP != baseType]
 
+  baseType = max(calendar$STP)
+  baseTimetables =  calendar[calendar$STP == baseType,]
+  overlayTimetables =  calendar[calendar$STP != baseType,]
   #do the day patterns overlap each other in any way ?
   #e.g. a mon-sat pattern with a wed-fri overlap.
   if ( any( countIntersectingDayPatterns(uniqueDayPatterns) > 1L) )
   {
-    gappyOverlays = overlayTimetables[ hasGapInOperatingDays(overlayTimetables$Days) ]
-    continiousOverlays = overlayTimetables[ !hasGapInOperatingDays(overlayTimetables$Days) ]
 
-    gappyOverlays = makeAllOneDay( gappyOverlays )
-    continiousOverlays = expandAllWeeks( continiousOverlays )
+    gappyOverlays = overlayTimetables[ hasGapInOperatingDays(overlayTimetables$Days), ]
+    continiousOverlays = overlayTimetables[ !hasGapInOperatingDays(overlayTimetables$Days), ]
 
-    overlayTimetables =  data.table::rbindlist( list(continiousOverlays,gappyOverlays), use.names=FALSE)
+    gappyOverlays = try(makeAllOneDay( gappyOverlays ), silent = TRUE)
+    if(inherits(gappyOverlays,"try-error")){
+      warning("Failed at makeAllOneDay")
+    }
+    continiousOverlays = try(expandAllWeeks( continiousOverlays ), silent = TRUE)
+    if(inherits(continiousOverlays,"try-error")){
+      warning("Failed at expandAllWeeks")
+    }
+    overlayTimetables =  data.table::rbindlist( list(continiousOverlays,gappyOverlays), use.names=TRUE, fill = TRUE)
+
   }
-
   splits <- list()
 
   distinctBasePatterns = unique( baseTimetables$Days )
 
   for (k in seq(1L, length(distinctBasePatterns))) {
 
-    theseBases = baseTimetables[baseTimetables$Days == distinctBasePatterns[k] ]
+    theseBases = baseTimetables[baseTimetables$Days == distinctBasePatterns[k], ]
 
-    theseOverlays = overlayTimetables[ intersectingDayPatterns( distinctBasePatterns[k], overlayTimetables$Days ) ]
+    theseOverlays = overlayTimetables[ intersectingDayPatterns( distinctBasePatterns[k], overlayTimetables$Days ), ]
 
     if (nrow(theseOverlays) <= 0L)
     {
+
       splits[[k]] <- appendNumberSuffix( appendLetterSuffix( theseBases ), k )
     }
     else
     {
-      timetablesForThisPattern = data.table::rbindlist( list( theseBases, theseOverlays ), use.names=FALSE)
+
+      timetablesForThisPattern = data.table::rbindlist( list( theseBases, theseOverlays ), use.names=TRUE, fill = TRUE)
 
       #performance pre-sort all the entries by the priority
       #this speeds things up when we look up the required priority overlay **SEE_NOTE**
@@ -863,7 +872,10 @@ makeCalendarForDifferentDayPatterns <- function( calendar, uniqueDayPatterns )
       data.table::setkey( timetablesForThisPattern, STP, duration )
       data.table::setindex( timetablesForThisPattern, start_date, end_date)
 
-      thisSplit <- splitDates( timetablesForThisPattern )
+      thisSplit <- try(splitDates( timetablesForThisPattern ), silent = TRUE)
+      if(inherits(thisSplit,"try-error")){
+        stop("Failed at splitDates")
+      }
 
       # reject NAs
       if (inherits(thisSplit, "data.frame")) {
@@ -871,10 +883,12 @@ makeCalendarForDifferentDayPatterns <- function( calendar, uniqueDayPatterns )
       }
     }
   }
-
   splits <- data.table::rbindlist(splits, use.names=FALSE)
 
-  splits <- makeCalendarsUnique( splits )
+  splits <- try(makeCalendarsUnique( splits ), silent = TRUE)
+  if(inherits(splits,"try-error")){
+    warning("Failed at makeCalendarsUnique")
+  }
 
   # after all this faffing about and splitting and joining, it's quite likely we've created some
   # small fragments of base timetable that aren't valid (e.g mon-fri service but start and end date on weekend)
