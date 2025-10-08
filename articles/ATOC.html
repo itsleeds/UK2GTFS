@@ -103,22 +103,18 @@ rail network using ATOC CIF files.</p>
 <div class="section level2">
 <h2 id="getting-data">Getting Data<a class="anchor" aria-label="anchor" href="#getting-data"></a>
 </h2>
-<p>Data for train timetables can be downloaded from the Rail Data
-Portal.</p>
+<p>Data for train timetables can be downloaded from the <a href="https://opendata.nationalrail.co.uk/" class="external-link">Rail Data Portal</a>.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/itsleeds/uk2gtfs" class="external-link">UK2GTFS</a></span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## Your UK2GTFS data is up to date</span></span></code></pre>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/nrdp_timetable.html">nrdp_timetable</a></span><span class="op">(</span><span class="st">"myfolder/timetable.zip"</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## Failed to download the file. Status code: 401</span></span></code></pre>
-<p>Note that you need a free account with the Rail Data Portal. Any you
-need to set the <code>NRDP_username</code> and
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/itsleeds/uk2gtfs" class="external-link">UK2GTFS</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/nrdp_timetable.html">nrdp_timetable</a></span><span class="op">(</span><span class="st">"myfolder/timetable.zip"</span><span class="op">)</span></span></code></pre></div>
+<p>Note that you need to register a free account with the Rail Data
+Portal. Any you need to set the <code>NRDP_username</code> and
 <code>NRDP_password</code> values in in your <code>.Renviron</code>
 file. You can use <code>usethis::edit_r_environ()</code> to easily
 access your <code>.Renviron</code> file. Remember to restart R after
 updating the file.</p>
 <p>You can also use the <code><a href="../reference/nrdp_fares.html">nrdp_fares()</a></code> and
-<code><a href="../reference/nrdp_routing.html">nrdp_routing()</a></code> functions to download addtional data.</p>
+<code><a href="../reference/nrdp_routing.html">nrdp_routing()</a></code> functions to download additional data.</p>
 </div>
 <div class="section level2">
 <h2 id="converting-atoc-data-to-gtfs">Converting ATOC Data to GTFS<a class="anchor" aria-label="anchor" href="#converting-atoc-data-to-gtfs"></a>
@@ -137,18 +133,18 @@ this comes a zipped folder with a name like
 speed up the processing. Always leave one spare core for your OS.</li>
 </ul>
 <p>A simple example is shown below:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">path_in</span> <span class="op">&lt;-</span> <span class="st">"myfolder/timetable.zip"</span></span>
 <span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atoc2gtfs.html">atoc2gtfs</a></span><span class="op">(</span>path_in <span class="op">=</span> <span class="va">path_in</span>,</span>
 <span>          ncores <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
 <p>Once the conversion has been completed, you can save the GTFS
 file.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, </span>
 <span>           folder <span class="op">=</span> <span class="st">"C:/GTFS"</span>,</span>
-<span>           name <span class="op">=</span> <span class="st">"gtfs_ttis627"</span><span class="op">)</span></span></code></pre></div>
+<span>           name <span class="op">=</span> <span class="st">"gtfs_rail"</span><span class="op">)</span></span></code></pre></div>
 <p>This will save the GTFS file to
-<code>C:/GTFS/gtfs_ttis627.zip</code></p>
+<code>C:/GTFS/gtfs_rail.zip</code></p>
 </div>
 <div class="section level2">
 <h2 id="alternative-data-sources">Alternative Data Sources<a class="anchor" aria-label="anchor" href="#alternative-data-sources"></a>
@@ -187,11 +183,16 @@ the following functions:</p>
 <h3 id="tiploc-locations">TIPLOC Locations<a class="anchor" aria-label="anchor" href="#tiploc-locations"></a>
 </h3>
 <p>The timetable data refers to locations such as stations, junctions,
-etc using a TIPLOC id. The locations of these are stored in the
+etc. using a TIPLOC id. The locations of these are stored in the
 <code>.msn</code> file, but are not always accurate. Therefore the
 package comes with a <code>tiplocs</code> object which includes improved
-location data for TIPLOCS.</p>
-<p>IF you wanted to build using the locations included in the ATOC data,
+<a href="https://github.com/itsleeds/UK2GTFS-data/blob/main/data/raw/tiplocs.csv" class="external-link">location
+data for TIPLOCS</a>.</p>
+<p>The additional locations and other additional data are managed by the
+<a href="https://github.com/itsleeds/UK2GTFS-data" class="external-link">UK2GTFS-data</a>
+repo. Contributions of new or improved locations are welcome via pull
+request.</p>
+<p>If you wanted to build using the locations included in the ATOC data,
 then you can use <code>locations = "file"</code> in
 <code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code> or manually build the stops using
 <code><a href="../reference/station2stops.html">station2stops()</a></code>.</p>
@@ -200,8 +201,9 @@ then you can use <code>locations = "file"</code> in
 <h3 id="agency">Agency<a class="anchor" aria-label="anchor" href="#agency"></a>
 </h3>
 <p>The data required to create the GTFS <code>agency.txt</code> file is
-not present in the ATOC CIF files. Therefore the package contains an
-example file instead.</p>
+not present in the ATOC CIF files. Therefore the package contains an <a href="https://github.com/itsleeds/UK2GTFS-data/blob/main/data/raw/atoc_agency.csv" class="external-link">example
+file</a> instead. Contributions to this file are welcome via pull
+request.</p>
 </div>
 </div>
   </div>
