@@ -99,6 +99,7 @@ importFLF <- function(file) {
                   table[seq(3,nrow(table),by = 3),])
     table[[1]] <- paste0(table[[1]], " ", table[[2]])
     names(table) = c("Type","del1","Mode","del2","from","del3","to","del4","time","units","del5","del6")
+    table$time = as.numeric(table$time)
 
   } else {
     # Bind together a few columns

@@ -423,7 +423,6 @@ expandAllWeeks <- function( cal )
     #nothing to do
     return (cal)
   }
-
   #duration <- cal$end_date - cal$start_date + 1
   #make a list of dates for each object being replicated
   startDayNum = local_lubridate_wday( cal$start_date, label = FALSE, week_start=1L )
@@ -441,7 +440,7 @@ expandAllWeeks <- function( cal )
   endDays <- rep(endDayLogical, times = numWeeks)
   endDates <- dateSequence[ unlist(endDays) ]
   #replicate the calendar rows the appropriate number of times
-  replicatedcal <- cal[rep(seq_len(nrow(cal)), times = numWeeks)]
+  replicatedcal <- cal[rep(seq_len(nrow(cal)), times = numWeeks),]
   #set the start and end date for each calender item
   replicatedcal$start_date <- startDates
   replicatedcal$end_date <- endDates
@@ -823,7 +822,6 @@ makeCalendarInner <- function(calendarSub) {
 #
 makeCalendarForDifferentDayPatterns <- function( calendar, uniqueDayPatterns )
 {
-
   baseType = max(calendar$STP)
   baseTimetables =  calendar[calendar$STP == baseType,]
   overlayTimetables =  calendar[calendar$STP != baseType,]
@@ -843,6 +841,7 @@ makeCalendarForDifferentDayPatterns <- function( calendar, uniqueDayPatterns )
     if(inherits(continiousOverlays,"try-error")){
       warning("Failed at expandAllWeeks")
     }
+
     overlayTimetables =  data.table::rbindlist( list(continiousOverlays,gappyOverlays), use.names=TRUE, fill = TRUE)
 
   }
@@ -858,12 +857,10 @@ makeCalendarForDifferentDayPatterns <- function( calendar, uniqueDayPatterns )
 
     if (nrow(theseOverlays) <= 0L)
     {
-
       splits[[k]] <- appendNumberSuffix( appendLetterSuffix( theseBases ), k )
     }
     else
     {
-
       timetablesForThisPattern = data.table::rbindlist( list( theseBases, theseOverlays ), use.names=TRUE, fill = TRUE)
 
       #performance pre-sort all the entries by the priority
