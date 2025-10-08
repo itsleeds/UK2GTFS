@@ -13,16 +13,16 @@ This vignette outlines how to produce GTFS timetables for the heavy rail network
 
 ## Getting Data
 
-Data for train timetables can be downloaded from the Rail Data Portal.
+Data for train timetables can be downloaded from the [Rail Data Portal](https://opendata.nationalrail.co.uk/).
 
-```{r download}
+```{r download, eval=FALSE}
 library(UK2GTFS)
 nrdp_timetable("myfolder/timetable.zip")
 ```
 
-Note that you need a free account with the Rail Data Portal. Any you need to set the `NRDP_username` and `NRDP_password` values in in your `.Renviron` file. You can use `usethis::edit_r_environ()` to easily access your `.Renviron` file. Remember to restart R after updating the file.
+Note that you need to register a free account with the Rail Data Portal. Any you need to set the `NRDP_username` and `NRDP_password` values in in your `.Renviron` file. You can use `usethis::edit_r_environ()` to easily access your `.Renviron` file. Remember to restart R after updating the file.
 
-You can also use the `nrdp_fares()` and `nrdp_routing()` functions to download addtional data. 
+You can also use the `nrdp_fares()` and `nrdp_routing()` functions to download additional data. 
 
 ## Converting ATOC Data to GTFS
 
@@ -45,11 +45,11 @@ Once the conversion has been completed, you can save the GTFS file.
 ```{r atoc_example2, eval=FALSE}
 gtfs_write(gtfs, 
            folder = "C:/GTFS",
-           name = "gtfs_ttis627")
+           name = "gtfs_rail")
 
 ```
 
-This will save the GTFS file to `C:/GTFS/gtfs_ttis627.zip`
+This will save the GTFS file to `C:/GTFS/gtfs_rail.zip`
 
 ## Alternative Data Sources
 
@@ -72,11 +72,13 @@ Other files are currently ignored.
 
 ### TIPLOC Locations
 
-The timetable data refers to locations such as stations, junctions, etc using a TIPLOC id. The locations of these are stored in the `.msn` file, but are not always accurate. Therefore the package comes with a `tiplocs` object which includes improved location data for TIPLOCS.
+The timetable data refers to locations such as stations, junctions, etc. using a TIPLOC id. The locations of these are stored in the `.msn` file, but are not always accurate. Therefore the package comes with a `tiplocs` object which includes improved [location data for TIPLOCS](https://github.com/itsleeds/UK2GTFS-data/blob/main/data/raw/tiplocs.csv).
 
-IF you wanted to build using the locations included in the ATOC data, then you can use `locations = "file"` in `atoc2gtfs()` or manually build the stops using `station2stops()`.
+The additional locations and other additional data are managed by the [UK2GTFS-data](https://github.com/itsleeds/UK2GTFS-data) repo. Contributions of new or improved locations are welcome via pull request.
+
+If you wanted to build using the locations included in the ATOC data, then you can use `locations = "file"` in `atoc2gtfs()` or manually build the stops using `station2stops()`.
 
 
 ### Agency 
 
-The data required to create the GTFS `agency.txt` file is not present in the ATOC CIF files. Therefore the package contains an example file instead.
+The data required to create the GTFS `agency.txt` file is not present in the ATOC CIF files. Therefore the package contains an [example file](https://github.com/itsleeds/UK2GTFS-data/blob/main/data/raw/atoc_agency.csv) instead. Contributions to this file are welcome via pull request.

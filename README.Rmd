@@ -22,11 +22,11 @@ UK2GTFS is an R package to convert and work with train, tram, bus, ferry, and me
 
 ## Introduction
 
-The UK has two main sources of public transport timetable data [**Traveline**](https://www.travelinedata.org.uk/) publishes data on buses and light rail and [**ATOC**](http://data.atoc.org/rail-industry-data) publishes data on heavy rail. Each uses a data format that is unique to that organisation and both formats are old and difficult to use.  Many countries have adopted the [GTFS](https://developers.google.com/transit/gtfs/) format which was developed by Google as a simple standard for publishing timetable data. Due to the wide-spread adoption of GTFS many useful tools have been developed that accept GTFS files as inputs. This package is intended to make the conversion of UK data to the GTFS format simple and easy.
+The UK has two main sources of public transport timetable data [**Traveline**](https://www.travelinedata.org.uk/) publishes data on buses and light rail and [**National Rail**](https://opendata.nationalrail.co.uk/) publishes data on heavy rail. Each uses a data format that is unique to that organisation and both formats are old and difficult to use.  Many countries have adopted the [GTFS](https://developers.google.com/transit/gtfs/) format which was developed by Google as a simple standard for publishing timetable data. Due to the wide-spread adoption of GTFS many useful tools have been developed that accept GTFS files as inputs. This package is intended to make the conversion of UK data to the GTFS format simple and easy.
 
 **Update November 2020**
 
-The [Open Bus Data Service](https://data.bus-data.dft.gov.uk/downloads/) now offers a national GTFS download option based on [ITO World's](https://www.itoworld.com) TransXchange to GTFS converter. These include bus an light rail but not heavy rail timetables. For non-expert users it will probably be easier to download there files. However this packages is still being maintained to support conversion of historical files, and because the conversion of TransXchange to GTFS is open to interpretation and having alternative converters is useful.
+The [Open Bus Data Service](https://data.bus-data.dft.gov.uk/downloads/) now offers a national GTFS download option based on [ITO World's](https://www.itoworld.com) TransXchange to GTFS converter. These include bus and light rail but not heavy rail timetables. For non-expert users it will probably be easier to download there files. However this packages is still being maintained to support conversion of historical files, and because the conversion of TransXchange to GTFS is open to interpretation and having alternative converters is useful.
 
 ## Capabilities - why we need another package
 
