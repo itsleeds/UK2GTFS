@@ -12,7 +12,7 @@ nrdp_fares(
 )
 }
 \arguments{
-\item{destfile}{Detestation and name of the zip file}
+\item{destfile}{Destination path and name of the zip file}
 
 \item{username}{your username}
 

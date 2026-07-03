@@ -40,6 +40,11 @@ any missing tiplocs against the main file and add them.(default TRUE)}
 
 \item{public_only}{Logical, only return calls/services that are for public passenger pickup/set down (default TRUE)}
 }
+\value{
+A gtfs object: a named list of data frames representing the tables
+  of a GTFS file (agency, stops, routes, trips, stop_times, calendar,
+  calendar_dates, and optionally transfers)
+}
 \description{
 Convert ATOC CIF files to GTFS
 }

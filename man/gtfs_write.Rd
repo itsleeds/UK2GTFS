@@ -21,13 +21,13 @@ gtfs_write(
 
 \item{name}{the name of the zip file without the .zip extension, default "gtfs"}
 
-\item{stripComma}{logical, should commas be stripped from text, default = TRUE}
+\item{stripComma}{logical, should commas be stripped from text, default = FALSE}
 
-\item{stripTab}{logical, should tab be stripped from text, default = TRUE}
+\item{stripTab}{logical, should tabs be stripped from text, default = FALSE}
 
-\item{stripNewline}{logical, should newline tag be stripped from text, default = TRUE}
+\item{stripNewline}{logical, should newlines be stripped from text, default = FALSE}
 
-\item{quote}{logical, should strings be quoted, default = FALSE, passed to data.table::fwrite}
+\item{quote}{logical, should strings be quoted, default = TRUE, passed to data.table::fwrite}
 }
 \description{
 Takes a list of data frames representing the GTFS format and saves them as GTFS

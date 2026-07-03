@@ -18,7 +18,7 @@ nr2gtfs(
 \arguments{
 \item{path_in}{Character, path to Network Rail ATOC file e.g."C:/input/toc-full.CIF.gz"}
 
-\item{silent}{Logical, should progress messages be surpressed (default TRUE)}
+\item{silent}{Logical, should progress messages be suppressed (default TRUE)}
 
 \item{ncores}{Numeric, When parallel processing how many cores to use
 (default 1)}
