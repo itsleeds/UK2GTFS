@@ -77,8 +77,9 @@ check_data <- function( timeout = 60, default_tag = "v0.1.2"){
   # Try not to hammer the API
   Sys.sleep(5)
   # Check date on data repo
-  res = try(httr::GET("https://api.github.com/repos/ITSleeds/UK2GTFS-data/releases", httr::timeout(get("timeout")),
-            silent = TRUE ))
+  res = try(httr::GET("https://api.github.com/repos/ITSleeds/UK2GTFS-data/releases",
+                      httr::timeout(timeout)),
+            silent = TRUE)
   if(inherits(res, "try-error")){
     message("Unable to check for latest data")
     date = Sys.time()
