@@ -2,6 +2,7 @@
 #'
 #' Does some basic checks on the validity of the GTFS object
 #' @param gtfs a gtfs object
+#' @return Invisibly returns NULL, called for its printed messages
 #' @export
 
 gtfs_validate_internal <- function(gtfs) {
@@ -20,7 +21,7 @@ gtfs_validate_internal <- function(gtfs) {
     message("No rows in trips")
   }
   if (nrow(gtfs$stop_times) < 1) {
-    message("No rows in warning_times")
+    message("No rows in stop_times")
   }
   if (nrow(gtfs$calendar) < 1) {
     message("No rows in calendar")
@@ -242,6 +243,7 @@ gtfs_validate_external <- function(path_gtfs, path_validator) {
 #' 6. Remove Calendar that have service_id that doesn't exist in trips
 #' 7. Remove Calendar_dates that have service_id that doesn't exist in trips
 #'
+#' @return a gtfs object
 #' @export
 gtfs_force_valid <- function(gtfs) {
   message("This function does not fix problems it just removes them")
