@@ -24,7 +24,7 @@ nrdp_authenticate = function(username = Sys.getenv("NRDP_username"),
 #' Download Timetable from National Rail Data Portal
 #'
 #' Downloads ATOC CIF timetables from https://opendata.nationalrail.co.uk
-#' @param destfile Detestation and name of the zip file
+#' @param destfile Destination path and name of the zip file
 #' @param username your username
 #' @param password your password
 #' @param url URL of data source
@@ -59,7 +59,7 @@ nrdp_timetable = function(destfile = "timetable.zip",
 #' Download Fares  from National Rail Data Portal
 #'
 #' Downloads fares from https://opendata.nationalrail.co.uk
-#' @param destfile Detestation and name of the zip file
+#' @param destfile Destination path and name of the zip file
 #' @param username your username
 #' @param password your password
 #' @param url URL of data source
@@ -95,7 +95,7 @@ nrdp_fares = function(destfile = "fares.zip",
 #' Download routing  from National Rail Data Portal
 #'
 #' Downloads routing from https://opendata.nationalrail.co.uk
-#' @param destfile Detestation and name of the zip file
+#' @param destfile Destination path and name of the zip file
 #' @param username your username
 #' @param password your password
 #' @param url URL of data source
