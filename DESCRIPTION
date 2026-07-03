@@ -1,6 +1,6 @@
 Package: UK2GTFS
 Type: Package
-Title: Converts UK transport timetable datasets to GTFS format
+Title: Convert UK Transport Timetable Datasets to GTFS Format
 Version: 0.3.0
 Authors@R: c(
     person("Malcolm", "Morgan", email = "m.morgan1@leeds.ac.uk", role = c("aut","cre"), 
@@ -10,11 +10,18 @@ Authors@R: c(
       comment = c(ORCID = "0009-0008-0595-3042"))
     )
 Maintainer: Malcolm Morgan <m.morgan1@leeds.ac.uk>
-Description: The UK uses a range of odd formats to store timetable data, this package converts them to the nice GTFS format.
+Description: Convert transport timetable data from the formats used in
+    the United Kingdom to the General Transit Feed Specification ('GTFS')
+    format. Supports the Common Interface File ('CIF') format used by the
+    Rail Delivery Group and Network Rail for heavy and light rail
+    timetables, 'TransXChange' XML files used for bus, coach, and ferry
+    timetables, and the historic National Public Transport Data
+    Repository ('NPTDR') archives. Also provides utilities for reading,
+    writing, cleaning, subsetting, and merging 'GTFS' files.
 Depends: R (>= 3.5)
 Language: EN-GB
 License: GPL-3
-URL: https://github.com/itsleeds/uk2gtfs, https://itsleeds.git.io/uk2gtfs/
+URL: https://github.com/itsleeds/uk2gtfs, https://itsleeds.github.io/UK2GTFS/
 BugReports: https://github.com/itsleeds/uk2gtfs/issues
 Encoding: UTF-8
 LazyData: true
@@ -40,12 +47,12 @@ Imports:
   stats,
   tidyr,
   xml2,
-  zip,
-Suggests: 
+  zip
+Suggests:
     cli,
     covr,
     knitr,
     rmarkdown,
     testthat
 VignetteBuilder: knitr
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
