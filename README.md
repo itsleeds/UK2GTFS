@@ -38,7 +38,7 @@ The [Open Bus Data Service](https://data.bus-data.dft.gov.uk/downloads/)
 now offers a national GTFS download option based on [ITO
 World’s](https://www.itoworld.com) TransXchange to GTFS converter. These
 include bus and light rail but not heavy rail timetables. For non-expert
-users it will probably be easier to download there files. However this
+users it will probably be easier to download these files. However this
 packages is still being maintained to support conversion of historical
 files, and because the conversion of TransXchange to GTFS is open to
 interpretation and having alternative converters is useful.
