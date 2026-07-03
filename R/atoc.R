@@ -14,6 +14,9 @@
 #'   any missing tiplocs against the main file and add them.(default TRUE)
 #' @param working_timetable Logical, should WTT times be used instead of public times (default FALSE)
 #' @param public_only Logical, only return calls/services that are for public passenger pickup/set down (default TRUE)
+#' @return A gtfs object: a named list of data frames representing the tables
+#'   of a GTFS file (agency, stops, routes, trips, stop_times, calendar,
+#'   calendar_dates, and optionally transfers)
 #' @family main
 #'
 #' @details Locations
@@ -75,13 +78,15 @@ atoc2gtfs <- function(path_in,
   }
 
   # Is input a zip or a folder
-  if (grepl(".zip", path_in)) {
-    # Unzip
-    files <- utils::unzip(path_in, exdir = "tmp")
-    cleanup <- TRUE
+  if (grepl("\\.zip$", path_in, ignore.case = TRUE)) {
+    # Unzip to a temporary folder
+    exdir <- file.path(tempdir(), "uk2gtfs_atoc")
+    unlink(exdir, recursive = TRUE)
+    dir.create(exdir)
+    files <- utils::unzip(path_in, exdir = exdir)
+    on.exit(unlink(exdir, recursive = TRUE), add = TRUE)
   } else {
     # folder
-    cleanup <- FALSE
     files <- list.files(path_in, full.names = TRUE)
   }
 
