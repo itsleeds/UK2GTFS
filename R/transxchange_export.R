@@ -279,7 +279,7 @@ transxchange_export <- function(obj,
   routes$route_short_name <- gsub("Park & Ride", "P&R", routes$route_short_name)
   routes$route_short_name <- gsub("Road", "Rd", routes$route_short_name)
   routes$route_short_name <- gsub("Connecting Communities ", "", routes$route_short_name)
-  routes$route_short_name <- gsub("|the busway", "", routes$route_short_name)
+  routes$route_short_name <- gsub("the busway", "", routes$route_short_name, ignore.case = TRUE)
   routes$route_short_name <- ifelse(nchar(routes$route_short_name) > 6, gsub(" ", "", routes$route_short_name), routes$route_short_name)
   routes$route_short_name[nchar(routes$route_short_name) > 6] <- "" # Remove long names to pass validation check
 
@@ -310,11 +310,9 @@ transxchange_export <- function(obj,
     if (is.null(Operators$TradingName)) {
       agency_name <- Operators$OperatorShortName
     } else {
-      if (is.na(Operators$TradingName)) {
-        agency_name <- Operators$OperatorShortName
-      } else {
-        agency_name <- Operators$TradingName
-      }
+      agency_name <- ifelse(is.na(Operators$TradingName),
+                            Operators$OperatorShortName,
+                            Operators$TradingName)
     }
   }
 
