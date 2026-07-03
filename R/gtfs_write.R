@@ -6,10 +6,11 @@
 #' @param gtfs named list of data.frames
 #' @param folder folder to save the gtfs file to
 #' @param name the name of the zip file without the .zip extension, default "gtfs"
-#' @param stripComma logical, should commas be stripped from text, default = TRUE
-#' @param stripTab logical, should tab be stripped from text, default = TRUE
-#' @param stripNewline logical, should newline tag be stripped from text, default = TRUE
-#' @param quote logical, should strings be quoted, default = FALSE, passed to data.table::fwrite
+#' @param stripComma logical, should commas be stripped from text, default = FALSE
+#' @param stripTab logical, should tabs be stripped from text, default = FALSE
+#' @param stripNewline logical, should newlines be stripped from text, default = FALSE
+#' @param quote logical, should strings be quoted, default = TRUE, passed to data.table::fwrite
+#' @return Invisibly returns NULL, called for the side effect of writing a zip file
 #' @export
 #'
 gtfs_write <- function(gtfs,
@@ -56,6 +57,9 @@ gtfs_write <- function(gtfs,
     }
   }
 
+  # remove any stale files from a previous write before creating the folder,
+  # otherwise they would be included in the new zip
+  unlink(paste0(tempdir(), "/gtfs_temp"), recursive = TRUE)
   dir.create(paste0(tempdir(), "/gtfs_temp"))
 
   for ( tableName in names(gtfs) )
