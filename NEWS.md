@@ -1,4 +1,4 @@
-# UK2GTFS 0.3.0
+# UK2GTFS 0.4.0
 
 ## New features
 

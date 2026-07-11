@@ -1,7 +1,7 @@
 Package: UK2GTFS
 Type: Package
 Title: Convert UK Transport Timetable Datasets to GTFS Format
-Version: 0.3.0
+Version: 0.4.0
 Authors@R: c(
     person("Malcolm", "Morgan", email = "m.morgan1@leeds.ac.uk", role = c("aut","cre","cph"),
       comment = c(ORCID = "0000-0002-9488-9183")),
