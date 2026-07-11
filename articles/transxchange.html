@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TransXchange - Bus, Tram, and Tube Timetables • UK2GTFS</title>
+<title>TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry • UK2GTFS</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="48x48" href="../favicon-48x48.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <script src="../bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
 <!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- pkgdown --><link href="../pkgdown.css" rel="stylesheet">
-<script src="../pkgdown.js"></script><meta property="og:title" content="TransXchange - Bus, Tram, and Tube Timetables">
+<script src="../pkgdown.js"></script><meta property="og:title" content="TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
 <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
@@ -37,7 +37,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">UK2GTFS</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
       </span>
     </div>
 
@@ -54,15 +54,24 @@
   </a>
   <ul class="dropdown-menu" role="menu">
 <li>
-      <a href="../articles/ATOC.html">ATOC - Train Timetables</a>
+      <a href="../articles/ATOC.html">Heavy Rail CIF to GTFS - Train Timetables</a>
     </li>
     <li>
-      <a href="../articles/GTFS.html">GTFS Functions</a>
+      <a href="../articles/Fares.html">Adding Fares - NeTEx to GTFS (v1 and v2)</a>
     </li>
     <li>
-      <a href="../articles/transxchange.html">TransXchange - Bus, Tram, and Tube Timetables</a>
+      <a href="../articles/GTFS.html">Working with GTFS files - Cleaning, Manipulating and Analysing</a>
+    </li>
+    <li>
+      <a href="../articles/NPTDR.html">NPTDR to GTFS - Historic Timetables</a>
+    </li>
+    <li>
+      <a href="../articles/transxchange.html">TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry</a>
     </li>
   </ul>
+</li>
+<li>
+  <a href="../news/index.html">Changelog</a>
 </li>
       </ul>
 <ul class="nav navbar-nav navbar-right">
@@ -85,12 +94,12 @@
       </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
-      <h1 data-toc-skip>TransXchange - Bus, Tram, and Tube
-Timetables</h1>
+      <h1 data-toc-skip>TransXChange to GTFS - Bus, Coach, Tram, Metro
+and Ferry</h1>
                         <h4 data-toc-skip class="author">Malcolm
 Morgan</h4>
             
-            <h4 data-toc-skip class="date">2025-10-08</h4>
+            <h4 data-toc-skip class="date">2026-07-11</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/itsleeds/uk2gtfs/blob/master/vignettes/transxchange.Rmd" class="external-link"><code>vignettes/transxchange.Rmd</code></a></small>
       <div class="hidden name"><code>transxchange.Rmd</code></div>
@@ -99,76 +108,286 @@ Morgan</h4>
 
     
     
-<p>This vignette outlines how to produce GTFS timetables for buses and
-light rail network using TransXchange files.</p>
-<p>Note that GTFS data is now published for buses in Great Britain at <a href="https://data.bus-data.dft.gov.uk/timetable/download/" class="external-link">Open Bus
-Data</a>. UK2GTFS benefits from additional data checks and also
-including non-bus modes such as tram, underground, and boats.</p>
+<p>This vignette explains how to convert <strong>TransXChange</strong>
+timetables into <a href="https://gtfs.org/" class="external-link">GTFS</a>, the difference
+between the two main sources of TransXChange data (Traveline and the Bus
+Open Data Service), and the pitfalls to watch out for.</p>
 <div class="section level2">
-<h2 id="transxchange-data---for-bus-tram-and-metro">TransXchange Data - for bus, tram, and metro<a class="anchor" aria-label="anchor" href="#transxchange-data---for-bus-tram-and-metro"></a>
+<h2 id="background-what-is-transxchange">Background: what is TransXChange?<a class="anchor" aria-label="anchor" href="#background-what-is-transxchange"></a>
 </h2>
-<p>TransXchange data can be downloaded from <a href="https://www.travelinedata.org.uk/traveline-open-data/data-reporting/" class="external-link">Traveline</a>
-you will need to apply for free access to the FTP sever to download the
-data.</p>
-<p>The data comes as zipped folders for different regions of Great
-Britain.</p>
+<p>TransXChange (often abbreviated <em>TXC</em>) is the UK Department
+for Transport’s XML standard for describing bus, coach, tram, metro and
+ferry timetables. It is the format that operators must use to register
+services with the Traffic Commissioners, so almost every scheduled
+road-based service in Great Britain is described in TransXChange at some
+point in its life.</p>
+<p>Because it was designed for <em>registration</em> rather than for
+<em>journey planning</em> it has some awkward properties:</p>
+<ul>
+<li>It is verbose XML. A single medium-sized operator can run to tens of
+thousands of files.</li>
+<li>One file describes one <em>service</em>, and the same real-world
+journey is often spread across many files (and re-uploaded every time
+the timetable changes - see <a href="#duplicate-and-superseded-files">Duplicate and superseded
+files</a> below).</li>
+<li>
+<strong>It does not contain stop coordinates.</strong> Stops are
+referenced only by their ATCO code, and you must look the location up in
+the separate NaPTAN database (see <a href="#stop-locations---the-naptan">Stop locations - the
+NaPTAN</a>).</li>
+<li>Operating patterns are described with rules (“every weekday except
+bank holidays”) rather than explicit dates, so a calendar has to be
+computed.</li>
+</ul>
+<p>GTFS, by contrast, is a flat set of CSV files designed to be consumed
+directly by journey planners such as <a href="https://www.opentripplanner.org/" class="external-link">OpenTripPlanner</a>, <a href="https://github.com/conveyal/r5" class="external-link">R5</a> and Google Maps. Converting
+TransXChange to GTFS makes the data usable by that wide ecosystem of
+tools.</p>
 </div>
 <div class="section level2">
-<h2 id="converting-transxchange-to-gtfs">Converting TransXchange to GTFS<a class="anchor" aria-label="anchor" href="#converting-transxchange-to-gtfs"></a>
+<h2 id="where-to-get-transxchange-data">Where to get TransXChange data<a class="anchor" aria-label="anchor" href="#where-to-get-transxchange-data"></a>
 </h2>
-<p>To do a simple conversion to GTFS, load the package, and use the
-<code><a href="../reference/transxchange2gtfs.html">transxchange2gtfs()</a></code> function. The function requires the
-following arguments.</p>
+<p>There are two national sources. They contain broadly the same
+underlying registrations but differ in packaging, freshness and
+coverage.</p>
+<div class="section level3">
+<h3 id="traveline-national-dataset-tnds">1. Traveline National Dataset (TNDS)<a class="anchor" aria-label="anchor" href="#traveline-national-dataset-tnds"></a>
+</h3>
+<p><a href="https://www.travelinedata.org.uk/traveline-open-data/data-reporting/" class="external-link">Traveline</a>
+publishes the <em>Traveline National Dataset</em> (TNDS). You must apply
+for free access to their FTP server. The data arrives as zipped folders,
+one per region of Great Britain (for example <code>EA.zip</code> for
+East Anglia, <code>S.zip</code> for Scotland).</p>
 <ul>
 <li>
-<code>path_in</code> is the file path to either a single zip folder
-or many XML files</li>
+<strong>Pros:</strong> organised cleanly by region; includes coach,
+some ferry and light rail; a long-established, relatively stable
+feed.</li>
 <li>
-<code>ncores</code> If &gt; 1 then multicore processing is used to
-speed up the processing. Always leave one spare core for your OS.</li>
-<li>
-<code>try_mode</code> if TRUE file that can’t be converted are
-skipped</li>
+<strong>Cons:</strong> each region is a separate download; updated
+less frequently than BODS; being progressively superseded by BODS as the
+DfT’s preferred source.</li>
 </ul>
-<p>A simple example is shown below:</p>
+</div>
+<div class="section level3">
+<h3 id="bus-open-data-service-bods">2. Bus Open Data Service (BODS)<a class="anchor" aria-label="anchor" href="#bus-open-data-service-bods"></a>
+</h3>
+<p>The <a href="https://data.bus-data.dft.gov.uk/" class="external-link">Bus Open Data
+Service</a> (BODS) is the DfT’s newer, statutory feed. Since 2020 bus
+operators in England are legally required to publish their timetables
+here, so it is the most complete and up-to-date source for English
+buses. You can download TransXChange directly, or download a ready-made
+national <strong>GTFS</strong> file produced by <a href="https://www.itoworld.com" class="external-link">ITO World’s</a> own converter.</p>
+<ul>
+<li>
+<strong>Pros:</strong> most current data; legally mandated so very
+complete for England; offers a ready-made GTFS download.</li>
+<li>
+<strong>Cons:</strong> English buses only (Scotland and Wales still
+rely on TNDS for full coverage); the bulk “change” archives accumulate
+<strong>many superseded versions of the same service</strong>, which
+will inflate trip counts if converted naively (see below); tram, metro
+and ferry are patchy.</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="which-should-i-use">Which should I use?<a class="anchor" aria-label="anchor" href="#which-should-i-use"></a>
+</h3>
+<ul>
+<li>If you just want current <strong>English bus</strong> GTFS and are
+not fussy about the details of conversion, download the ready-made GTFS
+from BODS - it is the least effort.</li>
+<li>If you need <strong>tram, metro, ferry or coach</strong>, need
+<strong>Scotland or Wales</strong>, want a second independent conversion
+for comparison, or need <strong>historical</strong> timetables, use
+<code>UK2GTFS</code>. The package adds extra data checks and supports
+the non-bus modes that the ready-made BODS GTFS omits.</li>
+</ul>
+</div>
+</div>
+<div class="section level2">
+<h2 id="converting-transxchange-to-gtfs">Converting TransXChange to GTFS<a class="anchor" aria-label="anchor" href="#converting-transxchange-to-gtfs"></a>
+</h2>
+<p>The workhorse is <code><a href="../reference/transxchange2gtfs.html">transxchange2gtfs()</a></code>. In its simplest
+form:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/itsleeds/uk2gtfs" class="external-link">UK2GTFS</a></span><span class="op">)</span></span>
-<span><span class="va">path_in</span> <span class="op">&lt;-</span> <span class="st">"EA.zip"</span></span>
-<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/transxchange2gtfs.html">transxchange2gtfs</a></span><span class="op">(</span>path_in <span class="op">=</span> <span class="va">path_in</span>,</span>
-<span>          ncores <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
-<p>Once the conversion has been completed, you can save the GTFS
-file.</p>
+<span></span>
+<span><span class="va">path_in</span> <span class="op">&lt;-</span> <span class="st">"EA.zip"</span> <span class="co"># a TNDS region zip, or a folder of .xml files</span></span>
+<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/transxchange2gtfs.html">transxchange2gtfs</a></span><span class="op">(</span>path_in <span class="op">=</span> <span class="va">path_in</span>, ncores <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
+<p>Key arguments:</p>
+<ul>
+<li>
+<code>path_in</code> - a single zip folder, or a character vector of
+paths to <code>.xml</code> files.</li>
+<li>
+<code>ncores</code> - if <code>&gt; 1</code>, multi-core processing
+is used to speed things up. Always leave one core free for the operating
+system.</li>
+<li>
+<code>try_mode</code> - if <code>TRUE</code> (the default) files
+that fail to convert are skipped rather than aborting the whole run.
+This is robust, but be aware the result may be missing some routes -
+check the messages.</li>
+<li>
+<code>cal</code> / <code>naptan</code> - the bank-holiday calendar
+and stop locations. By default these are fetched for you with
+<code><a href="../reference/get_bank_holidays.html">get_bank_holidays()</a></code> and <code><a href="../reference/get_naptan.html">get_naptan()</a></code>. If you
+are converting many files it is much faster to fetch them once and pass
+them in (see below).</li>
+<li>
+<code>scotland</code> - <code>"auto"</code>, <code>"yes"</code> or
+<code>"no"</code>. Controls whether Scottish bank holidays are used.
+<code>"auto"</code> treats a file ending in <code>S.zip</code> as
+Scottish.</li>
+<li>
+<code>filter_duplicate_files</code> - see <a href="#duplicate-and-superseded-files">Duplicate and superseded
+files</a>.</li>
+</ul>
+<p>Once converted, save the GTFS to disk:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, </span>
-<span>           folder <span class="op">=</span> <span class="st">"C:/GTFS"</span>,</span>
-<span>           name <span class="op">=</span> <span class="st">"gtfs_EA"</span><span class="op">)</span></span></code></pre></div>
-<p>This will save the GTFS file to <code>C:/GTFS/gtfs_EA.zip</code></p>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, folder <span class="op">=</span> <span class="st">"C:/GTFS"</span>, name <span class="op">=</span> <span class="st">"gtfs_EA"</span><span class="op">)</span></span></code></pre></div>
+<p>This writes <code>C:/GTFS/gtfs_EA.zip</code>.</p>
+<div class="section level3">
+<h3 id="converting-many-regions-efficiently">Converting many regions efficiently<a class="anchor" aria-label="anchor" href="#converting-many-regions-efficiently"></a>
+</h3>
+<p><code><a href="../reference/get_naptan.html">get_naptan()</a></code> and <code><a href="../reference/get_bank_holidays.html">get_bank_holidays()</a></code>
+download data from the internet. When looping over several regional
+zips, fetch them once and reuse them:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/itsleeds/uk2gtfs" class="external-link">UK2GTFS</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">naptan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get_naptan.html">get_naptan</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">cal</span>    <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get_bank_holidays.html">get_bank_holidays</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">files</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.files</a></span><span class="op">(</span><span class="st">"path/to/tnds"</span>, pattern <span class="op">=</span> <span class="st">"\\.zip$"</span>, full.names <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">f</span> <span class="kw">in</span> <span class="va">files</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/message.html" class="external-link">message</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span></span>
+<span>  <span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/transxchange2gtfs.html">transxchange2gtfs</a></span><span class="op">(</span></span>
+<span>    path_in <span class="op">=</span> <span class="va">f</span>,</span>
+<span>    cal     <span class="op">=</span> <span class="va">cal</span>,</span>
+<span>    naptan  <span class="op">=</span> <span class="va">naptan</span>,</span>
+<span>    ncores  <span class="op">=</span> <span class="fl">3</span></span>
+<span>  <span class="op">)</span></span>
+<span>  <span class="va">name_out</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="st">".zip"</span>, <span class="st">""</span>, <span class="fu"><a href="https://rdrr.io/r/base/basename.html" class="external-link">basename</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, folder <span class="op">=</span> <span class="st">"path/to/output"</span>, name <span class="op">=</span> <span class="va">name_out</span><span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="how-the-conversion-works">How the conversion works<a class="anchor" aria-label="anchor" href="#how-the-conversion-works"></a>
+</h2>
+<p><code><a href="../reference/transxchange2gtfs.html">transxchange2gtfs()</a></code> is a convenience wrapper around
+several lower-level steps, which you can also call individually:</p>
+<ol style="list-style-type: decimal">
+<li>
+<code><a href="../reference/transxchange_import.html">transxchange_import()</a></code> reads each XML file into R data
+frames.</li>
+<li>
+<code>transxchange_export()</code> turns those into a GTFS
+object.</li>
+<li>
+<code><a href="../reference/gtfs_merge.html">gtfs_merge()</a></code> combines the per-file GTFS objects into
+one.</li>
+<li>
+<code><a href="../reference/gtfs_write.html">gtfs_write()</a></code> saves the result.</li>
+</ol>
+<p>Each TransXChange file is converted into its own small GTFS object
+and these are then merged. Understanding this matters because the merge
+is where problems tend to surface.</p>
+</div>
+<div class="section level2">
+<h2 id="stop-locations---the-naptan">Stop locations - the NaPTAN<a class="anchor" aria-label="anchor" href="#stop-locations---the-naptan"></a>
+</h2>
+<p>TransXChange files reference stops only by their ATCO code; they do
+<strong>not</strong> contain coordinates. <code>UK2GTFS</code> therefore
+looks each stop up in the <a href="https://www.gov.uk/government/publications/national-public-transport-access-node-schema" class="external-link">NaPTAN</a>
+(National Public Transport Access Nodes), the DfT’s database of every
+public transport stop in Great Britain.</p>
+<p><code><a href="../reference/get_naptan.html">get_naptan()</a></code> always downloads the latest copy. The
+NaPTAN is not perfect - it misses some stops and has wrong locations for
+others - so <code>UK2GTFS</code> ships two internal correction datasets,
+<code>naptan_missing</code> (stops absent from the NaPTAN) and
+<code>naptan_replace</code> (better coordinates for known-bad stops),
+which are applied automatically. Contributions of new or corrected stops
+are welcome via the <a href="https://github.com/itsleeds/UK2GTFS-data" class="external-link">UK2GTFS-data</a>
+repository.</p>
 </div>
 <div class="section level2">
 <h2 id="merging-problems">Merging problems<a class="anchor" aria-label="anchor" href="#merging-problems"></a>
 </h2>
-<p><code>transxchange2gtfs</code> converts each transXchange file into
-its own GTFS file. Then uses <code>gtfs_merge</code> to combine these
-into a single GTFS file. When this is done checks are performed to make
-sure the merged GTFS is valid. However this can fail. Often due to small
-differences between files such as the Bus operator having two spellings
-of their company name (e.g.<br>
-“Yorkshire Coastliner Ltd” or “Yorkshire Coastliner” ).</p>
-<p>If <code>transxchange2gtfs</code> is unable to merge it will return a
-list of GTFS objects. You can then manually merge using
-<code>gtfs_merge</code> and <code>force = TRUE</code> this is almost
-always ok.</p>
+<p>Because each file is converted separately and then merged, the merge
+can fail on small inconsistencies between files - most commonly when the
+same operator is spelt two different ways (for example
+<code>"Yorkshire Coastliner Ltd"</code> versus
+<code>"Yorkshire Coastliner"</code>), which looks like two agencies
+sharing one ID.</p>
+<p>If <code><a href="../reference/transxchange2gtfs.html">transxchange2gtfs()</a></code> cannot merge cleanly it returns a
+<strong>list</strong> of GTFS objects instead of a single object. You
+can then merge them manually, forcing past the conflict:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_merge.html">gtfs_merge</a></span><span class="op">(</span><span class="va">gtfs_list</span>, force <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<p><code>force = TRUE</code> keeps the first instance of each duplicated
+ID, which is almost always the correct behaviour. You can also set
+<code>force_merge = TRUE</code> in the original
+<code><a href="../reference/transxchange2gtfs.html">transxchange2gtfs()</a></code> call to do this automatically.</p>
 </div>
 <div class="section level2">
-<h2 id="stop-locations---the-naptan">Stop Locations - The NaPTAN<a class="anchor" aria-label="anchor" href="#stop-locations---the-naptan"></a>
+<h2 id="duplicate-and-superseded-files">Duplicate and superseded files<a class="anchor" aria-label="anchor" href="#duplicate-and-superseded-files"></a>
 </h2>
-<p>TransXchange files do not contain the location of stops, so we must
-look them up in the NaPATAN. The NaPTAN is updated regularly so UK2GTFS
-will always download the latest copy using <code><a href="../reference/get_naptan.html">get_naptan()</a></code>.
-However the NaPTAN is not perfect, it misses some stops and has
-incorrect locations for others. UK2GTFS uses two internal files
-<code>naptan_missing</code> and <code>naptan_replace</code> to improve
-the NaPTAN.</p>
+<p>This is the single most important thing to understand when working
+with <strong>bulk archives</strong> (especially the BODS change
+archives).</p>
+<p>Every time an operator revises a timetable they upload a
+<strong>new</strong> TransXChange file for the same
+<code>ServiceCode</code>, but the older, superseded files usually remain
+in the archive and often still declare an open-ended operating period.
+If you convert all of them, the same physical bus journey appears once
+<em>per file version</em>, so counting trips on a given date
+over-estimates service - in one test archive a single route appeared
+five times.</p>
+<p>A normal single download of <em>current</em> data does not have this
+problem (each service appears once), so you only need to worry about
+this for accumulating archives.</p>
+<p>Set <code>filter_duplicate_files = TRUE</code> to keep only the
+operative version of each service:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/transxchange2gtfs.html">transxchange2gtfs</a></span><span class="op">(</span></span>
+<span>  path_in                <span class="op">=</span> <span class="st">"bods_archive.zip"</span>,</span>
+<span>  filter_duplicate_files <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  filter_date            <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2024-06-01"</span><span class="op">)</span>, <span class="co"># a date inside the period you care about</span></span>
+<span>  ncores                 <span class="op">=</span> <span class="fl">3</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>For historical analysis, set <code>filter_date</code> to a date
+within the period you are studying - the filter keeps the version that
+was operative on that date. Under the hood this calls
+<code><a href="../reference/txc_filter_files.html">txc_filter_files()</a></code>, which you can also run directly on a
+vector of file paths; see <code><a href="../reference/txc_filter_files.html">?txc_filter_files</a></code> for the exact
+rules and their one documented limitation (trip counts can still
+double-count <em>after</em> the next scheduled timetable change).</p>
+</div>
+<div class="section level2">
+<h2 id="comparison-with-the-ready-made-bods-gtfs">Comparison with the ready-made BODS GTFS<a class="anchor" aria-label="anchor" href="#comparison-with-the-ready-made-bods-gtfs"></a>
+</h2>
+<p><code>UK2GTFS</code> output has been validated against BODS’s own
+(ITO World) GTFS. Where both feeds cover the same route, agreement is
+high - around 80% of shared operator/line pairs had identical daily trip
+counts and matching departure times. The remaining differences are
+mostly about <em>which input files are included</em> (superseded
+revisions, out-of-region services, and coach/ferry datasets that live
+outside the TransXChange archive) rather than the conversion itself. In
+short: both are reasonable, and having an independent open-source
+converter is useful precisely because TransXChange-to-GTFS involves
+interpretation.</p>
+</div>
+<div class="section level2">
+<h2 id="next-steps">Next steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
+</h2>
+<p>Once you have a GTFS file you will usually want to clean and check
+it. See the <a href="GTFS.html">Working with GTFS files</a> vignette for
+<code><a href="../reference/gtfs_clean.html">gtfs_clean()</a></code>, <code><a href="../reference/gtfs_validate_internal.html">gtfs_validate_internal()</a></code>,
+<code><a href="../reference/gtfs_clip.html">gtfs_clip()</a></code> and the analysis functions.</p>
 </div>
   </div>
 
@@ -187,7 +406,7 @@ the NaPTAN.</p>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>

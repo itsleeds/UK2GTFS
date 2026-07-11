@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Converts UK transport timetable datasets to GTFS format • UK2GTFS</title>
+<title>Convert UK Transport Timetable Datasets to GTFS Format • UK2GTFS</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png">
 <link rel="icon" type="”image/svg+xml”" href="favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -16,8 +16,8 @@
 <script src="bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
 <!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- pkgdown --><link href="pkgdown.css" rel="stylesheet">
-<script src="pkgdown.js"></script><meta property="og:title" content="Converts UK transport timetable datasets to GTFS format">
-<meta property="og:description" content="The UK uses a range of odd formats to store timetable data, this package converts them to the nice GTFS format.">
+<script src="pkgdown.js"></script><meta property="og:title" content="Convert UK Transport Timetable Datasets to GTFS Format">
+<meta property="og:description" content="Convert transport timetable data from the formats used in the United Kingdom to the General Transit Feed Specification (GTFS) format. Supports the Common Interface File (CIF) format used by the Rail Delivery Group and Network Rail for heavy and light rail timetables, TransXChange XML files used for bus, coach, and ferry timetables, and the historic National Public Transport Data Repository (NPTDR) archives. Also provides utilities for reading, writing, cleaning, subsetting, and merging GTFS files.">
 <meta property="og:image" content="/logo.png">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -39,7 +39,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">UK2GTFS</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
       </span>
     </div>
 
@@ -56,15 +56,24 @@
   </a>
   <ul class="dropdown-menu" role="menu">
 <li>
-      <a href="articles/ATOC.html">ATOC - Train Timetables</a>
+      <a href="articles/ATOC.html">Heavy Rail CIF to GTFS - Train Timetables</a>
     </li>
     <li>
-      <a href="articles/GTFS.html">GTFS Functions</a>
+      <a href="articles/Fares.html">Adding Fares - NeTEx to GTFS (v1 and v2)</a>
     </li>
     <li>
-      <a href="articles/transxchange.html">TransXchange - Bus, Tram, and Tube Timetables</a>
+      <a href="articles/GTFS.html">Working with GTFS files - Cleaning, Manipulating and Analysing</a>
+    </li>
+    <li>
+      <a href="articles/NPTDR.html">NPTDR to GTFS - Historic Timetables</a>
+    </li>
+    <li>
+      <a href="articles/transxchange.html">TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry</a>
     </li>
   </ul>
+</li>
+<li>
+  <a href="news/index.html">Changelog</a>
 </li>
       </ul>
 <ul class="nav navbar-nav navbar-right">
@@ -98,7 +107,7 @@
 </h2>
 <p>The UK has two main sources of public transport timetable data <a href="https://www.travelinedata.org.uk/" class="external-link"><strong>Traveline</strong></a> publishes data on buses and light rail and <a href="https://opendata.nationalrail.co.uk/" class="external-link"><strong>National Rail</strong></a> publishes data on heavy rail. Each uses a data format that is unique to that organisation and both formats are old and difficult to use. Many countries have adopted the <a href="https://developers.google.com/transit/gtfs/" class="external-link">GTFS</a> format which was developed by Google as a simple standard for publishing timetable data. Due to the wide-spread adoption of GTFS many useful tools have been developed that accept GTFS files as inputs. This package is intended to make the conversion of UK data to the GTFS format simple and easy.</p>
 <p><strong>Update November 2020</strong></p>
-<p>The <a href="https://data.bus-data.dft.gov.uk/downloads/" class="external-link">Open Bus Data Service</a> now offers a national GTFS download option based on <a href="https://www.itoworld.com" class="external-link">ITO World’s</a> TransXchange to GTFS converter. These include bus and light rail but not heavy rail timetables. For non-expert users it will probably be easier to download there files. However this packages is still being maintained to support conversion of historical files, and because the conversion of TransXchange to GTFS is open to interpretation and having alternative converters is useful.</p>
+<p>The <a href="https://data.bus-data.dft.gov.uk/downloads/" class="external-link">Open Bus Data Service</a> now offers a national GTFS download option based on <a href="https://www.itoworld.com" class="external-link">ITO World’s</a> TransXchange to GTFS converter. These include bus and light rail but not heavy rail timetables. For non-expert users it will probably be easier to download these files. However this packages is still being maintained to support conversion of historical files, and because the conversion of TransXchange to GTFS is open to interpretation and having alternative converters is useful.</p>
 </div>
 <div class="section level2">
 <h2 id="capabilities---why-we-need-another-package">Capabilities - why we need another package<a class="anchor" aria-label="anchor" href="#capabilities---why-we-need-another-package"></a>
@@ -109,6 +118,7 @@
 <ul>
 <li>Conversion of TransXchange to GTFS</li>
 <li>Conversion of CIF files to GTFS</li>
+<li>Conversion of fares data to GTFS (v1 and Fares v2): BODS NeTEx fares for buses, and the National Rail fares feed for heavy rail</li>
 <li>reading of TransXchange and CIF files is also supported, although some parts which are not required for GTFS conversion are only partially supported.</li>
 </ul>
 </li>
@@ -187,7 +197,7 @@
 <div class="developers">
 <h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
-<li>Malcolm Morgan <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0000-0002-9488-9183" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
+<li>Malcolm Morgan <br><small class="roles"> Author, maintainer, copyright holder </small> <a href="https://orcid.org/0000-0002-9488-9183" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
 <li>Owen O'Neill <br><small class="roles"> Author </small> <a href="https://orcid.org/0009-0008-0595-3042" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
 <li><a href="authors.html">More about authors...</a></li>
 </ul>
@@ -206,7 +216,7 @@
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>

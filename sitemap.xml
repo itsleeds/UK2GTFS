@@ -2,11 +2,14 @@
 <url><loc>/404.html</loc></url>
 <url><loc>/LICENSE-text.html</loc></url>
 <url><loc>/articles/ATOC.html</loc></url>
+<url><loc>/articles/Fares.html</loc></url>
 <url><loc>/articles/GTFS.html</loc></url>
+<url><loc>/articles/NPTDR.html</loc></url>
 <url><loc>/articles/index.html</loc></url>
 <url><loc>/articles/transxchange.html</loc></url>
 <url><loc>/authors.html</loc></url>
 <url><loc>/index.html</loc></url>
+<url><loc>/news/index.html</loc></url>
 <url><loc>/reference/ATOC_shapes.html</loc></url>
 <url><loc>/reference/UK2GTFS-package.html</loc></url>
 <url><loc>/reference/UK2GTFS_option_stopProcessingAtUid.html</loc></url>
@@ -16,10 +19,15 @@
 <url><loc>/reference/as_data_table_naptan_stop_area.html</loc></url>
 <url><loc>/reference/as_data_table_naptan_stop_point.html</loc></url>
 <url><loc>/reference/atoc2gtfs.html</loc></url>
+<url><loc>/reference/atoc_fares_read.html</loc></url>
 <url><loc>/reference/dl_example_file.html</loc></url>
 <url><loc>/reference/get_bank_holidays.html</loc></url>
 <url><loc>/reference/get_naptan.html</loc></url>
 <url><loc>/reference/get_naptan_xml_doc.html</loc></url>
+<url><loc>/reference/gtfs_add_fares.html</loc></url>
+<url><loc>/reference/gtfs_add_fares_v1.html</loc></url>
+<url><loc>/reference/gtfs_add_fares_v2.html</loc></url>
+<url><loc>/reference/gtfs_add_railfares.html</loc></url>
 <url><loc>/reference/gtfs_clean.html</loc></url>
 <url><loc>/reference/gtfs_clip.html</loc></url>
 <url><loc>/reference/gtfs_compress.html</loc></url>
@@ -34,6 +42,7 @@
 <url><loc>/reference/gtfs_split_ids.html</loc></url>
 <url><loc>/reference/gtfs_stop_frequency.html</loc></url>
 <url><loc>/reference/gtfs_stops_sf.html</loc></url>
+<url><loc>/reference/gtfs_summary.html</loc></url>
 <url><loc>/reference/gtfs_trim_dates.html</loc></url>
 <url><loc>/reference/gtfs_trips_per_zone.html</loc></url>
 <url><loc>/reference/gtfs_trips_sf.html</loc></url>
@@ -47,6 +56,15 @@
 <url><loc>/reference/importTSI.html</loc></url>
 <url><loc>/reference/index.html</loc></url>
 <url><loc>/reference/load_data.html</loc></url>
+<url><loc>/reference/netex_fare_types.html</loc></url>
+<url><loc>/reference/netex_fares_from_archive.html</loc></url>
+<url><loc>/reference/netex_fares_report.html</loc></url>
+<url><loc>/reference/netex_filter_fares.html</loc></url>
+<url><loc>/reference/netex_match_routes.html</loc></url>
+<url><loc>/reference/netex_read_failures.html</loc></url>
+<url><loc>/reference/netex_read_fares.html</loc></url>
+<url><loc>/reference/netex_read_fares_multiple.html</loc></url>
+<url><loc>/reference/netex_unzip.html</loc></url>
 <url><loc>/reference/ni2gtfs.html</loc></url>
 <url><loc>/reference/nptdr2gtfs.html</loc></url>
 <url><loc>/reference/nr2gtfs.html</loc></url>
@@ -57,6 +75,7 @@
 <url><loc>/reference/station2stops.html</loc></url>
 <url><loc>/reference/transxchange2gtfs.html</loc></url>
 <url><loc>/reference/transxchange_import.html</loc></url>
+<url><loc>/reference/txc_filter_files.html</loc></url>
 <url><loc>/reference/update_data.html</loc></url>
 </urlset>
 

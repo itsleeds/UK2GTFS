@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ATOC - Train Timetables • UK2GTFS</title>
+<title>Heavy Rail CIF to GTFS - Train Timetables • UK2GTFS</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="48x48" href="../favicon-48x48.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <script src="../bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
 <!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- pkgdown --><link href="../pkgdown.css" rel="stylesheet">
-<script src="../pkgdown.js"></script><meta property="og:title" content="ATOC - Train Timetables">
+<script src="../pkgdown.js"></script><meta property="og:title" content="Heavy Rail CIF to GTFS - Train Timetables">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
 <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
@@ -37,7 +37,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">UK2GTFS</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
       </span>
     </div>
 
@@ -54,15 +54,24 @@
   </a>
   <ul class="dropdown-menu" role="menu">
 <li>
-      <a href="../articles/ATOC.html">ATOC - Train Timetables</a>
+      <a href="../articles/ATOC.html">Heavy Rail CIF to GTFS - Train Timetables</a>
     </li>
     <li>
-      <a href="../articles/GTFS.html">GTFS Functions</a>
+      <a href="../articles/Fares.html">Adding Fares - NeTEx to GTFS (v1 and v2)</a>
     </li>
     <li>
-      <a href="../articles/transxchange.html">TransXchange - Bus, Tram, and Tube Timetables</a>
+      <a href="../articles/GTFS.html">Working with GTFS files - Cleaning, Manipulating and Analysing</a>
+    </li>
+    <li>
+      <a href="../articles/NPTDR.html">NPTDR to GTFS - Historic Timetables</a>
+    </li>
+    <li>
+      <a href="../articles/transxchange.html">TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry</a>
     </li>
   </ul>
+</li>
+<li>
+  <a href="../news/index.html">Changelog</a>
 </li>
       </ul>
 <ul class="nav navbar-nav navbar-right">
@@ -85,11 +94,11 @@
       </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
-      <h1 data-toc-skip>ATOC - Train Timetables</h1>
+      <h1 data-toc-skip>Heavy Rail CIF to GTFS - Train Timetables</h1>
                         <h4 data-toc-skip class="author">Malcolm
 Morgan</h4>
             
-            <h4 data-toc-skip class="date">2025-10-08</h4>
+            <h4 data-toc-skip class="date">2026-07-11</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/itsleeds/uk2gtfs/blob/master/vignettes/ATOC.Rmd" class="external-link"><code>vignettes/ATOC.Rmd</code></a></small>
       <div class="hidden name"><code>ATOC.Rmd</code></div>
@@ -98,113 +107,445 @@ Morgan</h4>
 
     
     
-<p>This vignette outlines how to produce GTFS timetables for the heavy
-rail network using ATOC CIF files.</p>
+<p>This vignette explains how to convert Great Britain’s <strong>heavy
+rail</strong> timetables into <a href="https://gtfs.org/" class="external-link">GTFS</a>,
+where the source data comes from, and why there are two different
+conversion functions for what looks like the same format.</p>
 <div class="section level2">
-<h2 id="getting-data">Getting Data<a class="anchor" aria-label="anchor" href="#getting-data"></a>
+<h2 id="background-the-cif-format">Background: the CIF format<a class="anchor" aria-label="anchor" href="#background-the-cif-format"></a>
 </h2>
-<p>Data for train timetables can be downloaded from the <a href="https://opendata.nationalrail.co.uk/" class="external-link">Rail Data Portal</a>.</p>
+<p>Great Britain’s national rail timetable is published in the
+<strong>Common Interface File</strong> (CIF) format - a fixed-width text
+format dating back to the mainframe era. Each line is a record whose
+meaning is given by its first two characters (for example
+<code>BS</code> = basic schedule, <code>LO</code> = origin location,
+<code>LI</code> = intermediate location, <code>LT</code> = terminating
+location). It is compact and complete but thoroughly unfriendly to
+modern tools: there are no column headers, positions are counted in
+fixed character offsets, and locations are given as
+<strong>TIPLOC</strong> codes (Timing Point Locations) rather than
+coordinates.</p>
+<p>A full timetable download is actually a bundle of related files:</p>
+<table class="table">
+<colgroup>
+<col width="28%">
+<col width="26%">
+<col width="44%">
+</colgroup>
+<thead><tr class="header">
+<th>Extension</th>
+<th>Contents</th>
+<th>Used by UK2GTFS</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>.MCA</code></td>
+<td>The main timetable (schedules, calls, times)</td>
+<td>
+<strong>Yes</strong> (required)</td>
+</tr>
+<tr class="even">
+<td><code>.MSN</code></td>
+<td>Master Station Names - station names and (rough) locations</td>
+<td>Yes, for names and fallback locations</td>
+</tr>
+<tr class="odd">
+<td><code>.FLF</code></td>
+<td>Fixed Links - interchange/transfer times between stations</td>
+<td>Optional (<code>transfers = TRUE</code>)</td>
+</tr>
+<tr class="even">
+<td><code>.ALF</code></td>
+<td>Additional fixed links</td>
+<td>Not used</td>
+</tr>
+<tr class="odd">
+<td>
+<code>.TSI</code>, <code>.SET</code>, <code>.DAT</code>,
+<code>.ZTR</code>, <code>.REJ</code>
+</td>
+<td>Ancillary/rejected data</td>
+<td>Not used</td>
+</tr>
+</tbody>
+</table>
+<p>Only the <code>.MCA</code>, <code>.MSN</code> and <code>.FLF</code>
+files are needed to build a GTFS feed.</p>
+</div>
+<div class="section level2">
+<h2 id="where-to-get-cif-data">Where to get CIF data<a class="anchor" aria-label="anchor" href="#where-to-get-cif-data"></a>
+</h2>
+<p>There are two sources, and this determines which function you
+use.</p>
+<div class="section level3">
+<h3 id="rail-delivery-group-via-the-national-rail-data-portal">1. Rail Delivery Group (via the National Rail Data Portal)<a class="anchor" aria-label="anchor" href="#rail-delivery-group-via-the-national-rail-data-portal"></a>
+</h3>
+<p>The <a href="https://opendata.nationalrail.co.uk/" class="external-link">National Rail Data
+Portal</a> (NRDP) publishes the Rail Delivery Group’s timetable feed -
+historically known as the <strong>ATOC</strong> feed. This is the
+<em>public passenger</em> timetable and is the right choice for most
+users. It arrives as a zip folder (with a name like
+<code>ttis627.zip</code>) containing the <code>.MCA</code>,
+<code>.MSN</code>, <code>.FLF</code> and other files described
+above.</p>
+<p>Convert it with <strong><code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code></strong>.</p>
+</div>
+<div class="section level3">
+<h3 id="network-rail">2. Network Rail<a class="anchor" aria-label="anchor" href="#network-rail"></a>
+</h3>
+<p><a href="https://www.networkrail.co.uk/" class="external-link">Network Rail</a> publishes
+its own CIF feed through its data feeds portal. It contains essentially
+the same schedules but is packaged differently - a single
+gzip-compressed file (for example <code>toc-full.CIF.gz</code>) rather
+than a zip of separate files - and has small formatting differences. It
+also tends to include more operational detail (such as empty-stock and
+freight movements).</p>
+<p>Convert it with <strong><code><a href="../reference/nr2gtfs.html">nr2gtfs()</a></code></strong>.</p>
+<blockquote>
+<p><strong>In short:</strong> RDG/ATOC zip → <code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code>;
+Network Rail <code>.CIF.gz</code> → <code><a href="../reference/nr2gtfs.html">nr2gtfs()</a></code>. The two
+functions share most of their internals but expect different
+packaging.</p>
+</blockquote>
+</div>
+</div>
+<div class="section level2">
+<h2 id="downloading-from-the-national-rail-data-portal">Downloading from the National Rail Data Portal<a class="anchor" aria-label="anchor" href="#downloading-from-the-national-rail-data-portal"></a>
+</h2>
+<p>You need a free account at <a href="https://opendata.nationalrail.co.uk/" class="external-link uri">https://opendata.nationalrail.co.uk/</a>. Store your
+credentials as <code>NRDP_username</code> and <code>NRDP_password</code>
+in your <code>.Renviron</code> file -
+<code>usethis::edit_r_environ()</code> opens it for you. Restart R after
+editing.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/itsleeds/uk2gtfs" class="external-link">UK2GTFS</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/nrdp_timetable.html">nrdp_timetable</a></span><span class="op">(</span><span class="st">"myfolder/timetable.zip"</span><span class="op">)</span></span></code></pre></div>
-<p>Note that you need to register a free account with the Rail Data
-Portal. Any you need to set the <code>NRDP_username</code> and
-<code>NRDP_password</code> values in in your <code>.Renviron</code>
-file. You can use <code>usethis::edit_r_environ()</code> to easily
-access your <code>.Renviron</code> file. Remember to restart R after
-updating the file.</p>
-<p>You can also use the <code><a href="../reference/nrdp_fares.html">nrdp_fares()</a></code> and
-<code><a href="../reference/nrdp_routing.html">nrdp_routing()</a></code> functions to download additional data.</p>
+<p>The companion functions <code><a href="../reference/nrdp_fares.html">nrdp_fares()</a></code> and
+<code><a href="../reference/nrdp_routing.html">nrdp_routing()</a></code> download the fares and routeing feeds
+respectively. The fares feed can be converted to GTFS fare tables
+alongside the timetable - see <a href="#adding-fares">Adding fares</a>
+below. The routeing guide is not used.</p>
 </div>
 <div class="section level2">
-<h2 id="converting-atoc-data-to-gtfs">Converting ATOC Data to GTFS<a class="anchor" aria-label="anchor" href="#converting-atoc-data-to-gtfs"></a>
+<h2 id="converting-rdgatoc-data-to-gtfs">Converting RDG/ATOC data to GTFS<a class="anchor" aria-label="anchor" href="#converting-rdgatoc-data-to-gtfs"></a>
 </h2>
-<p>To do a simple conversion to GTFS, load the package, and use the
-<code>atoc2gtfs</code> function. The function requires the following
-arguments.</p>
-<ul>
-<li>
-<code>path_in</code> is the file path to the ATOC timetable file,
-this comes a zipped folder with a name like
-<code>ttis627.zip</code>
-</li>
-<li>
-<code>ncores</code> If &gt; 1 then multicore processing is used to
-speed up the processing. Always leave one spare core for your OS.</li>
-</ul>
-<p>A simple example is shown below:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">path_in</span> <span class="op">&lt;-</span> <span class="st">"myfolder/timetable.zip"</span></span>
-<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atoc2gtfs.html">atoc2gtfs</a></span><span class="op">(</span>path_in <span class="op">=</span> <span class="va">path_in</span>,</span>
-<span>          ncores <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
-<p>Once the conversion has been completed, you can save the GTFS
-file.</p>
+<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atoc2gtfs.html">atoc2gtfs</a></span><span class="op">(</span>path_in <span class="op">=</span> <span class="va">path_in</span>, ncores <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, </span>
-<span>           folder <span class="op">=</span> <span class="st">"C:/GTFS"</span>,</span>
-<span>           name <span class="op">=</span> <span class="st">"gtfs_rail"</span><span class="op">)</span></span></code></pre></div>
-<p>This will save the GTFS file to
-<code>C:/GTFS/gtfs_rail.zip</code></p>
-</div>
-<div class="section level2">
-<h2 id="alternative-data-sources">Alternative Data Sources<a class="anchor" aria-label="anchor" href="#alternative-data-sources"></a>
-</h2>
-<p>CIF Files are available from Network Rail, the formatting is slightly
-different and so a separate function <code><a href="../reference/nr2gtfs.html">nr2gtfs()</a></code> is
-provided.</p>
-</div>
-<div class="section level2">
-<h2 id="advanced-features">Advanced features<a class="anchor" aria-label="anchor" href="#advanced-features"></a>
-</h2>
-<p>The <code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code> function gives some customization
-options to how the GTFS file is built. It is also just a wrapper around
-other functions in the package. This section will explain the main
-steps.</p>
-<div class="section level3">
-<h3 id="importing-atoc-data">Importing ATOC Data<a class="anchor" aria-label="anchor" href="#importing-atoc-data"></a>
-</h3>
-<p>After unzipping the folder, the reading of the ATOC data is done with
-the following functions:</p>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, folder <span class="op">=</span> <span class="st">"C:/GTFS"</span>, name <span class="op">=</span> <span class="st">"gtfs_rail"</span><span class="op">)</span></span></code></pre></div>
+<p>This writes <code>C:/GTFS/gtfs_rail.zip</code>.</p>
+<p>Useful arguments to <code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code>:</p>
 <ul>
 <li>
-<code><a href="../reference/importMCA.html">importMCA()</a></code> the main file with the timetable data,</li>
+<code>ncores</code> - cores for parallel processing (leave one free
+for the OS).</li>
 <li>
-<code><a href="../reference/importFLF.html">importFLF()</a></code> optional file used if
-<code>transfers = TRUE</code>
-</li>
+<code>locations</code> - where to get TIPLOC coordinates; see <a href="#tiploc-locations">TIPLOC locations</a>. Default
+<code>"tiplocs"</code> uses the package’s improved dataset.</li>
 <li>
-<code><a href="../reference/importMSN.html">importMSN()</a></code> optional file used if
-<code>locations = "file"</code>
-</li>
+<code>agency</code> - where to get <code>agency.txt</code>; see <a href="#agency">Agency</a>.</li>
+<li>
+<code>transfers</code> - if <code>TRUE</code> (default) build
+<code>transfers.txt</code> from the <code>.FLF</code> file.</li>
+<li>
+<code>working_timetable</code> - if <code>TRUE</code>, use the
+Working Timetable (WTT) times (used operationally) instead of the public
+times. Default <code>FALSE</code>.</li>
+<li>
+<code>public_only</code> - if <code>TRUE</code> (default) keep only
+calls/services intended for public pickup and set-down, dropping
+empty-stock and non-passenger moves.</li>
 </ul>
-<p>Other files are currently ignored.</p>
 </div>
-<div class="section level3">
-<h3 id="tiploc-locations">TIPLOC Locations<a class="anchor" aria-label="anchor" href="#tiploc-locations"></a>
-</h3>
-<p>The timetable data refers to locations such as stations, junctions,
-etc. using a TIPLOC id. The locations of these are stored in the
-<code>.msn</code> file, but are not always accurate. Therefore the
-package comes with a <code>tiplocs</code> object which includes improved
-<a href="https://github.com/itsleeds/UK2GTFS-data/blob/main/data/raw/tiplocs.csv" class="external-link">location
-data for TIPLOCS</a>.</p>
-<p>The additional locations and other additional data are managed by the
-<a href="https://github.com/itsleeds/UK2GTFS-data" class="external-link">UK2GTFS-data</a>
-repo. Contributions of new or improved locations are welcome via pull
-request.</p>
-<p>If you wanted to build using the locations included in the ATOC data,
-then you can use <code>locations = "file"</code> in
-<code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code> or manually build the stops using
+<div class="section level2">
+<h2 id="converting-network-rail-data-to-gtfs">Converting Network Rail data to GTFS<a class="anchor" aria-label="anchor" href="#converting-network-rail-data-to-gtfs"></a>
+</h2>
+<p>The interface is almost identical, but the input is the
+<code>.CIF.gz</code> file:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/nr2gtfs.html">nr2gtfs</a></span><span class="op">(</span>path_in <span class="op">=</span> <span class="st">"toc-full.CIF.gz"</span>, ncores <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, folder <span class="op">=</span> <span class="st">"C:/GTFS"</span>, name <span class="op">=</span> <span class="st">"gtfs_rail_nr"</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="../reference/nr2gtfs.html">nr2gtfs()</a></code> shares the <code>locations</code>,
+<code>agency</code>, <code>working_timetable</code> and
+<code>public_only</code> arguments with <code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code>.</p>
+</div>
+<div class="section level2">
+<h2 id="what-the-conversion-does-under-the-hood">What the conversion does under the hood<a class="anchor" aria-label="anchor" href="#what-the-conversion-does-under-the-hood"></a>
+</h2>
+<p>Both functions are wrappers around lower-level importers, which you
+can call directly if you need finer control:</p>
+<ul>
+<li>
+<code><a href="../reference/importMCA.html">importMCA()</a></code> - reads the main <code>.MCA</code>
+timetable file (the core data).</li>
+<li>
+<code><a href="../reference/importMSN.html">importMSN()</a></code> - reads the <code>.MSN</code> station file
+(used when <code>locations = "file"</code> or to fill in missing
+TIPLOCs).</li>
+<li>
+<code><a href="../reference/importFLF.html">importFLF()</a></code> - reads the <code>.FLF</code> fixed-links
+file (used when <code>transfers = TRUE</code>).</li>
+</ul>
+<p>Other files in the bundle are currently ignored.</p>
+</div>
+<div class="section level2">
+<h2 id="tiploc-locations">TIPLOC locations<a class="anchor" aria-label="anchor" href="#tiploc-locations"></a>
+</h2>
+<p>The timetable refers to stations, junctions and other points by
+<strong>TIPLOC</strong> code. The <code>.MSN</code> file does contain
+coordinates for these, but they are often only accurate to about a
+kilometre and are occasionally badly wrong. <code>UK2GTFS</code>
+therefore ships an improved <code>tiplocs</code> dataset with corrected
+coordinates, used by default (<code>locations = "tiplocs"</code>).</p>
+<p>You have alternatives:</p>
+<ul>
+<li>
+<code>locations = "file"</code> - use the (lower quality)
+coordinates from the <code>.MSN</code> file instead.</li>
+<li>Pass your own <code>sf</code> data frame of points in the same
+format as <code>tiplocs</code>.</li>
+<li>Pass a path to a CSV formatted like a GTFS
+<code>stops.txt</code>.</li>
+</ul>
+<p>If you use the improved dataset but the timetable references a TIPLOC
+not in it, <code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code> (with
+<code>missing_tiplocs = TRUE</code>, the default) falls back to the
+<code>.MSN</code> location and warns you. The improved locations are
+maintained in the <a href="https://github.com/itsleeds/UK2GTFS-data" class="external-link">UK2GTFS-data</a>
+repository - corrections are welcome via pull request. You can also
+build the stops manually from the station file with
 <code><a href="../reference/station2stops.html">station2stops()</a></code>.</p>
 </div>
-<div class="section level3">
-<h3 id="agency">Agency<a class="anchor" aria-label="anchor" href="#agency"></a>
-</h3>
-<p>The data required to create the GTFS <code>agency.txt</code> file is
-not present in the ATOC CIF files. Therefore the package contains an <a href="https://github.com/itsleeds/UK2GTFS-data/blob/main/data/raw/atoc_agency.csv" class="external-link">example
-file</a> instead. Contributions to this file are welcome via pull
-request.</p>
+<div class="section level2">
+<h2 id="agency">Agency<a class="anchor" aria-label="anchor" href="#agency"></a>
+</h2>
+<p>The CIF files do <strong>not</strong> contain the information needed
+to build GTFS <code>agency.txt</code> (operator names, URLs, timezones).
+<code>UK2GTFS</code> therefore ships an <a href="https://github.com/itsleeds/UK2GTFS-data/blob/main/data/raw/atoc_agency.csv" class="external-link">example
+agency file</a> which is used by default
+(<code>agency = "atoc_agency"</code>). You can pass your own data frame
+of agency information instead. Contributions to the shared file are
+welcome via pull request.</p>
 </div>
+<div class="section level2">
+<h2 id="adding-fares">Adding fares<a class="anchor" aria-label="anchor" href="#adding-fares"></a>
+</h2>
+<p>The timetable feed contains no prices. Fares are published separately
+by the Rail Delivery Group as the <strong>fares feed</strong>
+(specification RSPS5045), which you can download from the same National
+Rail Data Portal account with
+<code>nrdp_fares("myfolder/fares.zip")</code>. The feed is a set of
+fixed-width text files (<code>RJFAF756.FFL</code>, <code>.LOC</code>,
+<code>.TTY</code>, …) listing every advertised point-to-point fare in
+Great Britain - the same data ticket machines use.</p>
+<p>The simplest route is to pass the fares zip straight to
+<code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code>:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atoc2gtfs.html">atoc2gtfs</a></span><span class="op">(</span><span class="st">"myfolder/timetable.zip"</span>, ncores <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>                  fares <span class="op">=</span> <span class="st">"myfolder/fares.zip"</span>,</span>
+<span>                  fares_version <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
+<p>Or do it as a separate step, which lets you inspect the fares data
+and convert the same feed several ways:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fares</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atoc_fares_read.html">atoc_fares_read</a></span><span class="op">(</span><span class="st">"myfolder/fares.zip"</span><span class="op">)</span></span>
+<span><span class="va">fares</span><span class="op">$</span><span class="va">ticket_type</span>   <span class="co"># every ticket code, with description, class and type</span></span>
+<span><span class="va">fares</span><span class="op">$</span><span class="va">railcard</span>      <span class="co"># every railcard code</span></span>
+<span></span>
+<span><span class="co"># GTFS v1: the cheapest standard-class single per station pair</span></span>
+<span><span class="va">gtfs_v1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_add_railfares.html">gtfs_add_railfares</a></span><span class="op">(</span><span class="va">gtfs</span>, <span class="va">fares</span>, fares_version <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># GTFS Fares v2: adult, child and 16-25 Railcard singles and returns</span></span>
+<span><span class="va">gtfs_v2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_add_railfares.html">gtfs_add_railfares</a></span><span class="op">(</span><span class="va">gtfs</span>, <span class="va">fares</span>, fares_version <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>                              railcards <span class="op">=</span> <span class="st">"YNG"</span><span class="op">)</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="how-rail-fares-map-onto-gtfs">How rail fares map onto GTFS<a class="anchor" aria-label="anchor" href="#how-rail-fares-map-onto-gtfs"></a>
+</h3>
+<p>Rail fares are set per <strong>flow</strong>: an origin/destination
+pair, a fare route (“via any permitted”, “not via London”, …) and a
+ticket type. A flow endpoint is not always a single station - it can be
+a <strong>station cluster</strong> (stations that share fares) or a
+<strong>group station</strong> such as “LONDON TERMINALS”. This maps
+onto the two GTFS fare models as follows:</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>Fares feed concept</th>
+<th>GTFS v1</th>
+<th>GTFS Fares v2</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Station</td>
+<td>
+<code>stops.zone_id</code> (CRS code)</td>
+<td>member of <code>areas</code>/<code>stop_areas</code>
+</td>
+</tr>
+<tr class="even">
+<td>Cluster / group station</td>
+<td>expanded to member stations</td>
+<td>one area with many stops</td>
+</tr>
+<tr class="odd">
+<td>Flow (O/D pair)</td>
+<td>
+<code>fare_rules</code> origin/destination</td>
+<td>
+<code>fare_leg_rules</code> from/to area</td>
+</tr>
+<tr class="even">
+<td>Ticket type + price</td>
+<td>
+<code>fare_attributes</code> (cheapest only)</td>
+<td><code>fare_products</code></td>
+</tr>
+<tr class="odd">
+<td>Adult / child / railcard</td>
+<td><em>(not representable)</em></td>
+<td><code>rider_categories</code></td>
+</tr>
+</tbody>
+</table>
+<p>Which tickets are converted is controlled by arguments:
+<code>fares_ticket_class</code> (standard/first),
+<code>fares_ticket_type</code> (single/return/season) or explicit
+<code>fares_ticket_codes</code>; <code>fares_rider_categories</code> and
+<code>fares_railcards</code> choose the passenger types (v2 only). By
+default only <strong>walk-up</strong> tickets - the Anytime, Off-Peak
+and Super Off-Peak families - are converted
+(<code>fares_walkup_only = TRUE</code>); the feed also prices trade,
+carnet and advance-purchase tier tickets, which are misleadingly cheap
+in a journey planner. See <code><a href="../reference/gtfs_add_railfares.html">?gtfs_add_railfares</a></code> for
+details.</p>
+</div>
+<div class="section level3">
+<h3 id="scenario-conversion-a-specific-travel-date-time-and-booking-date">Scenario conversion: a specific travel date, time and booking
+date<a class="anchor" aria-label="anchor" href="#scenario-conversion-a-specific-travel-date-time-and-booking-date"></a>
+</h3>
+<p>GTFS cannot carry the full restriction model of rail ticketing
+(validity varies by date, time, route and train). What the converter
+<em>can</em> do is evaluate those restrictions for you at conversion
+time, for one concrete scenario, and output plain GTFS containing
+exactly the fares available in that scenario:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Fares for a journey departing 08:00 on Monday 3 August,</span></span>
+<span><span class="co"># with the ticket bought on 1 July</span></span>
+<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atoc2gtfs.html">atoc2gtfs</a></span><span class="op">(</span><span class="st">"myfolder/timetable.zip"</span>, ncores <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>                  fares <span class="op">=</span> <span class="st">"myfolder/fares.zip"</span>,</span>
+<span>                  fares_version <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>                  fares_travel_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-08-03"</span><span class="op">)</span>,</span>
+<span>                  fares_travel_time <span class="op">=</span> <span class="st">"08:00"</span>,</span>
+<span>                  fares_booking_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-07-01"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>Three things happen:</p>
+<ul>
+<li>records are read as valid on the <strong>travel date</strong> (the
+feed contains current and future fares rounds);</li>
+<li>the restriction data (RST file) is evaluated for that date and
+departure time: Off-Peak and Super Off-Peak fares are dropped where
+their time restriction makes them invalid (e.g. departing before 09:30
+on a weekday), as are fares date-banned on the travel date;</li>
+<li>with a <strong>booking date</strong>, Advance tickets whose booking
+horizon (TAP file) is satisfied are added at their tier prices, instead
+of being excluded.</li>
+</ul>
+<p>This is the recommended way to do fare-sensitive analysis
+(e.g. comparing peak vs off-peak accessibility, or walk-up vs advance
+pricing): build one feed per scenario and compare. Omit
+<code>fares_travel_time</code> to apply only date-level restrictions;
+omit <code>fares_booking_date</code> for walk-up fares only.</p>
+<p>Two caveats. Advance <em>availability</em> is quota-controlled per
+train by the reservation system and is in no public feed, so Advance
+prices are the bookable tiers - a best case. And restriction evaluation
+covers date bands and departure-time bands (network-wide or
+origin-station-specific); arrival-based, via-based and train-specific
+restrictions, easements and minimum-fare windows are treated as “fare
+remains valid”, so the filter errs towards keeping a fare.</p>
+</div>
+<div class="section level3">
+<h3 id="limitations-and-trade-offs">Limitations and trade-offs<a class="anchor" aria-label="anchor" href="#limitations-and-trade-offs"></a>
+</h3>
+<p>Like the bus fares conversion (see the <em>Adding Fares - NeTEx to
+GTFS</em> vignette), converting rail fares to GTFS is lossy. Choices are
+surfaced as arguments; the losses you cannot buy back are listed
+here.</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>GTFS v1 cannot express ticket choice or passenger
+types.</strong> With <code>fares_version = 1</code> every station pair
+gets exactly one price: the <em>cheapest</em> fare among the ticket
+types you selected (default: standard-class singles). Child, railcard
+and return fares are ignored. Use v2 if you need them.</li>
+<li>
+<strong>Ticket time restrictions are not carried into the
+output.</strong> An Off-Peak Single is emitted with its price, but GTFS
+cannot say it is invalid at 08:00, so a journey planner sees an Anytime
+and an Off-Peak product between the same stations and cannot choose
+correctly. Either convert a scenario
+(<code>fares_travel_date</code>/<code>fares_travel_time</code> above),
+or restrict conversion to Anytime products (e.g.
+<code>fares_ticket_codes = c("SDS", "SOS")</code>).</li>
+<li>
+<strong>Returns are priced for the round trip.</strong> GTFS has no
+native return ticket; a return product’s <code>amount</code> is the
+price of the whole return journey attached to a single leg. Season
+tickets are excluded by default for the same reason (their feed price is
+the weekly rate).</li>
+<li>
+<strong>Advance fares appear only in booking scenarios.</strong>
+Advance tickets are quota-controlled: the flow file lists their price
+<em>tiers</em> with no information about which tier is on sale for which
+train. By default they are dropped
+(<code>fares_walkup_only = TRUE</code>); with a
+<code>fares_booking_date</code> scenario the bookable tiers are included
+as best-case prices.</li>
+<li>
+<strong>Child and railcard prices are calculated, not
+quoted.</strong> The feed derives them from the adult fare via the
+status discount file (typically 50% for children). UK2GTFS applies the
+percentage and the flat-fare/minimum-fare caps, but not the industry
+rounding rules or railcard minimum-fare rules, so a calculated price can
+differ from the retail price by a few pence.</li>
+<li>
+<strong>Some flows cannot be placed.</strong> Flow endpoints that
+are not stations (county codes, travelcard zones without member
+stations) or stations absent from your timetable are dropped, with a
+message reporting the count.</li>
+<li>
+<strong>TOC-specific ticketing is simplified.</strong> Fares are
+attached to one national “rail” network (v2) or to no route at all (v1),
+i.e. they are treated as inter-available. Operator-only tickets (the TSP
+file) and cross-London rules are not modelled.</li>
+<li>
+<strong>Feed size.</strong> The national flow file holds ~700,000
+flows and ~7 million prices. A national v1 conversion expands clusters
+to station pairs and produces a multi-million-row
+<code>fare_rules.txt</code>; v2 stays close to the source size because
+clusters become areas. Both are written fine by
+<code><a href="../reference/gtfs_write.html">gtfs_write()</a></code>, but consumers vary in what they accept.</li>
+</ol>
+</div>
+</div>
+<div class="section level2">
+<h2 id="shapes">Shapes<a class="anchor" aria-label="anchor" href="#shapes"></a>
+</h2>
+<p>Route shapes (the geographic path a train follows) are not produced
+by default - <code>shapes = FALSE</code>. Generating rail shapes
+requires matching schedules to the physical rail network, which is
+handled separately by the experimental <code><a href="../reference/ATOC_shapes.html">ATOC_shapes()</a></code>
+function.</p>
+</div>
+<div class="section level2">
+<h2 id="next-steps">Next steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
+</h2>
+<p>After conversion, use the tools in the <a href="GTFS.html">Working
+with GTFS files</a> vignette - in particular <code><a href="../reference/gtfs_clean.html">gtfs_clean()</a></code>
+and <code><a href="../reference/gtfs_fast_trips.html">gtfs_fast_trips()</a></code>, which is handy for spotting
+schedules with implausible speeds caused by a mislocated TIPLOC.</p>
 </div>
   </div>
 
@@ -223,7 +564,7 @@ request.</p>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>

@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GTFS Functions • UK2GTFS</title>
+<title>Working with GTFS files - Cleaning, Manipulating and Analysing • UK2GTFS</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="48x48" href="../favicon-48x48.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <script src="../bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
 <!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- pkgdown --><link href="../pkgdown.css" rel="stylesheet">
-<script src="../pkgdown.js"></script><meta property="og:title" content="GTFS Functions">
+<script src="../pkgdown.js"></script><meta property="og:title" content="Working with GTFS files - Cleaning, Manipulating and Analysing">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
 <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
@@ -37,7 +37,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">UK2GTFS</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
       </span>
     </div>
 
@@ -54,15 +54,24 @@
   </a>
   <ul class="dropdown-menu" role="menu">
 <li>
-      <a href="../articles/ATOC.html">ATOC - Train Timetables</a>
+      <a href="../articles/ATOC.html">Heavy Rail CIF to GTFS - Train Timetables</a>
     </li>
     <li>
-      <a href="../articles/GTFS.html">GTFS Functions</a>
+      <a href="../articles/Fares.html">Adding Fares - NeTEx to GTFS (v1 and v2)</a>
     </li>
     <li>
-      <a href="../articles/transxchange.html">TransXchange - Bus, Tram, and Tube Timetables</a>
+      <a href="../articles/GTFS.html">Working with GTFS files - Cleaning, Manipulating and Analysing</a>
+    </li>
+    <li>
+      <a href="../articles/NPTDR.html">NPTDR to GTFS - Historic Timetables</a>
+    </li>
+    <li>
+      <a href="../articles/transxchange.html">TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry</a>
     </li>
   </ul>
+</li>
+<li>
+  <a href="../news/index.html">Changelog</a>
 </li>
       </ul>
 <ul class="nav navbar-nav navbar-right">
@@ -85,7 +94,8 @@
       </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
-      <h1 data-toc-skip>GTFS Functions</h1>
+      <h1 data-toc-skip>Working with GTFS files - Cleaning, Manipulating
+and Analysing</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/itsleeds/uk2gtfs/blob/master/vignettes/GTFS.Rmd" class="external-link"><code>vignettes/GTFS.Rmd</code></a></small>
@@ -95,32 +105,327 @@
 
     
     
-<p>As well as converting to GTFS <code>UK2GTFS</code> has functions for
-manipulating GTFS files.</p>
+<p>As well as converting UK formats to GTFS, <code>UK2GTFS</code>
+provides a toolkit for reading, cleaning, checking, reshaping and
+analysing GTFS feeds - whether they came from <code>UK2GTFS</code>
+itself or from anywhere else.</p>
 <div class="section level2">
-<h2 id="reading-and-writing">Reading and Writing<a class="anchor" aria-label="anchor" href="#reading-and-writing"></a>
+<h2 id="background-what-is-gtfs-and-what-is-a-gtfs-object">Background: what is GTFS, and what is a “gtfs object”?<a class="anchor" aria-label="anchor" href="#background-what-is-gtfs-and-what-is-a-gtfs-object"></a>
 </h2>
-<p><code><a href="../reference/gtfs_read.html">gtfs_read()</a></code></p>
-<p><code><a href="../reference/gtfs_write.html">gtfs_write()</a></code></p>
+<p>The <a href="https://gtfs.org/" class="external-link">General Transit Feed
+Specification</a> (GTFS) is a <code>.zip</code> file containing a set of
+related CSV tables - <code>agency.txt</code>, <code>stops.txt</code>,
+<code>routes.txt</code>, <code>trips.txt</code>,
+<code>stop_times.txt</code>, <code>calendar.txt</code>,
+<code>calendar_dates.txt</code>, and optional extras such as
+<code>shapes.txt</code> and <code>frequencies.txt</code>. The tables are
+linked by ID columns (a trip belongs to a route, has many stop_times,
+and runs on a service_id calendar).</p>
+<p>In <code>UK2GTFS</code> a GTFS feed is held in memory as a
+<strong>named list of data frames</strong> - one element per table,
+named after the file (<code>gtfs$stops</code>, <code>gtfs$trips</code>,
+and so on). Every function below takes and/or returns such an object, so
+you can chain them together and inspect any table directly as an
+ordinary data frame.</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/itsleeds/uk2gtfs" class="external-link">UK2GTFS</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_read.html">gtfs_read</a></span><span class="op">(</span><span class="st">"myfeed.zip"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span>      <span class="co"># the tables present</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">$</span><span class="va">stops</span><span class="op">)</span> <span class="co"># inspect any table as a data frame</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="cleaning-and-validating-gfts">Cleaning and Validating GFTS<a class="anchor" aria-label="anchor" href="#cleaning-and-validating-gfts"></a>
+<h2 id="reading-and-writing">Reading and writing<a class="anchor" aria-label="anchor" href="#reading-and-writing"></a>
 </h2>
-<p><code><a href="../reference/gtfs_clean.html">gtfs_clean()</a></code> Clean simple errors from GTFS files</p>
-<p><code><a href="../reference/gtfs_compress.html">gtfs_compress()</a></code> Reduce file size of a GTFS object</p>
-<p><code><a href="../reference/gtfs_fast_trips.html">gtfs_fast_trips()</a></code> Find fast trips</p>
-<p><code><a href="../reference/gtfs_validate_internal.html">gtfs_validate_internal()</a></code> Validate a GTFS object (in
-R)</p>
+<table class="table">
+<colgroup>
+<col width="52%">
+<col width="47%">
+</colgroup>
+<thead><tr class="header">
+<th>Function</th>
+<th>Purpose</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>gtfs_read(path)</code></td>
+<td>Read a GTFS <code>.zip</code> into a gtfs object</td>
+</tr>
+<tr class="even">
+<td><code>gtfs_write(gtfs, folder, name)</code></td>
+<td>Write a gtfs object back to a <code>.zip</code>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_read.html">gtfs_read</a></span><span class="op">(</span><span class="st">"myfeed.zip"</span><span class="op">)</span></span>
+<span><span class="co"># ... work on it ...</span></span>
+<span><span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, folder <span class="op">=</span> <span class="st">"C:/GTFS"</span>, name <span class="op">=</span> <span class="st">"myfeed_clean"</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="../reference/gtfs_write.html">gtfs_write()</a></code> has options to strip commas, tabs and
+newlines from text fields (<code>stripComma</code>,
+<code>stripTab</code>, <code>stripNewline</code>) - useful because stray
+delimiters in operator or stop names can break strict GTFS
+consumers.</p>
 </div>
 <div class="section level2">
-<h2 id="manupulating-gtfs">Manupulating GTFS<a class="anchor" aria-label="anchor" href="#manupulating-gtfs"></a>
+<h2 id="cleaning-and-validating">Cleaning and validating<a class="anchor" aria-label="anchor" href="#cleaning-and-validating"></a>
 </h2>
-<p><code><a href="../reference/gtfs_merge.html">gtfs_merge()</a></code> merge a list of gtfs files</p>
-<p><code><a href="../reference/gtfs_split.html">gtfs_split()</a></code> Split a GTFS object</p>
-<p><code><a href="../reference/gtfs_split_ids.html">gtfs_split_ids()</a></code> Split a GTFS object based on
-trip_ids</p>
-<p><code><a href="../reference/gtfs_clip.html">gtfs_clip()</a></code> Clip a GTFS object to a geographical
-area</p>
+<p>Real-world feeds - and conversions of messy source data - contain
+errors. Two families of function help.</p>
+<div class="section level3">
+<h3 id="gtfs_clean---fix-common-errors">
+<code>gtfs_clean()</code> - fix common errors<a class="anchor" aria-label="anchor" href="#gtfs_clean---fix-common-errors"></a>
+</h3>
+<p><code>gtfs_clean(gtfs)</code> removes a set of well-known problems,
+including: stops with no coordinates or no location information; trips
+with fewer than two stops; stops that are never used; and (with
+<code>public_only = TRUE</code>) non-public services such as freight or
+empty-stock moves that have no GTFS route type and would otherwise break
+tools like OpenTripPlanner. It also tidies up orphaned shapes and
+frequencies.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_clean.html">gtfs_clean</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="gtfs_validate_internal---check-for-problems">
+<code>gtfs_validate_internal()</code> - check for problems<a class="anchor" aria-label="anchor" href="#gtfs_validate_internal---check-for-problems"></a>
+</h3>
+<p><code>gtfs_validate_internal(gtfs)</code> runs basic consistency
+checks in R and reports what it finds (for example stop_times
+referencing a stop that isn’t in <code>stops.txt</code>). It reports
+problems but does not change the data.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/gtfs_validate_internal.html">gtfs_validate_internal</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="gtfs_force_valid---make-it-valid-by-removing-problems">
+<code>gtfs_force_valid()</code> - make it valid by removing
+problems<a class="anchor" aria-label="anchor" href="#gtfs_force_valid---make-it-valid-by-removing-problems"></a>
+</h3>
+<p>Where <code><a href="../reference/gtfs_validate_internal.html">gtfs_validate_internal()</a></code> only reports,
+<code>gtfs_force_valid(gtfs)</code> acts: it drops stops with missing
+locations, routes not present in <code>agency</code>, trips not in
+<code>routes</code>, stop_times not in <code>trips</code> or
+<code>stops</code>, and calendar entries with no matching trips. Use it
+as a last resort to guarantee referential integrity when a downstream
+tool refuses a slightly broken feed.</p>
+</div>
+<div class="section level3">
+<h3 id="gtfs_fast_trips-and-gtfs_fast_stops---catch-mislocated-stops">
+<code>gtfs_fast_trips()</code> and <code>gtfs_fast_stops()</code> -
+catch mislocated stops<a class="anchor" aria-label="anchor" href="#gtfs_fast_trips-and-gtfs_fast_stops---catch-mislocated-stops"></a>
+</h3>
+<p>A frequent, sneaky error is a stop placed in the wrong location,
+which makes a vehicle appear to “teleport” across the country between
+two calls. <code>gtfs_fast_trips(gtfs)</code> returns the
+<code>trip_id</code>s whose fastest segment exceeds
+<code>maxspeed</code> (default 83 m/s ≈ 185 mph, the top speed on HS1);
+<code><a href="../reference/gtfs_fast_stops.html">gtfs_fast_stops()</a></code> returns an <code>sf</code> data frame of
+the suspect stops for mapping.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">bad_trips</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_fast_trips.html">gtfs_fast_trips</a></span><span class="op">(</span><span class="va">gtfs</span>, maxspeed <span class="op">=</span> <span class="fl">45</span><span class="op">)</span> <span class="co"># ~100 mph, for a bus feed</span></span>
+<span><span class="va">bad_stops</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_fast_stops.html">gtfs_fast_stops</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="manipulating">Manipulating<a class="anchor" aria-label="anchor" href="#manipulating"></a>
+</h2>
+<div class="section level3">
+<h3 id="merging">Merging<a class="anchor" aria-label="anchor" href="#merging"></a>
+</h3>
+<p><code>gtfs_merge(gtfs_list)</code> combines a list of gtfs objects
+into one, handling ID clashes (if duplicate IDs are found across feeds
+it regenerates fresh IDs). If small inconsistencies (such as an operator
+name spelt two ways) block a clean merge, pass <code>force = TRUE</code>
+to take the first instance as authoritative.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">combined</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_merge.html">gtfs_merge</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">gtfs_bus</span>, <span class="va">gtfs_rail</span><span class="op">)</span>, force <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="splitting">Splitting<a class="anchor" aria-label="anchor" href="#splitting"></a>
+</h3>
+<p><code>gtfs_split(gtfs, n_split = 2)</code> divides a large feed into
+a list of smaller, size-balanced feeds (split by
+<code>agency_id</code>), which is helpful when a feed is too big for a
+downstream tool. <code>gtfs_split_ids(gtfs, trip_ids)</code> splits on a
+specific set of <code>trip_id</code>s, returning a <code>$true</code>
+feed (matching trips) and a <code>$false</code> feed (everything
+else).</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">parts</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_split.html">gtfs_split</a></span><span class="op">(</span><span class="va">gtfs</span>, n_split <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
+<span><span class="va">sel</span>   <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_split_ids.html">gtfs_split_ids</a></span><span class="op">(</span><span class="va">gtfs</span>, trip_ids <span class="op">=</span> <span class="va">bad_trips</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="clipping-to-an-area">Clipping to an area<a class="anchor" aria-label="anchor" href="#clipping-to-an-area"></a>
+</h3>
+<p><code>gtfs_clip(gtfs, bounds)</code> restricts a feed to a geographic
+area. <code>bounds</code> is an <code>sf</code> polygon (or
+multi-polygon) in CRS 4326. Trips crossing the boundary are truncated at
+the edge, and trips that call only once inside the area are dropped.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://r-spatial.github.io/sf/" class="external-link">sf</a></span><span class="op">)</span></span>
+<span><span class="va">leeds</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_read.html" class="external-link">st_read</a></span><span class="op">(</span><span class="st">"leeds_boundary.geojson"</span><span class="op">)</span> <span class="co"># must be EPSG:4326</span></span>
+<span><span class="va">gtfs_leeds</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_clip.html">gtfs_clip</a></span><span class="op">(</span><span class="va">gtfs</span>, bounds <span class="op">=</span> <span class="va">leeds</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="trimming-to-a-date-range">Trimming to a date range<a class="anchor" aria-label="anchor" href="#trimming-to-a-date-range"></a>
+</h3>
+<p><code>gtfs_trim_dates(gtfs, startdate, enddate)</code> keeps only
+services that run between two dates and shrinks the calendars
+accordingly - useful for cutting a multi-year feed down to the week or
+month you care about.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs_march</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_trim_dates.html">gtfs_trim_dates</a></span><span class="op">(</span><span class="va">gtfs</span>,</span>
+<span>                              startdate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2024-03-01"</span><span class="op">)</span>,</span>
+<span>                              enddate   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2024-03-31"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="compressing">Compressing<a class="anchor" aria-label="anchor" href="#compressing"></a>
+</h3>
+<p><code>gtfs_compress(gtfs)</code> reduces file size by replacing the
+long, human-readable IDs that <code>UK2GTFS</code> preserves during
+conversion (such as NaPTAN stop codes) with compact integers. Do this
+once you no longer need to trace IDs back to the source data.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_compress.html">gtfs_compress</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="analysing">Analysing<a class="anchor" aria-label="anchor" href="#analysing"></a>
+</h2>
+<div class="section level3">
+<h3 id="quick-summary">Quick summary<a class="anchor" aria-label="anchor" href="#quick-summary"></a>
+</h3>
+<p><code>gtfs_summary(gtfs)</code> prints the number of rows in each
+table and the date range covered by the calendar - the fastest way to
+sanity-check a feed.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/gtfs_summary.html">gtfs_summary</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="service-frequency-at-each-stop">Service frequency at each stop<a class="anchor" aria-label="anchor" href="#service-frequency-at-each-stop"></a>
+</h3>
+<p><code>gtfs_stop_frequency(gtfs, startdate, enddate)</code> counts how
+many trips call at each stop over a date range, returning the
+<code>stops</code> table with <code>stops_total</code> and
+<code>stops_per_week</code> columns added. This accounts for the
+calendar <em>and</em> calendar exceptions, so it reflects services
+actually running - a good proxy for “how well served is this stop?”.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">stops</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_stop_frequency.html">gtfs_stop_frequency</a></span><span class="op">(</span><span class="va">gtfs</span>,</span>
+<span>                             startdate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2024-03-01"</span><span class="op">)</span>,</span>
+<span>                             enddate   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2024-03-31"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<blockquote>
+<p>Note the date range must fall inside the feed’s calendar or you will
+get no results - a common gotcha with short feeds such as those from the
+<a href="NPTDR.html">NPTDR</a>.</p>
+</blockquote>
+</div>
+<div class="section level3">
+<h3 id="trips-per-zone-by-time-of-day-and-mode">Trips per zone, by time of day and mode<a class="anchor" aria-label="anchor" href="#trips-per-zone-by-time-of-day-and-mode"></a>
+</h3>
+<p><code>gtfs_trips_per_zone(gtfs, zone, ...)</code> aggregates trips
+into your own set of geographic zones (an <code>sf</code> polygon data
+frame), broken down by day of week, time band and (optionally) mode. The
+default time bands split the day into Night, Morning Peak, Midday,
+Afternoon Peak and Evening, and you can supply your own via the
+<code>time_bands</code> argument.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://r-spatial.github.io/sf/" class="external-link">sf</a></span><span class="op">)</span></span>
+<span><span class="va">zones</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_read.html" class="external-link">st_read</a></span><span class="op">(</span><span class="st">"msoa_zones.geojson"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">trips</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_trips_per_zone.html">gtfs_trips_per_zone</a></span><span class="op">(</span></span>
+<span>  <span class="va">gtfs</span>,</span>
+<span>  zone      <span class="op">=</span> <span class="va">zones</span>,</span>
+<span>  zone_id   <span class="op">=</span> <span class="st">"MSOA_code"</span>,</span>
+<span>  startdate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2024-03-04"</span><span class="op">)</span>,</span>
+<span>  enddate   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2024-03-10"</span><span class="op">)</span>,</span>
+<span>  by_mode   <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="mapping">Mapping<a class="anchor" aria-label="anchor" href="#mapping"></a>
+</h2>
+<p>Three helpers turn GTFS tables into <code>sf</code> objects you can
+plot with <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code>ggplot2</code> or
+<code>tmap</code>:</p>
+<table class="table">
+<colgroup>
+<col width="52%">
+<col width="47%">
+</colgroup>
+<thead><tr class="header">
+<th>Function</th>
+<th>Returns</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>gtfs_stops_sf(gtfs)</code></td>
+<td>Stops as points</td>
+</tr>
+<tr class="even">
+<td><code>gtfs_trips_sf(gtfs)</code></td>
+<td>Every trip as a line</td>
+</tr>
+<tr class="odd">
+<td><code>gtfs_routes_sf(gtfs)</code></td>
+<td>One representative line per route (lighter to plot)</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://r-spatial.github.io/sf/" class="external-link">sf</a></span><span class="op">)</span></span>
+<span><span class="va">stops_sf</span>  <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_stops_sf.html">gtfs_stops_sf</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span></span>
+<span><span class="va">routes_sf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_routes_sf.html">gtfs_routes_sf</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_geometry.html" class="external-link">st_geometry</a></span><span class="op">(</span><span class="va">routes_sf</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="fixing-uneven-stop-times">Fixing uneven stop times<a class="anchor" aria-label="anchor" href="#fixing-uneven-stop-times"></a>
+</h2>
+<p>Some bus timetables give several consecutive stops the <em>same</em>
+time rather than a unique time each.
+<code>gtfs_interpolate_times(gtfs)</code> spreads these out, assigning
+each stop a distinct arrival and departure time by interpolating between
+the known times - which makes speed and journey-time analysis far more
+meaningful.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_interpolate_times.html">gtfs_interpolate_times</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="a-typical-workflow">A typical workflow<a class="anchor" aria-label="anchor" href="#a-typical-workflow"></a>
+</h2>
+<p>Putting it together, a common end-to-end pattern is:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/itsleeds/uk2gtfs" class="external-link">UK2GTFS</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_read.html">gtfs_read</a></span><span class="op">(</span><span class="st">"myfeed.zip"</span><span class="op">)</span>   <span class="co"># 1. read</span></span>
+<span><span class="fu"><a href="../reference/gtfs_summary.html">gtfs_summary</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span>                <span class="co">#    look</span></span>
+<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_clean.html">gtfs_clean</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span>          <span class="co"># 2. clean</span></span>
+<span><span class="fu"><a href="../reference/gtfs_validate_internal.html">gtfs_validate_internal</a></span><span class="op">(</span><span class="va">gtfs</span><span class="op">)</span>      <span class="co"># 3. check what remains</span></span>
+<span></span>
+<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_clip.html">gtfs_clip</a></span><span class="op">(</span><span class="va">gtfs</span>, bounds <span class="op">=</span> <span class="va">my_area</span><span class="op">)</span>              <span class="co"># 4. subset to area</span></span>
+<span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_trim_dates.html">gtfs_trim_dates</a></span><span class="op">(</span><span class="va">gtfs</span>, <span class="va">start_date</span>, <span class="va">end_date</span><span class="op">)</span>    <span class="co">#    and to dates</span></span>
+<span></span>
+<span><span class="va">stops</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/gtfs_stop_frequency.html">gtfs_stop_frequency</a></span><span class="op">(</span><span class="va">gtfs</span>, <span class="va">start_date</span>, <span class="va">end_date</span><span class="op">)</span> <span class="co"># 5. analyse</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/gtfs_write.html">gtfs_write</a></span><span class="op">(</span><span class="va">gtfs</span>, folder <span class="op">=</span> <span class="st">"C:/GTFS"</span>, name <span class="op">=</span> <span class="st">"myfeed_clean"</span><span class="op">)</span> <span class="co"># 6. save</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a>
+</h2>
+<ul>
+<li>
+<a href="transxchange.html">TransXChange to GTFS</a> - converting
+bus, coach, tram, metro and ferry timetables.</li>
+<li>
+<a href="ATOC.html">Heavy Rail CIF to GTFS</a> - converting train
+timetables.</li>
+<li>
+<a href="NPTDR.html">NPTDR to GTFS</a> - converting historic
+all-mode archives.</li>
+</ul>
 </div>
   </div>
 
@@ -139,7 +444,7 @@ area</p>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>

@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">UK2GTFS</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
       </span>
     </div>
 
@@ -32,15 +32,24 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/ATOC.html">ATOC - Train Timetables</a>
+      <a href="../articles/ATOC.html">Heavy Rail CIF to GTFS - Train Timetables</a>
     </li>
     <li>
-      <a href="../articles/GTFS.html">GTFS Functions</a>
+      <a href="../articles/Fares.html">Adding Fares - NeTEx to GTFS (v1 and v2)</a>
     </li>
     <li>
-      <a href="../articles/transxchange.html">TransXchange - Bus, Tram, and Tube Timetables</a>
+      <a href="../articles/GTFS.html">Working with GTFS files - Cleaning, Manipulating and Analysing</a>
+    </li>
+    <li>
+      <a href="../articles/NPTDR.html">NPTDR to GTFS - Historic Timetables</a>
+    </li>
+    <li>
+      <a href="../articles/transxchange.html">TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry</a>
     </li>
   </ul></li>
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
       </ul><ul class="nav navbar-nav navbar-right"><li>
   <a href="https://github.com/itsleeds/uk2gtfs/" class="external-link">
     <span class="fab fa-github fa-lg"></span>
@@ -76,7 +85,19 @@
 <span>  transfers <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  missing_tiplocs <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  working_timetable <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  public_only <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  public_only <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  fares <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  fares_version <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  fares_ticket_codes <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  fares_ticket_class <span class="op">=</span> <span class="st">"standard"</span>,</span>
+<span>  fares_ticket_type <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  fares_walkup_only <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  fares_rider_categories <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"adult"</span>, <span class="st">"child"</span><span class="op">)</span>,</span>
+<span>  fares_railcards <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  fares_ndf <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  fares_travel_date <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  fares_travel_time <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  fares_booking_date <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -125,28 +146,105 @@ any missing tiplocs against the main file and add them.(default TRUE)</p></dd>
 <dt id="arg-public-only">public_only<a class="anchor" aria-label="anchor" href="#arg-public-only"></a></dt>
 <dd><p>Logical, only return calls/services that are for public passenger pickup/set down (default TRUE)</p></dd>
 
+
+<dt id="arg-fares">fares<a class="anchor" aria-label="anchor" href="#arg-fares"></a></dt>
+<dd><p>Character, optional path to a National Rail fares feed (e.g.
+"RJFAF756.zip", see <code><a href="atoc_fares_read.html">atoc_fares_read()</a></code>). If provided, GTFS fare tables
+are built and added to the result (default NULL, no fares).</p></dd>
+
+
+<dt id="arg-fares-version">fares_version<a class="anchor" aria-label="anchor" href="#arg-fares-version"></a></dt>
+<dd><p>Numeric, <code>1</code> for the original GTFS fares tables or
+<code>2</code> for GTFS Fares v2 (default 1). See <code><a href="gtfs_add_railfares.html">gtfs_add_railfares()</a></code> for what
+each supports.</p></dd>
+
+
+<dt id="arg-fares-ticket-codes">fares_ticket_codes<a class="anchor" aria-label="anchor" href="#arg-fares-ticket-codes"></a></dt>
+<dd><p>Character, optional explicit ticket codes to
+convert, passed to <code><a href="gtfs_add_railfares.html">gtfs_add_railfares()</a></code> as <code>ticket_codes</code>.</p></dd>
+
+
+<dt id="arg-fares-ticket-class">fares_ticket_class<a class="anchor" aria-label="anchor" href="#arg-fares-ticket-class"></a></dt>
+<dd><p>Character, "standard" and/or "first"
+(default "standard").</p></dd>
+
+
+<dt id="arg-fares-ticket-type">fares_ticket_type<a class="anchor" aria-label="anchor" href="#arg-fares-ticket-type"></a></dt>
+<dd><p>Character, any of "single", "return", "season".
+Default: "single" for v1, singles and returns for v2.</p></dd>
+
+
+<dt id="arg-fares-walkup-only">fares_walkup_only<a class="anchor" aria-label="anchor" href="#arg-fares-walkup-only"></a></dt>
+<dd><p>Logical, keep only walk-up Anytime/Off-Peak/
+Super Off-Peak tickets (default TRUE), see <code><a href="gtfs_add_railfares.html">gtfs_add_railfares()</a></code>.</p></dd>
+
+
+<dt id="arg-fares-rider-categories">fares_rider_categories<a class="anchor" aria-label="anchor" href="#arg-fares-rider-categories"></a></dt>
+<dd><p>Character, any of "adult", "child"; GTFS
+Fares v2 only (default both).</p></dd>
+
+
+<dt id="arg-fares-railcards">fares_railcards<a class="anchor" aria-label="anchor" href="#arg-fares-railcards"></a></dt>
+<dd><p>Character, optional railcard codes (e.g. "YNG");
+GTFS Fares v2 only (default NULL).</p></dd>
+
+
+<dt id="arg-fares-ndf">fares_ndf<a class="anchor" aria-label="anchor" href="#arg-fares-ndf"></a></dt>
+<dd><p>Logical, include non-derivable fare overrides
+(default TRUE).</p></dd>
+
+
+<dt id="arg-fares-travel-date">fares_travel_date<a class="anchor" aria-label="anchor" href="#arg-fares-travel-date"></a></dt>
+<dd><p>Date, optional: convert fares as a scenario
+snapshot for a journey on this date, applying the feed's date/time
+restriction data. See <code><a href="gtfs_add_railfares.html">gtfs_add_railfares()</a></code>.</p></dd>
+
+
+<dt id="arg-fares-travel-time">fares_travel_time<a class="anchor" aria-label="anchor" href="#arg-fares-travel-time"></a></dt>
+<dd><p>Character "HH:MM", optional departure time for
+the scenario (drops e.g. Off-Peak tickets at peak times). Requires
+<code>fares_travel_date</code>.</p></dd>
+
+
+<dt id="arg-fares-booking-date">fares_booking_date<a class="anchor" aria-label="anchor" href="#arg-fares-booking-date"></a></dt>
+<dd><p>Date, optional: when the ticket is bought.
+Includes Advance tickets bookable at that horizon, at their tier
+prices. Requires <code>fares_travel_date</code>.</p></dd>
+
 </dl></div>
+    <div id="value">
+    <h2>Value</h2>
+    <p>A gtfs object: a named list of data frames representing the tables
+of a GTFS file (agency, stops, routes, trips, stop_times, calendar,
+calendar_dates, and optionally transfers and fare tables)</p>
+    </div>
     <div id="details">
     <h2>Details</h2>
     <p>Locations</p>
 <p>The .msn file contains the physical locations of stations and other TIPLOC
-  codes (e.g. junctions). However, the quality of the locations is often poor
-  only accurate to about 1km and occasionally very wrong. Therefore, the
-  UK2GTFS package contains an internal dataset of the TIPLOC locations with
-  better location accuracy, which are used by default.</p>
-<p>However you can also specify `locations = "file"` to use the TIPLOC
-  locations in the ATOC data or provide an SF data frame of your own.</p>
+codes (e.g. junctions). However, the quality of the locations is often poor
+only accurate to about 1km and occasionally very wrong. Therefore, the
+UK2GTFS package contains an internal dataset of the TIPLOC locations with
+better location accuracy, which are used by default.</p>
+<p>However you can also specify <code>locations = "file"</code> to use the TIPLOC
+locations in the ATOC data or provide an SF data frame of your own.</p>
 <p>Or you can provide your own sf data frame of points in the same format as
-  `tiplocs` or a path to a csv file formatted like a GTFS stops.txt</p>
+<code>tiplocs</code> or a path to a csv file formatted like a GTFS stops.txt</p>
 <p>Agency</p>
 <p>The ATOC files do not contain the necessary information to build the
-  agency.txt file. Therefore this data is provided with the package. You can
-  also pass your own data frame of agency information.</p>
+agency.txt file. Therefore this data is provided with the package. You can
+also pass your own data frame of agency information.</p>
+<p>Fares</p>
+<p>The timetable feed contains no fares; these come in a separate fares
+feed available from the same National Rail Data Portal. Pass its path
+as <code>fares</code> to add GTFS fare tables to the output. See
+<code><a href="gtfs_add_railfares.html">gtfs_add_railfares()</a></code> for the fare model, the choices exposed by the
+<code>fares_*</code> arguments, and the limitations.</p>
     </div>
     <div id="see-also">
     <h2>See also</h2>
     <div class="dont-index"><p>Other main:
-<code><a href="nr2gtfs.html">nr2gtfs</a>()</code></p></div>
+<code><a href="nr2gtfs.html">nr2gtfs()</a></code></p></div>
     </div>
 
   </div>
@@ -161,7 +259,7 @@ any missing tiplocs against the main file and add them.(default TRUE)</p></dd>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer></div>

@@ -18,7 +18,7 @@ are checked and downloaded at package load time."><meta property="og:image" cont
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">UK2GTFS</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.0</span>
       </span>
     </div>
 
@@ -33,15 +33,24 @@ are checked and downloaded at package load time."><meta property="og:image" cont
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/ATOC.html">ATOC - Train Timetables</a>
+      <a href="../articles/ATOC.html">Heavy Rail CIF to GTFS - Train Timetables</a>
     </li>
     <li>
-      <a href="../articles/GTFS.html">GTFS Functions</a>
+      <a href="../articles/Fares.html">Adding Fares - NeTEx to GTFS (v1 and v2)</a>
     </li>
     <li>
-      <a href="../articles/transxchange.html">TransXchange - Bus, Tram, and Tube Timetables</a>
+      <a href="../articles/GTFS.html">Working with GTFS files - Cleaning, Manipulating and Analysing</a>
+    </li>
+    <li>
+      <a href="../articles/NPTDR.html">NPTDR to GTFS - Historic Timetables</a>
+    </li>
+    <li>
+      <a href="../articles/transxchange.html">TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry</a>
     </li>
   </ul></li>
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
       </ul><ul class="nav navbar-nav navbar-right"><li>
   <a href="https://github.com/itsleeds/uk2gtfs/" class="external-link">
     <span class="fab fa-github fa-lg"></span>
@@ -68,7 +77,7 @@ are checked and downloaded at package load time.</p>
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">load_data</span><span class="op">(</span><span class="va">type</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">load_data</span><span class="op">(</span><span class="va">type</span>, envir <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sys.parent.html" class="external-link">parent.frame</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -78,10 +87,18 @@ are checked and downloaded at package load time.</p>
 <dl><dt id="arg-type">type<a class="anchor" aria-label="anchor" href="#arg-type"></a></dt>
 <dd><p>name of data to be loaded e.g. "tiplocs"</p></dd>
 
+
+<dt id="arg-envir">envir<a class="anchor" aria-label="anchor" href="#arg-envir"></a></dt>
+<dd><p>environment into which the object is loaded. Defaults to the
+caller's environment, so calling this from the console loads the object
+into your workspace and calling it inside a function keeps the object
+local to that function.</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p>Loads named object into the global environment</p>
+    <p>Invisibly returns a character vector of the names of the objects
+  loaded, called for the side effect of loading the named dataset</p>
     </div>
     <div id="details">
     <h2>Details</h2>
@@ -128,7 +145,7 @@ as England.</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer></div>
