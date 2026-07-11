@@ -32,30 +32,7 @@ gtfs_write <- function(gtfs,
       gtfs[[i]] <- stripTabs(gtfs[[i]], stripNewline)
     }
   }
-
-
-  if (FALSE)
-  {
-    #Format times
-    if(inherits(gtfs$stop_times$arrival_time, "Period")){
-      gtfs$stop_times$arrival_time <- period2gtfs(gtfs$stop_times$arrival_time)
-    }
-
-    if(inherits(gtfs$stop_times$departure_time, "Period")){
-      gtfs$stop_times$departure_time <- period2gtfs(gtfs$stop_times$departure_time)
-    }
-
-    if("frequencies" %in% names(gtfs))
-    {
-      if("difftime" %in% class(gtfs$frequencies$start_time)){
-        gtfs$frequencies$start_time <- format(gtfs$frequencies$start_time, format = "%H:%M:%S")
-      }
-
-      if("difftime" %in% class(gtfs$frequencies$end_time)){
-        gtfs$frequencies$end_time <- format(gtfs$frequencies$end_time, format = "%H:%M:%S")
-      }
-    }
-  }
+ 
 
   # remove any stale files from a previous write before creating the folder,
   # otherwise they would be included in the new zip
