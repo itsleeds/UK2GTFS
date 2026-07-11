@@ -75,6 +75,12 @@
 #'   as `fares` to add GTFS fare tables to the output. See
 #'   [gtfs_add_railfares()] for the fare model, the choices exposed by the
 #'   `fares_*` arguments, and the limitations.
+#' 
+#'   Shapes
+#' 
+#'   The ATOC data does not contain any shape information. If `shapes = TRUE`,
+#'   the function will attempt to build shapes.txt from an internal map of the
+#'   rail network.
 #'
 #' @md
 #' @export
@@ -257,12 +263,7 @@ atoc2gtfs <- function(path_in,
     }
     timetables$transfers <- station2transfers(station = station, flf = flf)
   }
-
-
-  # Build Shapes
-  if (shapes) {
-    message("Shapes are not yet supported, try ATOC_shapes()")
-  }
+ 
 
   # Add Fares
   if (!is.null(fares)) {
@@ -282,6 +283,12 @@ atoc2gtfs <- function(path_in,
       booking_date = fares_booking_date,
       silent = silent
     )
+  }
+
+  # Build Shapes
+  if (shapes) {
+    message("Building shapes.txt, this may take some time...")
+    timetables = ATOC_shapes(timetables)
   }
 
   return(timetables)
