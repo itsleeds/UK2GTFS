@@ -20,6 +20,10 @@
   extracts nested zip archives automatically.
 * TransXChange services containing several `Line`s now produce one GTFS route
   per line, with journeys assigned via their `LineRef`.
+* `gtfs_stop_frequency()` and `gtfs_trips_per_zone()` now support
+  frequency-based services (`frequencies.txt`): every departure implied by a
+  frequency window is counted, in its correct time band. `gtfs_trim_dates()`
+  keeps the `frequencies` table consistent with the trimmed trips.
 
 ## Bug fixes
 

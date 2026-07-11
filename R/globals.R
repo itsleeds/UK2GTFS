@@ -43,7 +43,7 @@ utils::globalVariables(c(
   'agency_key', 'op_key', 'idx', 'line_public_code', 'route_short_name',
   'operator_noc', 'matched', 'i.route_id', 'x.route_id',
   # stops_per_week_functions.R
-  'day_flag'
+  'day_flag', 'TMP_dep', 'n_departures'
 ))
 
 

@@ -23,3 +23,7 @@ the stops table with total stop counts and stops per week added
 \description{
 Count the number of trips stopping at each stop between two dates
 }
+\details{
+For frequency-based services (frequencies.txt), each trip is
+  counted once per departure implied by its frequency windows.
+}

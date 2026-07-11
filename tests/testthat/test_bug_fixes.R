@@ -445,3 +445,111 @@ test_that("gtfs_compress remaps transfer stop_ids to match stops", {
   expect_true(all(res$transfers$to_stop_id %in% res$stops$stop_id))
   expect_true(is.integer(res$transfers$from_stop_id))
 })
+
+
+# Mon-Fri service over a 28-day Monday-aligned window (20 weekdays).
+# T1 is a conventional trip at 12:00; T2 is frequency-based with two windows:
+#   07:00-09:00 every 30 min -> 4 departures/day (Morning Peak)
+#   11:00-13:00 every 60 min -> 2 departures/day (Midday)
+mk_freq_gtfs <- function() {
+  list(
+    agency = data.frame(agency_id = "A1", agency_name = "Agency",
+                        stringsAsFactors = FALSE),
+    stops = data.frame(stop_id = c("S1", "S2"), stop_name = c("a", "b"),
+                       stop_lon = c(-1.5, -1.5), stop_lat = c(53.8, 53.8),
+                       stringsAsFactors = FALSE),
+    routes = data.frame(route_id = "R1", agency_id = "A1",
+                        route_short_name = "1", route_type = 3L,
+                        stringsAsFactors = FALSE),
+    trips = data.frame(route_id = "R1", service_id = "SV1",
+                       trip_id = c("T1", "T2"), stringsAsFactors = FALSE),
+    stop_times = data.frame(trip_id = c("T1", "T2"),
+                            arrival_time = lubridate::hms(c("12:00:00", "07:00:00")),
+                            departure_time = lubridate::hms(c("12:00:00", "07:00:00")),
+                            stop_id = c("S1", "S2"), stop_sequence = 1L,
+                            stringsAsFactors = FALSE),
+    calendar = data.frame(service_id = "SV1", monday = 1L, tuesday = 1L,
+                          wednesday = 1L, thursday = 1L, friday = 1L,
+                          saturday = 0L, sunday = 0L,
+                          start_date = as.Date("2023-10-02"),
+                          end_date = as.Date("2023-10-29"),
+                          stringsAsFactors = FALSE),
+    calendar_dates = data.frame(service_id = character(),
+                                date = as.Date(character()),
+                                exception_type = integer(),
+                                stringsAsFactors = FALSE),
+    frequencies = data.frame(trip_id = "T2",
+                             start_time = c("07:00:00", "11:00:00"),
+                             end_time = c("09:00:00", "13:00:00"),
+                             headway_secs = c(1800L, 3600L),
+                             stringsAsFactors = FALSE)
+  )
+}
+
+
+test_that("gtfs_stop_frequency counts frequency-based departures", {
+  stops <- suppressMessages(gtfs_stop_frequency(
+    mk_freq_gtfs(),
+    startdate = lubridate::ymd("2023-10-02"),
+    enddate = lubridate::ymd("2023-10-29")))
+
+  # conventional trip: once per weekday
+  expect_equal(stops$stops_total[stops$stop_id == "S1"], 20)
+  expect_equal(stops$stops_per_week[stops$stop_id == "S1"], 5)
+  # frequency-based trip: 4 + 2 departures per weekday
+  expect_equal(stops$stops_total[stops$stop_id == "S2"], 120)
+  expect_equal(stops$stops_per_week[stops$stop_id == "S2"], 30)
+})
+
+
+test_that("gtfs_trim_dates keeps frequencies consistent with trips", {
+  gtfs <- mk_freq_gtfs()
+  # second service entirely outside the window, also frequency-based
+  gtfs$calendar <- rbind(gtfs$calendar,
+                         data.frame(service_id = "SV2", monday = 1L,
+                                    tuesday = 1L, wednesday = 1L,
+                                    thursday = 1L, friday = 1L,
+                                    saturday = 0L, sunday = 0L,
+                                    start_date = as.Date("2024-01-01"),
+                                    end_date = as.Date("2024-01-31"),
+                                    stringsAsFactors = FALSE))
+  gtfs$trips <- rbind(gtfs$trips,
+                      data.frame(route_id = "R1", service_id = "SV2",
+                                 trip_id = "T3", stringsAsFactors = FALSE))
+  gtfs$frequencies <- rbind(gtfs$frequencies,
+                            data.frame(trip_id = "T3",
+                                       start_time = "07:00:00",
+                                       end_time = "08:00:00",
+                                       headway_secs = 1800L,
+                                       stringsAsFactors = FALSE))
+
+  trimmed <- suppressMessages(gtfs_trim_dates(
+    gtfs,
+    startdate = lubridate::ymd("2023-10-02"),
+    enddate = lubridate::ymd("2023-10-29")))
+
+  expect_false("T3" %in% trimmed$trips$trip_id)
+  expect_setequal(unique(trimmed$frequencies$trip_id), "T2")
+})
+
+
+test_that("gtfs_trips_per_zone expands frequency-based trips into time bands", {
+  zone <- sf::st_sf(zone_id = "Z1",
+                    geometry = sf::st_sfc(sf::st_buffer(
+                      sf::st_point(c(-1.5, 53.8)), 0.01), crs = 4326))
+
+  res <- suppressWarnings(suppressMessages(
+    gtfs_trips_per_zone(mk_freq_gtfs(), zone,
+                        startdate = lubridate::ymd("2023-10-02"),
+                        enddate = lubridate::ymd("2023-10-29"))
+  ))
+  res <- as.data.frame(res)
+
+  # 4 Morning Peak departures x 4 Mondays
+  expect_equal(res[["runs_Mon_Morning Peak"]], 16)
+  # (2 frequency departures + conventional T1 at 12:00) x 4 Mondays
+  expect_equal(res$runs_Mon_Midday, 12)
+  # service does not run at weekends
+  expect_equal(res$runs_Sat_Midday, 0)
+  expect_true(all(as.matrix(res[grep("^runs_", names(res))]) >= 0))
+})
