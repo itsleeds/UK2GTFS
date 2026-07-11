@@ -188,3 +188,260 @@ test_that("clean_times parses ISO 8601 durations", {
   expect_equal(unname(clean_times("PT30S")), 30)
   expect_equal(unname(clean_times(NA)), 0)
 })
+
+
+test_that("station2transfers drops unmatched CRS codes and de-duplicates", {
+  # from/to are CRS codes; LDN has no matching station so those transfers
+  # would otherwise gain NA from_stop_id/to_stop_id (invalid transfers.txt)
+  flf <- data.frame(from = c("KGX", "LDN", "EUS"),
+                    to   = c("EUS", "KGX", "KGX"),
+                    time = c(5, 7, 6),
+                    stringsAsFactors = FALSE)
+  station <- data.frame(`TIPLOC Code` = c("KNGX", "EUSTON"),
+                        `CRS Code` = c("KGX", "EUS"),
+                        `Minimum Change Time` = c("10", "12"),
+                        check.names = FALSE, stringsAsFactors = FALSE)
+
+  tr <- station2transfers(station, flf)
+
+  # required id fields must never be NA
+  expect_false(anyNA(tr$from_stop_id))
+  expect_false(anyNA(tr$to_stop_id))
+  # only stops that exist in the station file survive
+  expect_true(all(tr$from_stop_id %in% c("KNGX", "EUSTON")))
+  expect_true(all(tr$to_stop_id %in% c("KNGX", "EUSTON")))
+  # no duplicate (from, to) pairs
+  expect_false(any(duplicated(tr[, c("from_stop_id", "to_stop_id")])))
+  # integer time fields per the GTFS spec
+  expect_true(is.integer(tr$min_transfer_time))
+  expect_true(is.integer(tr$transfer_type))
+})
+
+
+test_that("gtfs_clean and gtfs_force_valid prune dangling transfers", {
+  gtfs <- list(
+    agency = data.frame(agency_id = "A1", agency_name = "Agency",
+                        agency_url = "http://x", agency_timezone = "Europe/London",
+                        stringsAsFactors = FALSE),
+    stops = data.frame(stop_id = c("A", "B", "C"), stop_name = c("A", "B", "C"),
+                       stop_lon = c(-1, -2, -3), stop_lat = c(51, 52, 53),
+                       stringsAsFactors = FALSE),
+    routes = data.frame(route_id = "R1", agency_id = "A1", route_short_name = "1",
+                        route_long_name = "one", route_type = 3L,
+                        stringsAsFactors = FALSE),
+    trips = data.frame(route_id = "R1", service_id = "SV1", trip_id = "T1",
+                       stringsAsFactors = FALSE),
+    stop_times = data.frame(trip_id = "T1", arrival_time = c("10:00:00", "10:05:00"),
+                            departure_time = c("10:00:00", "10:05:00"),
+                            stop_id = c("A", "B"), stop_sequence = 1:2,
+                            stringsAsFactors = FALSE),
+    calendar = data.frame(service_id = "SV1", monday = 1L, tuesday = 1L,
+                          wednesday = 1L, thursday = 1L, friday = 1L,
+                          saturday = 0L, sunday = 0L, start_date = "20200101",
+                          end_date = "20201231", stringsAsFactors = FALSE),
+    calendar_dates = data.frame(service_id = character(), date = character(),
+                                exception_type = integer()),
+    # "Z" does not exist in stops, so these two transfers are dangling
+    transfers = data.frame(from_stop_id = c("A", "A", "Z"),
+                           to_stop_id = c("B", "Z", "B"),
+                           transfer_type = 2L, min_transfer_time = 120L,
+                           stringsAsFactors = FALSE)
+  )
+
+  fv <- gtfs_force_valid(gtfs)
+  expect_equal(nrow(fv$transfers), 1)
+  expect_true(all(fv$transfers$from_stop_id %in% fv$stops$stop_id))
+  expect_true(all(fv$transfers$to_stop_id %in% fv$stops$stop_id))
+
+  cl <- gtfs_clean(gtfs)
+  expect_equal(nrow(cl$transfers), 1)
+  expect_true(all(cl$transfers$from_stop_id %in% cl$stops$stop_id))
+  expect_true(all(cl$transfers$to_stop_id %in% cl$stops$stop_id))
+})
+
+
+test_that("unzip_recursive extracts nested folders and zip files", {
+  skip_if_not(nchar(Sys.which("zip")) > 0, "system zip tool not available")
+
+  # zip files relative to `dir` without permanently changing the working dir
+  zip_in <- function(dir, zipfile, files, flags) {
+    old <- setwd(dir)
+    on.exit(setwd(old))
+    utils::zip(zipfile, files, flags = flags)
+  }
+
+  # Build a BODS-style archive: a top-level zip of per-operator folders that
+  # contain a mix of loose xml files and further zip files (nested >1 level).
+  root <- file.path(tempdir(), "uzr_build")
+  unlink(root, recursive = TRUE)
+  dir.create(file.path(root, "OperatorA"), recursive = TRUE)
+  dir.create(file.path(root, "OperatorB"), recursive = TRUE)
+
+  # loose xml directly in an operator folder
+  writeLines("<a/>", file.path(root, "OperatorA", "loose1.xml"))
+
+  # a nested zip containing an xml
+  inner <- file.path(tempdir(), "uzr_inner")
+  unlink(inner, recursive = TRUE); dir.create(inner)
+  writeLines("<b/>", file.path(inner, "inner1.xml"))
+  zip_in(inner, "innerA.zip", "inner1.xml", flags = "-q")
+  file.copy(file.path(inner, "innerA.zip"),
+            file.path(root, "OperatorA", "innerA.zip"))
+
+  # a doubly-nested zip (a zip inside a zip) in the other operator folder
+  inner2 <- file.path(tempdir(), "uzr_inner2")
+  unlink(inner2, recursive = TRUE); dir.create(inner2)
+  writeLines("<c/>", file.path(inner2, "inner2.xml"))
+  zip_in(inner2, "level2.zip", "inner2.xml", flags = "-q")
+  file.remove(file.path(inner2, "inner2.xml"))
+  zip_in(inner2, "level1.zip", "level2.zip", flags = "-q")
+  file.copy(file.path(inner2, "level1.zip"),
+            file.path(root, "OperatorB", "level1.zip"))
+
+  top_zip <- file.path(tempdir(), "uzr_top.zip")
+  unlink(top_zip)
+  zip_in(root, top_zip, c("OperatorA", "OperatorB"), flags = "-qr")
+
+  exdir <- file.path(tempdir(), "uzr_out")
+  unlink(exdir, recursive = TRUE); dir.create(exdir)
+  unzip_recursive(top_zip, exdir = exdir, silent = TRUE)
+
+  xml <- list.files(exdir, pattern = "\\.xml$", full.names = TRUE,
+                    recursive = TRUE, ignore.case = TRUE)
+  zips_left <- list.files(exdir, pattern = "\\.zip$", full.names = TRUE,
+                          recursive = TRUE, ignore.case = TRUE)
+
+  # all three xml files (loose, singly-nested, doubly-nested) must be found
+  expect_equal(length(xml), 3)
+  expect_setequal(basename(xml), c("loose1.xml", "inner1.xml", "inner2.xml"))
+  # no zip files should remain unextracted
+  expect_equal(length(zips_left), 0)
+})
+
+
+test_that("gtfs_merge keeps every calendar_dates exception when condensing", {
+  mk_gtfs <- function(pref) {
+    list(
+      agency = data.table::data.table(
+        agency_id = paste0("A", pref), agency_name = paste0("Agency", pref),
+        agency_url = "http://example.com", agency_timezone = "Europe/London",
+        agency_lang = "en"),
+      stops = data.table::data.table(
+        stop_id = paste0("S", pref, 1:2), stop_name = c("a", "b"),
+        stop_lat = c(51, 52), stop_lon = c(-1, -2)),
+      routes = data.table::data.table(
+        route_id = "R1", agency_id = paste0("A", pref), route_short_name = "1",
+        route_long_name = "one", route_type = 3L),
+      trips = data.table::data.table(
+        route_id = "R1", service_id = "SV1", trip_id = "T1"),
+      stop_times = data.table::data.table(
+        trip_id = "T1", arrival_time = "10:00:00", departure_time = "10:00:00",
+        stop_id = paste0("S", pref, 1:2), stop_sequence = 1:2),
+      calendar = data.table::data.table(
+        service_id = "SV1", monday = 1L, tuesday = 1L, wednesday = 1L,
+        thursday = 1L, friday = 1L, saturday = 0L, sunday = 0L,
+        start_date = "20230101", end_date = "20231231"),
+      # three distinct exception dates; de-duplicating on service_id alone
+      # used to discard all but the first
+      calendar_dates = data.table::data.table(
+        service_id = "SV1",
+        date = c("20230704", "20230825", "20231225"),
+        exception_type = c(1L, 2L, 2L))
+    )
+  }
+
+  res <- gtfs_merge(list(mk_gtfs("x"), mk_gtfs("y")), force = FALSE, quiet = TRUE)
+
+  # the two identical services condense to one, which must keep all three
+  # exception dates exactly once each
+  expect_equal(nrow(res$calendar), 1)
+  expect_equal(nrow(res$calendar_dates), 3)
+  expect_setequal(as.character(res$calendar_dates$date),
+                  c("20230704", "20230825", "20231225"))
+  expect_false(any(duplicated(
+    res$calendar_dates[, c("service_id", "date", "exception_type")])))
+})
+
+
+test_that("gtfs_trips_per_zone applies exceptions with GTFS semantics", {
+  # Mon-Fri service over a 28-day Monday-aligned window with:
+  #  - a cancellation on a Saturday (calendar does not operate: must be a no-op,
+  #    previously produced runs_Sat = -1)
+  #  - a cancellation on a Monday (real: 4 Mondays become 3)
+  #  - an extra on a Sunday (real: 0 Sundays become 1)
+  gtfs <- list(
+    agency = data.frame(agency_id = "A1", agency_name = "Agency",
+                        stringsAsFactors = FALSE),
+    stops = data.frame(stop_id = "S1", stop_name = "a",
+                       stop_lon = -1.5, stop_lat = 53.8,
+                       stringsAsFactors = FALSE),
+    routes = data.frame(route_id = "R1", agency_id = "A1",
+                        route_short_name = "1", route_type = 3L,
+                        stringsAsFactors = FALSE),
+    trips = data.frame(route_id = "R1", service_id = "SV1", trip_id = "T1",
+                       stringsAsFactors = FALSE),
+    stop_times = data.frame(trip_id = "T1",
+                            arrival_time = lubridate::hms("12:00:00"),
+                            departure_time = lubridate::hms("12:00:00"),
+                            stop_id = "S1", stop_sequence = 1L,
+                            stringsAsFactors = FALSE),
+    calendar = data.frame(service_id = "SV1", monday = 1L, tuesday = 1L,
+                          wednesday = 1L, thursday = 1L, friday = 1L,
+                          saturday = 0L, sunday = 0L,
+                          start_date = as.Date("2023-10-02"),
+                          end_date = as.Date("2023-10-29"),
+                          stringsAsFactors = FALSE),
+    calendar_dates = data.frame(
+      service_id = "SV1",
+      date = as.Date(c("2023-10-07", "2023-10-09", "2023-10-08")),
+      exception_type = c(2L, 2L, 1L),
+      stringsAsFactors = FALSE)
+  )
+
+  zone <- sf::st_sf(zone_id = "Z1",
+                    geometry = sf::st_sfc(sf::st_buffer(
+                      sf::st_point(c(-1.5, 53.8)), 0.01), crs = 4326))
+
+  res <- suppressWarnings(suppressMessages(
+    gtfs_trips_per_zone(gtfs, zone,
+                        startdate = lubridate::ymd("2023-10-02"),
+                        enddate = lubridate::ymd("2023-10-29"))
+  ))
+  res <- as.data.frame(res)
+
+  expect_equal(res$runs_Mon_Midday, 3)  # 4 Mondays - 1 cancellation
+  expect_equal(res$runs_Tue_Midday, 4)
+  expect_equal(res$runs_Sat_Midday, 0)  # no-op cancellation, was -1
+  expect_equal(res$runs_Sun_Midday, 1)  # genuine extra
+  # nothing anywhere may be negative
+  expect_true(all(as.matrix(res[grep("^runs_", names(res))]) >= 0))
+})
+
+
+test_that("gtfs_compress remaps transfer stop_ids to match stops", {
+  gtfs <- list(
+    agency = data.frame(agency_id = "A1", agency_name = "Agency",
+                        stringsAsFactors = FALSE),
+    stops = data.frame(stop_id = c("A", "B", "C"), stop_name = c("A", "B", "C"),
+                       stop_lon = c(-1, -2, -3), stop_lat = c(51, 52, 53),
+                       stringsAsFactors = FALSE),
+    routes = data.frame(route_id = "R1", agency_id = "A1",
+                        stringsAsFactors = FALSE),
+    trips = data.frame(route_id = "R1", service_id = "SV1", trip_id = "T1",
+                       stringsAsFactors = FALSE),
+    stop_times = data.frame(trip_id = "T1", stop_id = c("A", "B"),
+                            stop_sequence = 1:2, stringsAsFactors = FALSE),
+    calendar = data.frame(service_id = "SV1", stringsAsFactors = FALSE),
+    calendar_dates = data.frame(service_id = character(), stringsAsFactors = FALSE),
+    transfers = data.frame(from_stop_id = "A", to_stop_id = "B",
+                           transfer_type = 2L, min_transfer_time = 120L,
+                           stringsAsFactors = FALSE)
+  )
+
+  res <- gtfs_compress(gtfs)
+
+  # transfer endpoints must still resolve to real stops after id compression
+  expect_true(all(res$transfers$from_stop_id %in% res$stops$stop_id))
+  expect_true(all(res$transfers$to_stop_id %in% res$stops$stop_id))
+  expect_true(is.integer(res$transfers$from_stop_id))
+})

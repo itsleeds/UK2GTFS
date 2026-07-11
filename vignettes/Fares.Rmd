@@ -1,0 +1,308 @@
+---
+title: "Adding Fares - NeTEx to GTFS (v1 and v2)"
+author: "Malcolm Morgan"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Adding Fares - NeTEx to GTFS (v1 and v2)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+This vignette explains how to add **fares** to a GTFS feed built with UK2GTFS,
+using the NeTEx fare files published by the UK **Bus Open Data Service** (BODS).
+It covers where the data comes from, how the functions fit together, and - most
+importantly - the conceptual mismatches between NeTEx and GTFS that force some
+trade-offs when you convert. The functions described here all live in the
+`netex_*` / `gtfs_add_fares*` family and are independent of the existing
+timetable conversion code.
+
+(For **heavy rail** fares - the National Rail fares feed used with
+`atoc2gtfs()` - see the *Heavy Rail CIF to GTFS* vignette and
+`?gtfs_add_railfares`; rail uses a completely different source format.)
+
+## Background: two different worlds
+
+Timetables and fares are published separately in the UK:
+
+* **Timetables** come as **TransXChange** XML and are converted to GTFS with
+  [`transxchange2gtfs()`]. This gives you `stops`, `routes`, `trips`,
+  `stop_times` and calendars, but **no fares**.
+* **Fares** come as **NeTEx** XML (the DfT "fxc" fares profile) in a separate
+  BODS *fares* archive. NeTEx is a very large, very general European standard;
+  the UK profile uses only a slice of it, but that slice is still far richer
+  than anything GTFS can express.
+
+The job of these functions is to read the NeTEx fares, line them up with the
+GTFS routes you already built, and write out fares in **either** GTFS fares
+specification:
+
+* **GTFS "v1"** - the original `fare_attributes.txt` + `fare_rules.txt` (plus a
+  `zone_id` on each stop).
+* **GTFS-Fares-v2** - the newer, richer `areas`, `fare_products`,
+  `fare_leg_rules`, `rider_categories`, `fare_media` and `networks` tables.
+
+The two are genuinely different data models, so both are supported and you
+choose with `fares_version`.
+
+## The NeTEx fare model (what one file contains)
+
+In the BODS fares archive, **one XML file describes the fares for one line, in
+one direction, for one product** - for example "Beestons line 91, Inbound,
+Adult Single". A single registered service therefore spreads across many files
+(adult/child x single/return x inbound/outbound).
+
+The fares themselves are usually a **zone-to-zone fare triangle**:
+
+* the line's stops are grouped into a handful of **fare zones**
+  (`FareZone` -> a list of `ScheduledStopPointRef`);
+* every **origin-zone / destination-zone pair** points at a **price band**
+  (`DistanceMatrixElement` -> `PriceGroupRef`);
+* each **price band** has a monetary amount (`PriceGroup` -> `Amount`).
+
+So the meaning is "travelling from zone A to zone B on this line costs GBP X for
+this passenger type". A smaller number of files instead describe a single
+**flat fare** (one price for the whole line, no zones); these are read as a
+single zone-less fare.
+
+## Reading NeTEx
+
+```{r read}
+library(UK2GTFS)
+
+# 1. Unpack the BODS fares archive (follows nested zips). Keep the output
+#    folder path SHORT on Windows - see "Long file paths" below.
+xml_files <- netex_unzip("bodds_fares_archive_20260703.zip", exdir = "C:/nfx")
+
+# 2. Read every file. Reading is CPU-bound, so use several cores.
+netex <- netex_read_fares_multiple(xml_files, ncores = 20)
+
+# Files that could not be parsed are reported, not fatal:
+netex_read_failures(netex)
+```
+
+`netex_read_fares()` reads a single file into a small list of tidy
+`data.table`s (`meta`, `stops`, `zones`, `prices`, `fares`) if you want to
+inspect one file directly.
+
+## Choosing which fares to convert
+
+A national archive contains many products per line. `netex_fare_types()` shows
+you what is available, and `netex_filter_fares()` lets you pick:
+
+```{r choose}
+# What products exist?
+netex_fare_types(netex)
+#>    idx operator_noc line_public_code direction product_name trip_type user_type ...
+#> 1:   1         BEES               91   inbound Adult Return    return     adult
+#> 2:   2         BEES               91   inbound Adult Single    single     adult
+#> 3:   3         BEES               91   inbound Child Single    single     child
+#> ...
+
+# Keep only adult single tickets
+singles <- netex_filter_fares(netex, trip_type = "single", user_type = "adult")
+```
+
+Every attribute shown by `netex_fare_types()` can be used as a filter
+(`trip_type`, `user_type`, `product_name`, `direction`, `line_public_code`,
+`operator_noc`), and any combination is valid, so all fare types are
+selectable.
+
+## Matching fares to routes, and a national report
+
+NeTEx and GTFS do not share route identifiers. The GTFS `route_id` produced by
+`transxchange2gtfs()` comes from the TransXChange *ServiceCode*, whereas NeTEx
+identifies the line by its public number. Matching is therefore done on:
+
+* NeTEx `operator_noc`  ==  GTFS `agency_id`   (e.g. `BEES`), **and**
+* NeTEx `line_public_code`  ==  GTFS `route_short_name`  (e.g. `91`).
+
+```{r match}
+gtfs <- transxchange2gtfs("bodds_timetable_archive.zip", ncores = 20)
+
+# How much of the fares data can we actually attach?
+netex_fares_report(netex, gtfs)
+#> NeTEx fares report
+#>   files:            151691  (failed to parse: 0)
+#>   operators:        440
+#>   lines:            8875
+#>   zonal fare files: 77213
+#>   flat  fare files: 74478
+#>   lines matched to GTFS route: 5204 / 9116
+```
+
+The match rate depends entirely on the overlap between the fares archive
+(national, 440 operators) and the timetable feed you built. Matching the full
+national fares against a regional GTFS naturally leaves most lines unmatched;
+against a national timetable feed the rate is much higher.
+
+`netex_fares_report()` is the tool for national runs: it summarises the product
+mix and, crucially, how many lines could be matched to a route. Unmatched lines
+are returned in `$unmatched`.
+
+### What the national archive looks like
+
+Reading the whole GB Bus Open Data Service fares archive (July 2026) gives a
+sense of the scale and variety the functions have to cope with:
+
+| Measure | Value |
+|---|---|
+| NeTEx fare files | ~151,700 |
+| Failed to parse | 0 |
+| Operators / lines | 440 / 8,875 |
+| Zonal fare files (fare triangle) | ~77,200 |
+| Flat fare files (single price) | ~74,500 |
+| Flat fares with no line number (operator-wide) | ~42,100 |
+
+Two things stand out. First, roughly **half of all fare files are flat fares**,
+so flat-fare support is not an edge case. Second, a large share of those flat
+fares carry **no line number** because they apply across an operator's whole
+network; these cannot be matched to a single GTFS route by line number and are
+reported as unmatched (see limitation 8).
+
+## Producing GTFS fares
+
+The one-step wrapper unpacks, reads, reports and attaches fares:
+
+```{r fromarchive}
+# GTFS v1, adult single tickets only
+gtfs_v1 <- netex_fares_from_archive(
+  "bodds_fares_archive_20260703.zip",
+  gtfs          = gtfs,
+  fares_version = 1,
+  ncores        = 20,
+  trip_type     = "single",
+  user_type     = "adult"
+)
+gtfs_write(gtfs_v1, "output", name = "gtfs_with_fares_v1")
+
+# GTFS-Fares-v2, all products at once
+gtfs_v2 <- netex_fares_from_archive(
+  "bodds_fares_archive_20260703.zip",
+  gtfs          = gtfs,
+  fares_version = 2,
+  ncores        = 20
+)
+gtfs_write(gtfs_v2, "output", name = "gtfs_with_fares_v2")
+```
+
+Or, if you already have the parsed `netex` list, call `gtfs_add_fares()`
+(or the lower-level `gtfs_add_fares_v1()` / `gtfs_add_fares_v2()`) directly.
+
+## How NeTEx maps onto GTFS
+
+| NeTEx concept              | GTFS v1                    | GTFS-Fares-v2                         |
+|----------------------------|----------------------------|---------------------------------------|
+| Fare zone -> stops         | `stops.zone_id`            | `areas` + `stop_areas`                |
+| O/D zone pair              | `fare_rules` origin/dest   | `fare_leg_rules` from/to area         |
+| Price band amount          | `fare_attributes.price`    | `fare_products.amount`                |
+| Line                       | `fare_rules.route_id`      | `networks` + `route_networks`         |
+| Passenger type (adult...)  | *(not representable)*      | `rider_categories`                    |
+| Ticket medium / channel    | `payment_method` (approx.) | `fare_media`                          |
+
+## Limitations and trade-offs
+
+Converting NeTEx to GTFS is lossy in both directions of the specification.
+These are the issues to be aware of; where a choice exists it is exposed as a
+function argument.
+
+### 1. GTFS v1 has no passenger categories
+
+`fare_attributes`/`fare_rules` cannot say "this price is for children". GTFS v1
+can therefore only carry **one product** cleanly. Select it explicitly, e.g.
+`trip_type = "single", user_type = "adult"`. If you leave several products in,
+they will all be emitted and a rider-facing planner will simply apply the
+cheapest matching fare, which is usually wrong. **Use GTFS-Fares-v2 if you need
+adult *and* child, or single *and* return.**
+
+### 2. GTFS v1 allows only one fare zone per stop
+
+`stops.zone_id` is a single value. But a stop can legitimately sit in different
+fare zones on different lines, in different directions, or (in the source data)
+even within one file. When conversions collide, `gtfs_add_fares_v1()` keeps the
+first assignment, drops the now-orphaned fare rules, and warns. At national
+scale this is severe - converting the whole archive at once reports on the order
+of 80,000 conflicted stops - which is exactly why v1 is best used per route or
+per direction. The practical advice is to build v1 feeds **one direction at a
+time** (`direction = "inbound"` or `"outbound"`), or to use v2, where
+`stop_areas` is many-to-many and a stop can belong to as many areas as needed.
+
+### 3. Directional fares
+
+NeTEx fares are directional (the triangle is not symmetric). GTFS networks are
+not direction-aware, so both directions' leg rules attach to the same network.
+For typical symmetric bus fares this is harmless; where inbound and outbound
+prices genuinely differ, a planner cannot always pick the right one. Areas are
+namespaced by direction so the data is at least internally consistent.
+
+### 4. Only stops present in the GTFS feed get fares
+
+A fare zone may list stops that are not in the matched GTFS route (the route
+version you converted may serve fewer stops). Zones with no stop in the feed,
+and any fare rule that references them, are dropped so the output has no
+dangling references.
+
+### 5. Flat fares vs zonal fares
+
+About half of the national archive uses **flat fares** (one price for the whole
+line) rather than a zonal fare triangle. These are read (`meta$fare_kind` is
+`"flat"`) and converted to a single route-wide fare: in v1 a `fare_rule` with a
+`route_id` but no origin/destination; in v2 a `fare_leg_rule` on the network
+with no `from_area_id`/`to_area_id`. No `zone_id`/`areas` are produced for a
+flat-fare line.
+
+### 6. Operator-wide fares cannot be matched by line
+
+Many flat fares (about 42,000 files nationally) carry **no line number** because
+they apply to a whole operator's network, not a single service. Matching is by
+operator + line number, so these have nothing to match against and appear in the
+report's `$unmatched`. Attaching them would require a policy decision (apply to
+*every* route of the operator), which is deliberately left to the caller rather
+than assumed.
+
+### 7. One product/tariff per file is read
+
+Each NeTEx file is assumed to carry one line/direction/product with a single
+tariff, which matches the BODS export convention. Files that pack multiple
+tariffs are read using the first.
+
+### 8. Payment method and media are approximated
+
+The rich NeTEx `SalesOfferPackage` (distribution channel, payment methods,
+ticket type) is collapsed to a GTFS `payment_method` (v1) or a single
+`fare_media` row (v2). Both default to on-board cash payment and are exposed as
+arguments (`payment_method`, `fare_media_name`, `fare_media_type`).
+
+### 9. Long file paths on Windows
+
+BODS NeTEx file names routinely exceed 100 characters. Nested inside long
+operator-folder names they blow past the Windows 260-character path limit,
+which makes extraction silently fail. `netex_unzip()` avoids this by extracting
+nested archives into short, sequentially-named folders - but keep your `exdir`
+short as well (a short drive-root path such as `C:/nfx` is safest).
+
+## Parallel processing and scale
+
+Reading the ~150,000-file national NeTEx archive is by far the expensive step
+and is parallelised with `furrr`/`future`. Pass `ncores` to
+`netex_read_fares_multiple()` (or the `netex_fares_from_archive()` wrapper) to
+spread the work over up to ~20 cores, with a progress bar. On a 20-core machine
+the full national read takes on the order of an hour; a single operator is a
+few seconds.
+
+The matching step (`netex_match_routes()`) is vectorised and handles tens of
+thousands of routes without a per-file loop. The conversion step
+(`gtfs_add_fares_*()`) runs single-core but is fast, and it silently skips files
+whose line does not match any route (reporting the count once) so that running a
+national fares archive against a regional GTFS does not flood the log.
+
+`transxchange2gtfs()` has its own `ncores` argument for building the timetable
+feed in parallel.

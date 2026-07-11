@@ -42,6 +42,9 @@ doc
 Meta
 docs/
 temp_naptan/Stops.csv
+# data files downloaded into the package by update_data(); re-downloadable,
+# not source
+inst/extdata/*.rda
 inst/extdata/transxchange.zip
 inst/extdata/transxchange/Bangor-Aberystwyth_TCAT002.xml
 inst/extdata/transxchange/CardiffBus618,619-CardiffBay-Cathays1_TXC_2021914-0740_CBAO618.xml

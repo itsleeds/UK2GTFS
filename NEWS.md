@@ -1,0 +1,45 @@
+# UK2GTFS 0.3.0
+
+## New features
+
+* Fares support. GTFS fare tables (both the original `fare_attributes`/
+  `fare_rules` specification and GTFS Fares v2) can now be built from:
+  * the National Rail fares feed (RSPS5045) via `atoc_fares_read()` and
+    `gtfs_add_railfares()`, including child/railcard discounts and optional
+    scenario snapshots (`travel_date`/`travel_time`/`booking_date`), also
+    available directly from `atoc2gtfs()` via the new `fares*` arguments.
+  * Bus Open Data Service NeTEx fare files via `netex_read_fares()`,
+    `netex_match_routes()`, `gtfs_add_fares()` and the
+    `netex_fares_from_archive()` wrapper, with parallel reading for the
+    national archive.
+* New vignettes: *Adding Fares* (NeTEx) and *NPTDR to GTFS*; expanded ATOC,
+  GTFS and TransXChange vignettes.
+* `transxchange2gtfs()` gains `filter_duplicate_files`/`filter_date` (and the
+  underlying `txc_filter_files()`) to drop superseded revisions of the same
+  service when converting archives such as the BODS change archive, and now
+  extracts nested zip archives automatically.
+* TransXChange services containing several `Line`s now produce one GTFS route
+  per line, with journeys assigned via their `LineRef`.
+
+## Bug fixes
+
+* `importMCA()` reads TIPLOC Delete (TD) records correctly and parses
+  association dates as yymmdd per RSPS5046.
+* `station2transfers()` no longer emits transfers with missing stop ids, and
+  writes integer `transfer_type`/`min_transfer_time`.
+* `gtfs_clean()`, `gtfs_force_valid()` and `gtfs_compress()` now keep
+  `transfers.txt` consistent with the stops table.
+* `gtfs_merge()` no longer drops all but one `calendar_dates` exception per
+  service when condensing service patterns.
+* `gtfs_stop_frequency()` and `gtfs_trips_per_zone()` apply `calendar_dates`
+  exceptions with correct GTFS semantics (no more negative trip counts).
+* `gtfs_write()` accepts plain data.frames as well as data.tables, and writes
+  unknown stop times as empty fields instead of `"NA:NA:NA"`.
+* `gtfs_interpolate_times()` no longer fails when some trips contain NA times,
+  and returns `stop_times` as a data.frame (Period columns are not safe to
+  row-subset in a data.table).
+* `get_naptan()` returns numeric coordinates.
+* NPTDR conversion handles HHMM times and empty exception tables.
+* Package state is kept in an internal cache environment instead of
+  modifying locked namespace bindings; `load_data()` loads into the caller's
+  environment instead of the global environment.

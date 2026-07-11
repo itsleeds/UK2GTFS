@@ -2,17 +2,23 @@
 
 
 
+# Package-local mutable state lives in its own environment. This avoids
+# modifying locked namespace bindings via unlockBinding(), which R CMD check
+# flags as unsafe.
+uk2gtfs_cache <- new.env(parent = emptyenv())
+
 setValueInThisEnvironment <- function( name, value )
 {
-  env <- asNamespace("UK2GTFS")
-  unlockBinding(name, env)
-  assign(name, value, envir = env)
-  lockBinding(name, env)
+  assign(name, value, envir = uk2gtfs_cache)
+}
+
+getCachedValue <- function( name )
+{
+  get(name, envir = uk2gtfs_cache)
 }
 
 
-
-assign("STOP_PROCESSING_UID", NULL )
+setValueInThisEnvironment("STOP_PROCESSING_UID", NULL )
 
 set_STOP_PROCESSING_UID <- function( value )
 {
@@ -20,7 +26,7 @@ set_STOP_PROCESSING_UID <- function( value )
 
   if(!is.null(value))
   {
-    message(paste0(Sys.time(), " Set STOP_PROCESSING_UID to [", get("STOP_PROCESSING_UID"), "]"))
+    message(paste0(Sys.time(), " Set STOP_PROCESSING_UID to [", getCachedValue("STOP_PROCESSING_UID"), "]"))
   }
 }
 
@@ -28,7 +34,7 @@ set_STOP_PROCESSING_UID <- function( value )
 
 #need to ensure these get set consistently into any worker processes as well as main thread
 
-assign("TREAT_DATES_AS_INT", FALSE )
+setValueInThisEnvironment("TREAT_DATES_AS_INT", FALSE )
 
 set_TREAT_DATES_AS_INT <- function( value )
 {
@@ -36,21 +42,21 @@ set_TREAT_DATES_AS_INT <- function( value )
 }
 
 
-assign("WDAY_LOOKUP_MIN_VALUE", NULL )
+setValueInThisEnvironment("WDAY_LOOKUP_MIN_VALUE", NULL )
 
 set_WDAY_LOOKUP_MIN_VALUE <- function( value )
 {
   setValueInThisEnvironment("WDAY_LOOKUP_MIN_VALUE", as.integer(as.integer(value)-1L) )
 }
 
-assign("WDAY_LOOKUP_MAX_VALUE", NULL )
+setValueInThisEnvironment("WDAY_LOOKUP_MAX_VALUE", NULL )
 
 set_WDAY_LOOKUP_MAX_VALUE <- function( value )
 {
   setValueInThisEnvironment("WDAY_LOOKUP_MAX_VALUE", as.integer(value))
 }
 
-assign("WDAY_LOOKUP_MAP", NULL )
+setValueInThisEnvironment("WDAY_LOOKUP_MAP", NULL )
 
 set_WDAY_LOOKUP_MAP <- function( value )
 {
@@ -79,7 +85,7 @@ local_lubridate_wday <- function( date, label = FALSE, week_start=1L )
 
 local_seq_date<-function( from, to, by )
 {
-  if (TRUE==TREAT_DATES_AS_INT)
+  if (isTRUE(getCachedValue("TREAT_DATES_AS_INT")))
   {
     return ( seq.int(from = from, to = to) )
   }
@@ -240,9 +246,11 @@ checkOperatingDayActive <- function(calendar) {
   #performance - precalculate all the days
   veryfirstDay = min(calendar$start_date)
 
-  if( TRUE==TREAT_DATES_AS_INT)
+  if( isTRUE(getCachedValue("TREAT_DATES_AS_INT")) )
   {
-    allDays = WDAY_LOOKUP_MAP[ (veryfirstDay - WDAY_LOOKUP_MIN_VALUE) : (max(calendar$end_date) - WDAY_LOOKUP_MIN_VALUE) ]
+    allDays = getCachedValue("WDAY_LOOKUP_MAP")[
+      (veryfirstDay - getCachedValue("WDAY_LOOKUP_MIN_VALUE")) :
+        (max(calendar$end_date) - getCachedValue("WDAY_LOOKUP_MIN_VALUE")) ]
   }
   else
   {
@@ -350,7 +358,7 @@ makeReplicationDates <- function(cal, startDayNum, endDayNum){
 
   dates <- Map(function(o, e) allDates[o:e], offset, end)
 
-  if (TRUE==TREAT_DATES_AS_INT)
+  if (isTRUE(getCachedValue("TREAT_DATES_AS_INT")))
   {
     res = unlist(dates)
   }
@@ -795,12 +803,13 @@ makeCalendarInner <- function(calendarSub) {
   }
 
 
-  if ( !is.null(STOP_PROCESSING_UID) )
+  stopProcessingUid <- getCachedValue("STOP_PROCESSING_UID")
+  if ( !is.null(stopProcessingUid) )
   {
-    if ( any( STOP_PROCESSING_UID==calendarSub$UID) )
+    if ( any( stopProcessingUid==calendarSub$UID) )
     {
       message(paste0(Sys.time(), " Reached STOP_PROCESSING_UID value [", unique(calendarSub$UID), "] length=", length(calendarSub$UID)))
-      stop("Option:UK2GTFS_option_stopProcessingAtUid has been set: Stopped processing at UID=", STOP_PROCESSING_UID)
+      stop("Option:UK2GTFS_option_stopProcessingAtUid has been set: Stopped processing at UID=", stopProcessingUid)
     }
   }
 

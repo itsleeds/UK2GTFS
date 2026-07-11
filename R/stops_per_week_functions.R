@@ -63,6 +63,7 @@ count_weekday_runs <- function(cal){
 #' @param gtfs GTFS object from gtfs_read()
 #' @param startdate Start date
 #' @param enddate End date
+#' @return the stops table with total stop counts and stops per week added
 #'
 #' @export
 gtfs_stop_frequency <- function(gtfs,
@@ -107,10 +108,26 @@ gtfs_stop_frequency <- function(gtfs,
   calendar_days <- calendar_days[calendar_days$date >= calendar_days$start_date, ]
   calendar_days <- calendar_days[calendar_days$date <= calendar_days$end_date, ]
 
+  # A date can only be added or cancelled once per service
+  calendar_days <- calendar_days[!duplicated(
+    paste(calendar_days$service_id, calendar_days$date, calendar_days$exception_type)), ]
+
+  # GTFS semantics: a cancellation only removes a trip on a day the calendar
+  # operates, and an extra only adds a trip on a day it does not already
+  # operate. Feeds contain cancellations on non-operating days (no-ops), which
+  # would otherwise make counts go negative.
+  dow_cols <- c("monday","tuesday","wednesday","thursday","friday","saturday","sunday")
+  calendar_days <- dplyr::left_join(calendar_days,
+                                    calendar[, c("service_id", dow_cols)],
+                                    by = "service_id")
+  calendar_days$day_flag <- as.matrix(calendar_days[, dow_cols])[
+    cbind(seq_len(nrow(calendar_days)),
+          lubridate::wday(calendar_days$date, week_start = 1))]
+
   calendar_days <- dplyr::group_by(calendar_days, service_id)
   calendar_days <- dplyr::summarise(calendar_days,
-                     runs_extra = sum(exception_type == 1),
-                     runs_canceled = sum(exception_type == 2))
+                     runs_extra = sum(exception_type == 1 & day_flag == 0),
+                     runs_canceled = sum(exception_type == 2 & day_flag == 1))
 
   trips <- trips[trips$service_id %in% calendar$service_id, ]
   stop_times <- stop_times[stop_times$trip_id %in% trips$trip_id,]
@@ -151,6 +168,7 @@ gtfs_stop_frequency <- function(gtfs,
 #' @param gtfs GTFS object from gtfs_read()
 #' @param startdate Start date
 #' @param enddate End date
+#' @return a gtfs object trimmed to services running between the two dates
 #'
 #' @export
 gtfs_trim_dates <- function(gtfs,
@@ -226,6 +244,7 @@ gtfs_trim_dates <- function(gtfs,
 #' @param time_bands list with two named vectors breaks and labels. Used to
 #'   define the time breakdown. Length of breaks must be one greater than length
 #'   of labels.
+#' @return a data frame of trips per zone, day of week, and time band
 #'
 #' @export
 gtfs_trips_per_zone <- function(gtfs,
@@ -266,6 +285,12 @@ gtfs_trips_per_zone <- function(gtfs,
 
   # Get the summaries for calendar
   calendar_dates_summary <- gtfs$calendar_dates
+  # A date can only be added or cancelled once per service; duplicate rows
+  # (e.g. from merged feeds) would otherwise be double-counted
+  calendar_dates_summary <- calendar_dates_summary[!duplicated(
+    paste(calendar_dates_summary$service_id,
+          calendar_dates_summary$date,
+          calendar_dates_summary$exception_type)), ]
   calendar_dates_summary$weekday = as.character(lubridate::wday(calendar_dates_summary$date, label = TRUE))
   calendar_dates_summary <- dplyr::group_by(calendar_dates_summary, service_id, weekday)
   calendar_dates_summary <- dplyr::summarise(calendar_dates_summary,
@@ -315,13 +340,18 @@ gtfs_trips_per_zone <- function(gtfs,
     ifelse(is.na(x),0,x)
   })
 
-  trips$runs_Mon <- trips$runs_Mon + trips$extra_Mon - trips$canceled_Mon
-  trips$runs_Tue <- trips$runs_Tue + trips$extra_Tue - trips$canceled_Tue
-  trips$runs_Wed <- trips$runs_Wed + trips$extra_Wed - trips$canceled_Wed
-  trips$runs_Thu <- trips$runs_Thu + trips$extra_Thu - trips$canceled_Thu
-  trips$runs_Fri <- trips$runs_Fri + trips$extra_Fri - trips$canceled_Fri
-  trips$runs_Sat <- trips$runs_Sat + trips$extra_Sat - trips$canceled_Sat
-  trips$runs_Sun <- trips$runs_Sun + trips$extra_Sun - trips$canceled_Sun
+  # Apply calendar_dates exceptions with GTFS semantics: a cancellation
+  # (exception_type 2) only removes a trip on a day the calendar operates, and
+  # an extra (exception_type 1) only adds a trip on a day it does not already
+  # operate. TransXChange feeds routinely cancel special days for every service
+  # of a route regardless of its day pattern; subtracting those no-op
+  # cancellations produced negative run counts.
+  for(d in c("Mon","Tue","Wed","Thu","Fri","Sat","Sun")){
+    runs <- trips[[paste0("runs_", d)]]
+    trips[[paste0("runs_", d)]] <- ifelse(runs > 0,
+                                          pmax(runs - trips[[paste0("canceled_", d)]], 0),
+                                          trips[[paste0("extra_", d)]])
+  }
 
   # trim out unneeded data
   if(by_mode){

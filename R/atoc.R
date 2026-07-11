@@ -14,9 +14,38 @@
 #'   any missing tiplocs against the main file and add them.(default TRUE)
 #' @param working_timetable Logical, should WTT times be used instead of public times (default FALSE)
 #' @param public_only Logical, only return calls/services that are for public passenger pickup/set down (default TRUE)
+#' @param fares Character, optional path to a National Rail fares feed (e.g.
+#'   "RJFAF756.zip", see [atoc_fares_read()]). If provided, GTFS fare tables
+#'   are built and added to the result (default NULL, no fares).
+#' @param fares_version Numeric, `1` for the original GTFS fares tables or
+#'   `2` for GTFS Fares v2 (default 1). See [gtfs_add_railfares()] for what
+#'   each supports.
+#' @param fares_ticket_codes Character, optional explicit ticket codes to
+#'   convert, passed to [gtfs_add_railfares()] as `ticket_codes`.
+#' @param fares_ticket_class Character, "standard" and/or "first"
+#'   (default "standard").
+#' @param fares_ticket_type Character, any of "single", "return", "season".
+#'   Default: "single" for v1, singles and returns for v2.
+#' @param fares_walkup_only Logical, keep only walk-up Anytime/Off-Peak/
+#'   Super Off-Peak tickets (default TRUE), see [gtfs_add_railfares()].
+#' @param fares_rider_categories Character, any of "adult", "child"; GTFS
+#'   Fares v2 only (default both).
+#' @param fares_railcards Character, optional railcard codes (e.g. "YNG");
+#'   GTFS Fares v2 only (default NULL).
+#' @param fares_ndf Logical, include non-derivable fare overrides
+#'   (default TRUE).
+#' @param fares_travel_date Date, optional: convert fares as a scenario
+#'   snapshot for a journey on this date, applying the feed's date/time
+#'   restriction data. See [gtfs_add_railfares()].
+#' @param fares_travel_time Character "HH:MM", optional departure time for
+#'   the scenario (drops e.g. Off-Peak tickets at peak times). Requires
+#'   `fares_travel_date`.
+#' @param fares_booking_date Date, optional: when the ticket is bought.
+#'   Includes Advance tickets bookable at that horizon, at their tier
+#'   prices. Requires `fares_travel_date`.
 #' @return A gtfs object: a named list of data frames representing the tables
 #'   of a GTFS file (agency, stops, routes, trips, stop_times, calendar,
-#'   calendar_dates, and optionally transfers)
+#'   calendar_dates, and optionally transfers and fare tables)
 #' @family main
 #'
 #' @details Locations
@@ -39,7 +68,15 @@
 #'   agency.txt file. Therefore this data is provided with the package. You can
 #'   also pass your own data frame of agency information.
 #'
+#'   Fares
 #'
+#'   The timetable feed contains no fares; these come in a separate fares
+#'   feed available from the same National Rail Data Portal. Pass its path
+#'   as `fares` to add GTFS fare tables to the output. See
+#'   [gtfs_add_railfares()] for the fare model, the choices exposed by the
+#'   `fares_*` arguments, and the limitations.
+#'
+#' @md
 #' @export
 
 atoc2gtfs <- function(path_in,
@@ -51,13 +88,29 @@ atoc2gtfs <- function(path_in,
                       transfers = TRUE,
                       missing_tiplocs = TRUE,
                       working_timetable = FALSE,
-                      public_only = TRUE) {
+                      public_only = TRUE,
+                      fares = NULL,
+                      fares_version = 1,
+                      fares_ticket_codes = NULL,
+                      fares_ticket_class = "standard",
+                      fares_ticket_type = NULL,
+                      fares_walkup_only = TRUE,
+                      fares_rider_categories = c("adult", "child"),
+                      fares_railcards = NULL,
+                      fares_ndf = TRUE,
+                      fares_travel_date = NULL,
+                      fares_travel_time = NULL,
+                      fares_booking_date = NULL) {
   # Checkmates
   checkmate::assert_character(path_in, len = 1)
   checkmate::assert_file_exists(path_in)
   checkmate::assert_logical(silent)
   checkmate::assert_numeric(ncores, lower = 1)
   checkmate::assert_logical(shapes)
+  checkmate::assert_character(fares, len = 1, null.ok = TRUE)
+  # validate the fares scenario now, before the (slow) timetable build
+  railfares_check_scenario(fares_travel_date, fares_travel_time,
+                           fares_booking_date)
 
   if (ncores == 1) {
     message(paste0(
@@ -209,6 +262,26 @@ atoc2gtfs <- function(path_in,
   # Build Shapes
   if (shapes) {
     message("Shapes are not yet supported, try ATOC_shapes()")
+  }
+
+  # Add Fares
+  if (!is.null(fares)) {
+    timetables <- gtfs_add_railfares(
+      timetables,
+      fares,
+      fares_version = fares_version,
+      ticket_codes = fares_ticket_codes,
+      ticket_class = fares_ticket_class,
+      ticket_type = fares_ticket_type,
+      walkup_only = fares_walkup_only,
+      rider_categories = fares_rider_categories,
+      railcards = fares_railcards,
+      ndf = fares_ndf,
+      travel_date = fares_travel_date,
+      travel_time = fares_travel_time,
+      booking_date = fares_booking_date,
+      silent = silent
+    )
   }
 
   return(timetables)

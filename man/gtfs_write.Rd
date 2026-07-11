@@ -29,6 +29,9 @@ gtfs_write(
 
 \item{quote}{logical, should strings be quoted, default = TRUE, passed to data.table::fwrite}
 }
+\value{
+Invisibly returns NULL, called for the side effect of writing a zip file
+}
 \description{
 Takes a list of data frames representing the GTFS format and saves them as GTFS
 Zip file.

@@ -52,6 +52,8 @@ additional functionality:
 1.  Data conversion
     - Conversion of TransXchange to GTFS
     - Conversion of CIF files to GTFS
+    - Conversion of fares data to GTFS (v1 and Fares v2): BODS NeTEx
+      fares for buses, and the National Rail fares feed for heavy rail
     - reading of TransXchange and CIF files is also supported, although
       some parts which are not required for GTFS conversion are only
       partially supported.

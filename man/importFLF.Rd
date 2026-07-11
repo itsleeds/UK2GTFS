@@ -9,6 +9,9 @@ importFLF(file)
 \arguments{
 \item{file}{Path to .flf file}
 }
+\value{
+data frame of fixed links between stations
+}
 \description{
 Import the .flf file
 }

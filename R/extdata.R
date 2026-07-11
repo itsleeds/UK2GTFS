@@ -8,6 +8,8 @@
 #' https://github.com/ITSLeeds/UK2GTFS-data
 #'
 #' @param timeout maximum duration (in seconds) to wait for a response from the server (github.com)
+#' @return Invisibly returns NULL, called for the side effect of updating the
+#'   package data
 #'
 #' @export
 #'
@@ -81,14 +83,14 @@ check_data <- function( timeout = 60, default_tag = "v0.1.2"){
                       httr::timeout(timeout)),
             silent = TRUE)
   if(inherits(res, "try-error")){
-    message("Unable to check for latest data")
+    packageStartupMessage("Unable to check for latest data")
     date = Sys.time()
     tag_name = default_tag
   } else {
     res = RcppSimdJson::fparse(res$content)
     date = res$published_at[1]
     if(is.null(date)){
-      message("Unable to check for latest data")
+      packageStartupMessage("Unable to check for latest data")
       date = Sys.time()
       tag_name = default_tag
     } else {
@@ -98,15 +100,16 @@ check_data <- function( timeout = 60, default_tag = "v0.1.2"){
 
   date = as.Date(date) #make it less sensitive by only comparing date rather than date+time
 
-  #Check if date.txt in package
+  #Check if date.txt in package; a missing or unreadable file simply means
+  #the data has never been downloaded (don't write into the library folder)
   package_location <- system.file(package = "UK2GTFS")
-  if(!file.exists(file.path(package_location, "extdata/date.txt"))){
-    writeLines("1970-01-01", file.path(package_location, "extdata/date.txt"))
-  }
-
-  date_package <- try(as.Date( readLines(file.path(package_location, "extdata/date.txt")) ),
-                      silent = TRUE)
-  if(inherits(date_package, "try-error")){
+  if(file.exists(file.path(package_location, "extdata/date.txt"))){
+    date_package <- try(as.Date( readLines(file.path(package_location, "extdata/date.txt")) ),
+                        silent = TRUE)
+    if(inherits(date_package, "try-error")){
+      date_package = lubridate::ymd("1970-01-01")
+    }
+  } else {
     date_package = lubridate::ymd("1970-01-01")
   }
 
@@ -169,14 +172,19 @@ check_data <- function( timeout = 60, default_tag = "v0.1.2"){
 #'
 #'
 #' @param type name of data to be loaded e.g. "tiplocs"
-#' @return Loads named object into the global environment
+#' @param envir environment into which the object is loaded. Defaults to the
+#'   caller's environment, so calling this from the console loads the object
+#'   into your workspace and calling it inside a function keeps the object
+#'   local to that function.
+#' @return Invisibly returns a character vector of the names of the objects
+#'   loaded, called for the side effect of loading the named dataset
 #' @export
 
-load_data <- function(type){
+load_data <- function(type, envir = parent.frame()){
 
   package_location <- system.file(package = "UK2GTFS")
-  load(file.path(package_location, "extdata", paste0(type,".rda")),
-       envir = globalenv())
+  invisible(load(file.path(package_location, "extdata", paste0(type,".rda")),
+                 envir = envir))
 
 }
 

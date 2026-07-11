@@ -63,6 +63,7 @@ gtfs_split_ids <- function(gtfs, trip_ids) {
 #'   detects the fastest segment of the journey. A common cause of errors is
 #'   that a stop is in the wrong location so a bus can appear to teleport
 #'   across the country in seconds.
+#' @return a character vector of trip_ids that exceed `maxspeed`
 #' @export
 
 gtfs_fast_trips <- function(gtfs, maxspeed = 83, routes = TRUE) {
@@ -108,6 +109,7 @@ gtfs_fast_trips <- function(gtfs, maxspeed = 83, routes = TRUE) {
 #'   detects the fastest segment of the journey. A common cause of errors is
 #'   that a stop is in the wrong location so a bus can appear to teleport
 #'   across the country in seconds.
+#' @return an sf data frame of stops with speed and distance summary columns
 #' @export
 
 gtfs_fast_stops <- function(gtfs, maxspeed = 83) {
@@ -215,7 +217,9 @@ PUBLIC_SERVICE_CATEGORY = c("OL", "OU", "OO", "OW", "XC", "XD", "XI",
 #' 6. If public_only=TRUE then remove services with 'train_category' not for public use. e.g. EE (ECS-Empty Coaching Stock)
 #' 7. Remove shapes that no longer have any trips
 #' 8  Remove frequencies that no longer have any trips
+#' 9  Remove transfers that reference stops that no longer exist
 #'
+#' @return a gtfs object
 #' @export
 gtfs_clean <- function(gtfs, public_only =  FALSE) {
   # 0 Remove stops with no coordinates
@@ -229,7 +233,8 @@ gtfs_clean <- function(gtfs, public_only =  FALSE) {
   stop_count <- data.table::as.data.table(stop_count)
   stop_count <- stop_count[, .N, by = "trip_id"]
 
-  gtfs$trips <- gtfs$trips[!("trip_id" %in% stop_count[N<2]$trip_id)]
+  gtfs$trips <- gtfs$trips[!(gtfs$trips$trip_id %in% stop_count[N < 2]$trip_id), ]
+  gtfs$stop_times <- gtfs$stop_times[gtfs$stop_times$trip_id %in% gtfs$trips$trip_id, ]
 
   # 3 Remove stops that are never used
   gtfs$stops <- gtfs$stops[gtfs$stops$stop_id %in% unique(gtfs$stop_times$stop_id), ]
@@ -317,6 +322,17 @@ gtfs_clean <- function(gtfs, public_only =  FALSE) {
   if ("frequencies" %in% names(gtfs))
   {
     gtfs$frequencies <- gtfs$frequencies[gtfs$frequencies$trip_id %in% gtfs$trips$trip_id, ]
+  }
+
+  # 9 remove transfers that reference stops that no longer exist. transfers.txt
+  # requires from_stop_id and to_stop_id to be valid stop_ids; dangling
+  # references make the feed invalid and can cause routing engines (e.g. R5) to
+  # reject the whole feed.
+  if ("transfers" %in% names(gtfs) && !is.null(gtfs$transfers))
+  {
+    valid_stops <- unique(gtfs$stops$stop_id)
+    gtfs$transfers <- gtfs$transfers[gtfs$transfers$from_stop_id %in% valid_stops &
+                                       gtfs$transfers$to_stop_id %in% valid_stops, ]
   }
 
   return(gtfs)

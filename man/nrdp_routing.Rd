@@ -20,6 +20,9 @@ nrdp_routing(
 
 \item{url}{URL of data source}
 }
+\value{
+Invisibly returns NULL, called for the side effect of downloading a file
+}
 \description{
 Downloads routing from https://opendata.nationalrail.co.uk
 }

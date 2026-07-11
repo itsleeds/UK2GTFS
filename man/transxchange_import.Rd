@@ -13,6 +13,10 @@ transxchange_import(file, run_debug = TRUE, full_import = FALSE)
 
 \item{full_import}{logical, if false data no needed for GTFS is excluded}
 }
+\value{
+named list of data frames, one per TransXchange section (or NULL if
+  the file contains no services)
+}
 \description{
 Import a TransXchange XML file
 }

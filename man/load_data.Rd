@@ -4,13 +4,19 @@
 \alias{load_data}
 \title{Load a built-in UK2GTFS dataset}
 \usage{
-load_data(type)
+load_data(type, envir = parent.frame())
 }
 \arguments{
 \item{type}{name of data to be loaded e.g. "tiplocs"}
+
+\item{envir}{environment into which the object is loaded. Defaults to the
+caller's environment, so calling this from the console loads the object
+into your workspace and calling it inside a function keeps the object
+local to that function.}
 }
 \value{
-Loads named object into the global environment
+Invisibly returns a character vector of the names of the objects
+  loaded, called for the side effect of loading the named dataset
 }
 \description{
 As UK2GTFS has large datasets that update separately to the R package they

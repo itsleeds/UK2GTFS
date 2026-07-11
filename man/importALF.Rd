@@ -9,6 +9,9 @@ importALF(file)
 \arguments{
 \item{file}{Path to .alf file}
 }
+\value{
+data frame of fixed links between stations
+}
 \description{
 Import the .alf file
 }

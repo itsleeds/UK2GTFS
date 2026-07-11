@@ -8,7 +8,26 @@
       "Bash(\"/c/Program Files/R/R-4.3.3/bin/Rscript.exe\" -e 'load\\(\"inst/extdata/naptan_missing.rda\"\\); str\\(naptan_missing\\)')",
       "Bash(\"/c/Program Files/R/R-4.3.3/bin/Rscript.exe\" -e 'devtools::document\\(\\)')",
       "Bash('/c/Program Files/R/R-4.3.3/bin/Rscript.exe' -e ' *)",
-      "Bash(\"/c/Program Files/R/R-4.3.3/bin/Rscript.exe\" \"C:/Users/earmmor/AppData/Local/Temp/claude/f--GitHub-ITSleeds-UK2GTFS/c6e358cc-0a03-4c66-833c-a1135ce21cb9/scratchpad/check_value.R\")"
+      "Bash(\"/c/Program Files/R/R-4.3.3/bin/Rscript.exe\" \"C:/Users/earmmor/AppData/Local/Temp/claude/f--GitHub-ITSleeds-UK2GTFS/c6e358cc-0a03-4c66-833c-a1135ce21cb9/scratchpad/check_value.R\")",
+      "Bash(printf '^tests/check_vs_BODS\\\\\\\\.R$\\\\n^data/.*\\\\\\\\.pdf$\\\\n')",
+      "Bash(printf '^\\\\\\\\.claude$\\\\n')",
+      "Bash(\"/c/Program Files/R/R-4.3.3/bin/Rscript.exe\" -e 'options\\(crayon.enabled=FALSE\\); devtools::load_all\\(quiet=TRUE\\); testthat::test_file\\(\"tests/testthat/test_aa_unit.R\", reporter=\"summary\"\\)')",
+      "Bash(\"/c/Program Files/R/R-4.3.3/bin/Rscript.exe\" -e 'options\\(crayon.enabled=FALSE\\); devtools::check\\(args = c\\(\"--no-manual\"\\), vignettes = FALSE, error_on = \"never\"\\)')",
+      "Bash(git check-ignore *)",
+      "Read(//f/GitHub/ITSleeds/UK2GTFS-BODS-check/**)",
+      "Read(//f/GitHub/ITSleeds/**)",
+      "Read(//f/GitHub/ITSleeds/UK2GTFS-BODS-check/bodds_archive_20260702_121mXBC/**)",
+      "Read(//f/GitHub/ITSleeds/UK2GTFS-BODS-check/bodds_archive_20260702_121mXBC/Stagecoach Group_15/a/**)",
+      "Bash(cd \"f:/GitHub/ITSleeds/UK2GTFS-BODS-check/bodds_archive_20260702_121mXBC\" && grep -rl \"PF101825697\" --include=\"*.xml\" | head -5)",
+      "Bash(grep -rl \"PF101825697\" --include=\"*.xml\" \"f:/GitHub/ITSleeds/UK2GTFS-BODS-check/bodds_archive_20260702_121mXBC\" | head)",
+      "Bash(awk -F: '$NF>1 {n++} END {print n \" files with >1 LineName\"}')",
+      "Bash(grep -rl \"PF1018256\" --include=\"*.xml\" \"f:/GitHub/ITSleeds/UK2GTFS-BODS-check/bodds_archive_20260702_121mXBC\" | head -4)",
+      "Bash(f=\"f:/GitHub/ITSleeds/UK2GTFS-BODS-check/bodds_archive_20260702_121mXBC/Sanders Coaches_185/Archive_eoIRArE/PF1018256_111_SNDR_PF_26_20230402_20260217.xml\"; grep -o \"<ServiceCode>[^<]*\" \"$f\" | sort | uniq -c; grep -c \"<Service \" \"$f\"; grep -o \"<LineName>[^<]*\" \"$f\" | sort | uniq -c; grep -o \"<VehicleJourneyCode>[^<]*\" \"$f\" | sort | uniq -c | sort -rn | head -5; grep -o \"<StopRequirements>\" \"$f\" | wc -l)",
+      "Read(//f/GitHub/ITSleeds/UK2GTFS-BODS-check/bodds_archive_20260702_121mXBC/Sanders Coaches_185/Archive_eoIRArE/**)",
+      "Bash(\"/c/Program Files/R/R-4.3.3/bin/Rscript.exe\" \"C:/Users/earmmor/AppData/Local/Temp/claude/f--GitHub-ITSleeds-UK2GTFS/c6e358cc-0a03-4c66-833c-a1135ce21cb9/scratchpad/find_dup_vj.R\")",
+      "Bash(awk -F, 'NR==1{print; next} {print $0}' routes.txt)",
+      "Bash(awk -F: '{c=$NF; if\\(c>1\\) n++} END {print n+0 \" files with >1 Service element\"}')",
+      "Bash(\"/c/Program Files/R/R-4.3.3/bin/Rscript.exe\" \"C:/Users/earmmor/AppData/Local/Temp/claude/f--GitHub-ITSleeds-UK2GTFS/c6e358cc-0a03-4c66-833c-a1135ce21cb9/scratchpad/find_multi_so.R\")"
     ]
   }
 }

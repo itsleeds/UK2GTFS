@@ -11,6 +11,9 @@ gtfs_clip(gtfs, bounds)
 
 \item{bounds}{an sf data frame of polygons or multi-polygons with CRS 4326}
 }
+\value{
+a gtfs object clipped to the bounds
+}
 \description{
 Clips the GTFS file to only include stops within the bounds object, trips
 that cross the boundary of the the object are truncated. Any trips that stop

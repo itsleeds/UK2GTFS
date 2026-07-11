@@ -5,6 +5,8 @@
 #'
 #' @param station station SF data frame from the importMSN function
 #' @param TI TI object from the importMCA function
+#' @return named list with a stops data frame (GTFS stops.txt format) and a
+#'   TIPLOC to CRS lookup table
 #' @family atoc
 #' @export
 #'
@@ -90,7 +92,7 @@ station2transfers <- function(station, flf) {
   # make make the transfers.txt
   # transfer between stations are in the FLF file
   transfers1 <- flf[, c("from", "to", "time")]
-  transfers1$time <- transfers1$time * 60
+  transfers1$time <- as.integer(transfers1$time * 60)
   transfers1$transfer_type <- 2
 
   # transfer within stations are in the stations file
@@ -131,6 +133,22 @@ station2transfers <- function(station, flf) {
   )]
 
   transfers <- rbind(transfers1, transfers2)
+
+  # The FLF file references stations by CRS code; if a CRS code has no matching
+  # station in the MSN file the join above leaves from_stop_id/to_stop_id as NA.
+  # These are required fields in transfers.txt, so writing them out produces an
+  # invalid GTFS feed (and causes routing engines such as R5 to reject the feed).
+  # Drop any transfer that is missing an endpoint, and remove duplicate rows
+  # that the many-to-many joins can introduce.
+  transfers <- transfers[!is.na(transfers$from_stop_id) &
+                           !is.na(transfers$to_stop_id), ]
+  transfers <- transfers[!duplicated(transfers[, c("from_stop_id", "to_stop_id")]), ]
+
+  # transfer_type and min_transfer_time are integer fields in the GTFS spec
+  transfers$transfer_type <- as.integer(transfers$transfer_type)
+  transfers$min_transfer_time <- as.integer(transfers$min_transfer_time)
+  rownames(transfers) <- NULL
+
   return(transfers)
 }
 

@@ -28,6 +28,7 @@ nrdp_authenticate = function(username = Sys.getenv("NRDP_username"),
 #' @param username your username
 #' @param password your password
 #' @param url URL of data source
+#' @return Invisibly returns NULL, called for the side effect of downloading a file
 #' @export
 
 nrdp_timetable = function(destfile = "timetable.zip",
@@ -63,6 +64,7 @@ nrdp_timetable = function(destfile = "timetable.zip",
 #' @param username your username
 #' @param password your password
 #' @param url URL of data source
+#' @return Invisibly returns NULL, called for the side effect of downloading a file
 #' @export
 #'
 nrdp_fares = function(destfile = "fares.zip",
@@ -99,6 +101,7 @@ nrdp_fares = function(destfile = "fares.zip",
 #' @param username your username
 #' @param password your password
 #' @param url URL of data source
+#' @return Invisibly returns NULL, called for the side effect of downloading a file
 #' @export
 #'
 nrdp_routing = function(destfile = "routeing.zip",

@@ -9,6 +9,9 @@ importTSI(file)
 \arguments{
 \item{file}{Path to .tsi file}
 }
+\value{
+data frame of TOC specific interchange times
+}
 \description{
 Import the .tsi file
 }

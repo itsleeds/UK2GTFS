@@ -11,6 +11,10 @@ station2stops(station, TI)
 
 \item{TI}{TI object from the importMCA function}
 }
+\value{
+named list with a stops data frame (GTFS stops.txt format) and a
+  TIPLOC to CRS lookup table
+}
 \description{
 Export ATOC stations as GTFS stops.txt
 }

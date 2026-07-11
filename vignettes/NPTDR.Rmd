@@ -1,0 +1,134 @@
+---
+title: "NPTDR to GTFS - Historic Timetables"
+author: "Malcolm Morgan"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{NPTDR to GTFS - Historic Timetables}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette explains how to convert the **National Public Transport Data
+Repository** (NPTDR) archives into [GTFS](https://gtfs.org/). NPTDR is the only
+practical source of a *single, whole-of-Britain, all-modes* historic snapshot,
+which makes it valuable - and slightly awkward - to work with.
+
+## Background: what is the NPTDR?
+
+The National Public Transport Data Repository was an annual snapshot of **every**
+public transport journey in Great Britain - bus, coach, rail, tram, metro and
+ferry - taken during a selected week each October. It was produced between
+roughly 2004 and 2011, after which it was discontinued (its role was effectively
+taken over by the live Traveline and, later, Bus Open Data feeds).
+
+Its distinguishing features:
+
+* **Comprehensive and multi-modal.** One archive covers the whole of Great
+  Britain across all modes in a consistent format - unusual, and the main reason
+  to use it.
+* **Historic only.** The newest snapshot is from around 2011, so NPTDR is for
+  studying the past (network change over time, services that no longer exist,
+  before/after analyses), not for current journey planning.
+* **A snapshot of one week.** Each archive represents a single sample week, so
+  the calendar it produces is short.
+
+### Why the format is fiddly
+
+NPTDR distributes the timetable in the **CIF** format - but a *different dialect*
+from the heavy-rail CIF covered in the [Heavy Rail CIF](ATOC.html) vignette.
+This NPTDR/ATCO-CIF dialect uses record types beginning with `Q` (`QS` service
+header, `QO` origin, `QI` intermediate, `QT` terminating, `QL`/`QB` locations,
+`QE` exceptions, `QR` repetitions). An NPTDR archive is a nested set of zips:
+
+* one CIF file **per administrative area per mode**, grouped in `Admin_Area`
+  zips (so a single archive contains many CIF files);
+* a **NaPTAN** stops export for stop locations;
+* various supporting files.
+
+`UK2GTFS` unpacks all of this for you.
+
+## Where to get the data
+
+The historic NPTDR archives are no longer served from a single official portal.
+Copies are held at the [UK Data Archive](https://www.data.gov.uk/) and various
+mirrors; you download a per-year zip (for example `October-2006.zip`). A small
+sample archive suitable for testing the package can be downloaded with:
+
+```{r dl_example, eval=FALSE}
+library(UK2GTFS)
+dl_example_file(".", type = "nptdr")
+```
+
+## Converting NPTDR to GTFS
+
+The single entry point is `nptdr2gtfs()`:
+
+```{r nptdr_example, eval=FALSE}
+library(UK2GTFS)
+
+gtfs <- nptdr2gtfs(path = "October-2006.zip")
+
+gtfs_write(gtfs, folder = "C:/GTFS", name = "gtfs_nptdr_2006")
+```
+
+Arguments:
+
+* `path` - path to the NPTDR year zip.
+* `enhance_stops` - if `TRUE` (default) the **current** NaPTAN is downloaded and
+  used to fill in any stops that are missing locations in the historic archive.
+  See the note below.
+* `naptan` - the NaPTAN stop locations, by default fetched with `get_naptan()`.
+  Pass a pre-loaded copy to avoid re-downloading.
+* `n_files` - a debugging aid: an integer vector selecting a subset of the CIF
+  files (for example `1:10`) so you can test on a fraction of the archive before
+  running the whole thing.
+* `silent` - suppress progress messages.
+
+Because an archive contains many CIF files covering the whole country, a full
+conversion processes a lot of data - test with `n_files` first.
+
+## Stop locations, old and new
+
+The archive ships its own NaPTAN export, and the CIF files themselves carry
+approximate coordinates (in British National Grid easting/northing, which
+`UK2GTFS` reprojects to WGS84). These historic locations are used first.
+
+Some stops referenced in the timetable will still lack a location - typically
+old, temporary or moveable stops. With `enhance_stops = TRUE` the **present-day**
+NaPTAN is consulted to fill gaps. Be aware of the trade-off: this improves
+completeness but mixes a modern stop location into a historic dataset, and stops
+that have since been removed simply cannot be recovered. Any that remain
+unmatched trigger a warning; you can strip them out afterwards with
+`gtfs_clean()`:
+
+```{r nptdr_clean, eval=FALSE}
+gtfs <- gtfs_clean(gtfs)
+```
+
+## Things to watch for
+
+* **Short calendars.** Because each archive samples a single week, the resulting
+  GTFS `calendar`/`calendar_dates` cover a narrow date range. When you analyse
+  the feed (see [Working with GTFS files](GTFS.html)) make sure your analysis
+  dates fall inside that week, or you will get empty results.
+* **Historic bank holidays.** The conversion uses a bundled
+  `historic_bank_holidays` dataset to resolve operating profiles correctly for
+  the year in question.
+* **Data quality.** These are old files with occasional malformed times and
+  missing stops; the importer repairs the common cases and warns about the rest.
+  Expect to run `gtfs_clean()` and `gtfs_validate_internal()` afterwards.
+
+## Next steps
+
+Historic feeds are most useful for analysis and comparison. See the [Working
+with GTFS files](GTFS.html) vignette for counting services
+(`gtfs_stop_frequency()`, `gtfs_trips_per_zone()`), clipping to an area
+(`gtfs_clip()`) and validating the result.

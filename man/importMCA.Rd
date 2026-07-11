@@ -26,6 +26,10 @@ importMCA(
 
 \item{public_only}{only return calls that are for public passenger pick up/set down}
 }
+\value{
+named list of data tables: stop_times and schedule, plus (when
+  full_import is TRUE) TI, TA, TD, AA, and CR records
+}
 \description{
 Import the .mca file
 }

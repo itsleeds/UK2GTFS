@@ -13,7 +13,7 @@ gtfs_summary = function(gtfs){
   rows <- lapply(gtfs, nrow)
   rows <- unlist(rows)
   message("Tables and number of rows:")
-  print(rows)
+  message(paste0("  ", format(names(rows)), " ", rows, collapse = "\n"))
 
   message("Dates:")
   message("All From ",min(gtfs$calendar$start_date)," to ",max(gtfs$calendar$end_date))

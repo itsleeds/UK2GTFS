@@ -14,7 +14,19 @@ atoc2gtfs(
   transfers = TRUE,
   missing_tiplocs = TRUE,
   working_timetable = FALSE,
-  public_only = TRUE
+  public_only = TRUE,
+  fares = NULL,
+  fares_version = 1,
+  fares_ticket_codes = NULL,
+  fares_ticket_class = "standard",
+  fares_ticket_type = NULL,
+  fares_walkup_only = TRUE,
+  fares_rider_categories = c("adult", "child"),
+  fares_railcards = NULL,
+  fares_ndf = TRUE,
+  fares_travel_date = NULL,
+  fares_travel_time = NULL,
+  fares_booking_date = NULL
 )
 }
 \arguments{
@@ -39,11 +51,52 @@ any missing tiplocs against the main file and add them.(default TRUE)}
 \item{working_timetable}{Logical, should WTT times be used instead of public times (default FALSE)}
 
 \item{public_only}{Logical, only return calls/services that are for public passenger pickup/set down (default TRUE)}
+
+\item{fares}{Character, optional path to a National Rail fares feed (e.g.
+"RJFAF756.zip", see \code{\link[=atoc_fares_read]{atoc_fares_read()}}). If provided, GTFS fare tables
+are built and added to the result (default NULL, no fares).}
+
+\item{fares_version}{Numeric, \code{1} for the original GTFS fares tables or
+\code{2} for GTFS Fares v2 (default 1). See \code{\link[=gtfs_add_railfares]{gtfs_add_railfares()}} for what
+each supports.}
+
+\item{fares_ticket_codes}{Character, optional explicit ticket codes to
+convert, passed to \code{\link[=gtfs_add_railfares]{gtfs_add_railfares()}} as \code{ticket_codes}.}
+
+\item{fares_ticket_class}{Character, "standard" and/or "first"
+(default "standard").}
+
+\item{fares_ticket_type}{Character, any of "single", "return", "season".
+Default: "single" for v1, singles and returns for v2.}
+
+\item{fares_walkup_only}{Logical, keep only walk-up Anytime/Off-Peak/
+Super Off-Peak tickets (default TRUE), see \code{\link[=gtfs_add_railfares]{gtfs_add_railfares()}}.}
+
+\item{fares_rider_categories}{Character, any of "adult", "child"; GTFS
+Fares v2 only (default both).}
+
+\item{fares_railcards}{Character, optional railcard codes (e.g. "YNG");
+GTFS Fares v2 only (default NULL).}
+
+\item{fares_ndf}{Logical, include non-derivable fare overrides
+(default TRUE).}
+
+\item{fares_travel_date}{Date, optional: convert fares as a scenario
+snapshot for a journey on this date, applying the feed's date/time
+restriction data. See \code{\link[=gtfs_add_railfares]{gtfs_add_railfares()}}.}
+
+\item{fares_travel_time}{Character "HH:MM", optional departure time for
+the scenario (drops e.g. Off-Peak tickets at peak times). Requires
+\code{fares_travel_date}.}
+
+\item{fares_booking_date}{Date, optional: when the ticket is bought.
+Includes Advance tickets bookable at that horizon, at their tier
+prices. Requires \code{fares_travel_date}.}
 }
 \value{
 A gtfs object: a named list of data frames representing the tables
-  of a GTFS file (agency, stops, routes, trips, stop_times, calendar,
-  calendar_dates, and optionally transfers)
+of a GTFS file (agency, stops, routes, trips, stop_times, calendar,
+calendar_dates, and optionally transfers and fare tables)
 }
 \description{
 Convert ATOC CIF files to GTFS
@@ -51,23 +104,31 @@ Convert ATOC CIF files to GTFS
 \details{
 Locations
 
-  The .msn file contains the physical locations of stations and other TIPLOC
-  codes (e.g. junctions). However, the quality of the locations is often poor
-  only accurate to about 1km and occasionally very wrong. Therefore, the
-  UK2GTFS package contains an internal dataset of the TIPLOC locations with
-  better location accuracy, which are used by default.
+The .msn file contains the physical locations of stations and other TIPLOC
+codes (e.g. junctions). However, the quality of the locations is often poor
+only accurate to about 1km and occasionally very wrong. Therefore, the
+UK2GTFS package contains an internal dataset of the TIPLOC locations with
+better location accuracy, which are used by default.
 
-  However you can also specify `locations = "file"` to use the TIPLOC
-  locations in the ATOC data or provide an SF data frame of your own.
+However you can also specify \code{locations = "file"} to use the TIPLOC
+locations in the ATOC data or provide an SF data frame of your own.
 
-  Or you can provide your own sf data frame of points in the same format as
-  `tiplocs` or a path to a csv file formatted like a GTFS stops.txt
+Or you can provide your own sf data frame of points in the same format as
+\code{tiplocs} or a path to a csv file formatted like a GTFS stops.txt
 
-  Agency
+Agency
 
-  The ATOC files do not contain the necessary information to build the
-  agency.txt file. Therefore this data is provided with the package. You can
-  also pass your own data frame of agency information.
+The ATOC files do not contain the necessary information to build the
+agency.txt file. Therefore this data is provided with the package. You can
+also pass your own data frame of agency information.
+
+Fares
+
+The timetable feed contains no fares; these come in a separate fares
+feed available from the same National Rail Data Portal. Pass its path
+as \code{fares} to add GTFS fare tables to the output. See
+\code{\link[=gtfs_add_railfares]{gtfs_add_railfares()}} for the fare model, the choices exposed by the
+\verb{fares_*} arguments, and the limitations.
 }
 \seealso{
 Other main: 

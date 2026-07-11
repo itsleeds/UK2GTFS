@@ -9,6 +9,10 @@ UK2GTFS_option_stopProcessingAtUid(value)
 \arguments{
 \item{value}{option value to be set (char)}
 }
+\value{
+the current option value when called with no arguments, otherwise
+  the result of setting the option
+}
 \description{
 sets/gets a UID value at which processing will stop - used for debugging
 }

@@ -20,7 +20,7 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Malcolm Morgan \email{m.morgan1@leeds.ac.uk} (\href{https://orcid.org/0000-0002-9488-9183}{ORCID})
+\strong{Maintainer}: Malcolm Morgan \email{m.morgan1@leeds.ac.uk} (\href{https://orcid.org/0000-0002-9488-9183}{ORCID}) [copyright holder]
 
 Authors:
 \itemize{

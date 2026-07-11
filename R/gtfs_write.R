@@ -66,6 +66,13 @@ gtfs_write <- function(gtfs,
   {
     table <- gtfs[[tableName]]
 
+    # formatAttributesToGtfsSchema() uses data.table syntax, so plain
+    # data.frames (e.g. tables manipulated with base R after gtfs_read)
+    # must be converted first
+    if (!is.null(table) && !data.table::is.data.table(table)) {
+      table <- data.table::as.data.table(table)
+    }
+
     table <- formatAttributesToGtfsSchema( table )
 
     if ( !is.null(table) & nrow(table) > 0 )
@@ -143,7 +150,11 @@ period2gtfs <- function(x) {
     stop("Days detected in period objects, incorectly formatted period object")
   }
 
-  return( sprintf("%02d:%02d:%02d", lubridate::hour(x), lubridate::minute(x), lubridate::second(x)) )
+  # unknown times must be written as an empty field, not "NA:NA:NA"
+  out <- rep(NA_character_, length(x))
+  ok <- !is.na(x)
+  out[ok] <- sprintf("%02d:%02d:%02d", lubridate::hour(x[ok]), lubridate::minute(x[ok]), lubridate::second(x[ok]))
+  return(out)
 }
 
 
