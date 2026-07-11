@@ -6,6 +6,7 @@
 #'
 #' @param gtfs a gtfs object
 #' @param bounds an sf data frame of polygons or multi-polygons with CRS 4326
+#' @return a gtfs object clipped to the bounds
 #' @export
 gtfs_clip <- function(gtfs, bounds) {
 
@@ -23,10 +24,14 @@ gtfs_clip <- function(gtfs, bounds) {
   stops <- gtfs$stops
   stop_times <- gtfs$stop_times
 
-  # bbox <- sf::st_bbox(bounds)
-  stops_inc <- stops[!is.na(stops$stop_lon), ]
-  stops_inc$stop_lon <- as.numeric(stops_inc$stop_lon)
-  stops_inc$stop_lat <- as.numeric(stops_inc$stop_lat)
+  # convert to numeric first as some sources store coordinates as characters
+  # (including the literal string "NA"), then drop stops with no location
+  stops_inc <- stops
+  suppressWarnings({
+    stops_inc$stop_lon <- as.numeric(stops_inc$stop_lon)
+    stops_inc$stop_lat <- as.numeric(stops_inc$stop_lat)
+  })
+  stops_inc <- stops_inc[!is.na(stops_inc$stop_lon) & !is.na(stops_inc$stop_lat), ]
 
   stops_inc <- sf::st_as_sf(stops_inc, coords = c("stop_lon", "stop_lat"), crs = 4326)
   suppressWarnings(stops_inc <- stops_inc[bounds, ])

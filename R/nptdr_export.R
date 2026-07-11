@@ -111,14 +111,14 @@ nptdr_makeCalendar <- function(schedule, exceptions, historic_bank_holidays = hi
   message("Unique Scotland and NI bank holidays are not correctly handled")
 
   bh <- historic_bank_holidays[historic_bank_holidays$date >= min(calendar$start_date, na.rm = TRUE),]
-  bh <- bh[bh$date <= min(calendar$end_date, na.rm = TRUE), ]
+  bh <- bh[bh$date <= max(calendar$end_date, na.rm = TRUE), ]
   bh <- bh[bh$England,]
 
   calendar_dates <- nptdr_parse_bank_holidays(calendar_dates, bh)
-  if(exists("cal_dates_exc")){
-    calendar_dates <- rbind(calendar_dates, cal_dates_inc)
+  if(exists("cal_dates_exc", inherits = FALSE)){
+    calendar_dates <- rbind(calendar_dates, cal_dates_exc)
   }
-  if(exists("cal_dates_inc")){
+  if(exists("cal_dates_inc", inherits = FALSE)){
     calendar_dates <- rbind(calendar_dates, cal_dates_inc)
   }
 
@@ -188,15 +188,16 @@ nptdr_makeCalendar <- function(schedule, exceptions, historic_bank_holidays = hi
   }
 
   calendar <- rbind(calendar_noschool, calendar_school_term, calendar_school_hol)
-  if(exists("cal_dates_school_term")){
+  if(exists("cal_dates_school_term", inherits = FALSE)){
     calendar_dates <- rbind(calendar_dates, cal_dates_school_term)
   }
-  if(exists("cal_dates_hol")){
+  if(exists("cal_dates_hol", inherits = FALSE)){
     calendar_dates <- rbind(calendar_dates, cal_dates_hol)
   }
 
   calendar$school_term_time <- NULL
-  rm(calendar_noschool, calendar_school_term, calendar_school_hol, cal_dates_school_term, cal_dates_hol)
+  suppressWarnings(rm(calendar_noschool, calendar_school_term, calendar_school_hol,
+                      cal_dates_school_term, cal_dates_hol))
 
 
   days <- lapply(calendar$Days, function(x) {

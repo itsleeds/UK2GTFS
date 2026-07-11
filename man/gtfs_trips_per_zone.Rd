@@ -35,6 +35,14 @@ gtfs_trips_per_zone(
 define the time breakdown. Length of breaks must be one greater than length
 of labels.}
 }
+\value{
+a data frame of trips per zone, day of week, and time band
+}
 \description{
 Trim a GTFS file between two dates
+}
+\details{
+For frequency-based services (frequencies.txt), each departure
+  implied by a frequency window is counted as a separate trip in the time
+  band of its departure time.
 }

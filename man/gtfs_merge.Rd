@@ -22,6 +22,9 @@ cause some errors}
 
 \item{condenseServicePatterns}{logical, if TRUE service patterns across all routes are condensed into a unique set of patterns}
 }
+\value{
+a single merged gtfs object
+}
 \description{
 !WARNING! only the tables:
 agency, stops, routes, trips, stop_times, calendar, calendar_dates, shapes, frequencies

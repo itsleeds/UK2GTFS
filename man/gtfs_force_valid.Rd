@@ -9,6 +9,9 @@ gtfs_force_valid(gtfs)
 \arguments{
 \item{gtfs}{gtfs object}
 }
+\value{
+a gtfs object
+}
 \description{
 Force a GTFS to be valid by removing problems
 }
@@ -21,4 +24,5 @@ Actions performed
 5. Remove stop_times(calls) that don't exist in stops
 6. Remove Calendar that have service_id that doesn't exist in trips
 7. Remove Calendar_dates that have service_id that doesn't exist in trips
+8. Remove transfers that reference stops that don't exist in stops
 }

@@ -7,9 +7,12 @@
 importMSN(file, silent = TRUE)
 }
 \arguments{
-\item{file}{Path to .flf file}
+\item{file}{Path to .msn file}
 
 \item{silent}{logical, should messages be displayed}
+}
+\value{
+named list of data frames: station, timetable, comment, and alias
 }
 \description{
 Import the .msm file

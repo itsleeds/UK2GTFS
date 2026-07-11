@@ -9,11 +9,7 @@
 #' Returns a gtfs object
 #'
 ATOC_shapes <- function(gtfs) {
-  trips <- gtfs$trips
-  routes <- gtfs$routes
-  stops <- gtfs$stops
-  stop_times <- gtfs$stop_times
-
+  
   # Make Graph of Railway
   # rail <- rail
   load_data("rail_heavy")
@@ -26,13 +22,12 @@ ATOC_shapes <- function(gtfs) {
 
 
   # remove bus and boat routes
-  routes_rail <- routes[routes$route_type == 2, ]
-  trips_rail <- trips[trips$route_id %in% routes_rail$route_id, ]
-  rm(routes_rail, routes, trips)
-  stop_times_rail <- stop_times[stop_times$trip_id %in% trips_rail$trip_id, ]
-  rm(stop_times)
-  stops_rail <- stops[stops$stop_id %in% stop_times_rail$stop_id, ]
-  rm(stops)
+  routes_rail <- gtfs$routes[gtfs$routes$route_type == 2, ]
+  trips_rail <- gtfs$trips[gtfs$trips$route_id %in% routes_rail$route_id, ]
+  rm(routes_rail)
+  stop_times_rail <- gtfs$stop_times[gtfs$stop_times$trip_id %in% trips_rail$trip_id, ]
+  stops_rail <- gtfs$stops[gtfs$stops$stop_id %in% stop_times_rail$stop_id, ]
+  
 
   # Cleaning check, should be in earlier
   stop_times_rail <- stop_times_rail[stop_times_rail$stop_id %in% stops_rail$stop_id, ]
@@ -62,7 +57,7 @@ ATOC_shapes <- function(gtfs) {
   verts <- dodgr::dodgr_vertices(graph)
 
   # Route between pairs
-  message(paste0(Sys.time()," Starting routing"))
+  message(paste0(Sys.time()," Starting routing between ", nrow(pairs), " station pairs"))
   dp.list <- dodgr::dodgr_paths(graph,
     from = stops_from,
     to = stops_to,
@@ -72,28 +67,7 @@ ATOC_shapes <- function(gtfs) {
 
   # Convert to Linestrings
   dp.list <- unlist(dp.list, recursive = FALSE)
-
-  path_to_sf <- function(dp, verts, simplify = FALSE) {
-    # Check for emplyr paths
-    if (length(dp) > 0) {
-      path <- verts[match(dp, verts$id), ]
-      path <- matrix(c(path$x, path$y), ncol = 2)
-      path <- sf::st_linestring(path)
-
-      if (simplify) {
-        path <- sf::st_as_sfc(list(path), crs = 4326)
-        path <- sf::st_transform(path, 27700)
-        path <- sf::st_simplify(path, 5, preserveTopology = TRUE)
-        path <- sf::st_transform(path, 4326)
-        path <- path[[1]]
-      }
-      return(path)
-    } else {
-      return(NA)
-    }
-  }
-
-  #dp.list <- pbapply::pblapply(dp.list, path_to_sf, verts = verts)
+ 
   dp.list <- purrr::map(dp.list, path_to_sf, verts = verts, .progress = TRUE)
   dp.list <- unname(dp.list)
   pairs$geometry <- sf::st_sfc(dp.list, crs = 4326)
@@ -104,20 +78,18 @@ ATOC_shapes <- function(gtfs) {
   pairs_opp <- pairs
   names(pairs_opp) <- c("stop_id_to", "stop_id_from", "id", "geometry")
 
-  invert_linestring <- function(x) {
-    x <- sf::st_coordinates(x)
-    x <- x[seq(nrow(x), 1), 1:2]
-    x <- sf::st_linestring(x)
-  }
+  
 
   message(paste0(Sys.time()," Invert routes"))
-  #pairs_opp$geometry <- pbapply::pblapply(pairs_opp$geometry, invert_linestring)
   pairs_opp$geometry <- purrr::map(pairs_opp$geometry, invert_linestring, .progress = TRUE)
   pairs_opp$geometry <- sf::st_as_sfc(pairs_opp$geometry, crs = 4326)
   pairs_opp <- sf::st_as_sf(pairs_opp)
   pairs_opp <- pairs_opp[, names(pairs)]
   pairs <- rbind(pairs, pairs_opp)
   rm(pairs_opp)
+
+  # Don't route whe  orgins and desinantion are the same
+  pairs <- pairs[pairs$stop_id_from != pairs$stop_id_to, ]
 
   #Simplify the lines
   pairs <- sf::st_transform(pairs, 27700)
@@ -132,17 +104,17 @@ ATOC_shapes <- function(gtfs) {
   # Match station pairs back to
   st_split <- stop_times_rail[stop_times_rail$trip_id %in% str_uni$trip_id,]
   st_split$from <- c("foo", st_split$stop_id[seq(1, nrow(st_split) - 1)])
-  st_split <- dplyr::left_join(st_split, pairs, by = c("from" = "stop_id_from", "stop_id" = "stop_id_to"))
+  st_split <- dplyr::left_join(st_split, pairs, 
+    by = c("from" = "stop_id_from", "stop_id" = "stop_id_to"))
   st_split <- dplyr::group_split(st_split, st_split$trip_id, .keep = FALSE)
 
   message(paste0(Sys.time()," final formatting"))
   rm(graph, pairs)
-  #shape_res <- pbapply::pblapply(st_split, match_lines)
   shape_res <- purrr::map(st_split, match_lines, .progress = TRUE)
 
   str5 <- lapply(shape_res, `[[`, 2)
   shapes <- lapply(shape_res, `[[`, 1)
-  rm(shape_res, st_split, trips_rail, stops_rail)
+  #rm(shape_res, st_split, trips_rail, stops_rail)
   gc()
   str5 <- dplyr::bind_rows(str5)
   shapes <- dplyr::bind_rows(shapes)
@@ -166,6 +138,33 @@ ATOC_shapes <- function(gtfs) {
   return(gtfs)
 }
 
+# Doger paths to sf object
+path_to_sf <- function(dp, verts, simplify = FALSE) {
+    # Check for emplyr paths
+    if (length(dp) > 0) {
+      path <- verts[match(dp, verts$id), ]
+      path <- matrix(c(path$x, path$y), ncol = 2)
+      path <- sf::st_linestring(path)
+
+      if (simplify) {
+        path <- sf::st_as_sfc(list(path), crs = 4326)
+        path <- sf::st_transform(path, 27700)
+        path <- sf::st_simplify(path, 5, preserveTopology = TRUE)
+        path <- sf::st_transform(path, 4326)
+        path <- path[[1]]
+      }
+      return(path)
+    } else {
+      return(NA)
+    }
+  }
+
+# Invert linestring coordinates
+invert_linestring <- function(x) {
+    x <- sf::st_coordinates(x)
+    x <- x[seq(nrow(x), 1), 1:2]
+    x <- sf::st_linestring(x)
+  } 
 # From stplanr
 od_id_szudzik = function (x, y, ordermatters = FALSE)
 {
@@ -195,6 +194,11 @@ od_id_szudzik = function (x, y, ordermatters = FALSE)
 }
 
 match_lines <- function(x) {
+  if(any(sf::st_is_empty(x$geometry))){
+    warning(paste0("Trip ", x$trip_id[1], " has no geometry, skipping"))
+    return(NULL)
+  }
+  
   x <- sf::st_as_sf(x, crs = 4326)
   x$length <- st_length_cheap(x)
   x$shape_dist_traveled <- round(cumsum(x$length))

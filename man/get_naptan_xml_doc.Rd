@@ -35,7 +35,7 @@ TransXchange does not store the location of bus stops, so this
 
   As of 2023 Naptan is published under a more permissive (OGL3) licence than ATOC data (creative commons licence).
 
-http://naptan.dft.gov.uk/naptan/schema/2.5.1/napt/NaPT_stop-v2-5-1.xsd
+https://naptan.dft.gov.uk/naptan/schema/2.5.1/napt/NaPT_stop-v2-5-1.xsd
 
 <StopPoint
   <AtcoCode>

@@ -17,6 +17,9 @@ gtfs_trim_dates(
 
 \item{enddate}{End date}
 }
+\value{
+a gtfs object trimmed to services running between the two dates
+}
 \description{
 Trim a GTFS file between two dates
 }

@@ -153,6 +153,8 @@ import_operators <- function(operators) {
   OperatorShortName <- import_simple_xml(operators, ".//d1:OperatorShortName")
   OperatorNameOnLicence <- import_simple_xml(operators, ".//d1:OperatorNameOnLicence")
   TradingName <- import_simple_xml(operators, ".//d1:TradingName")
+  # RegisteredOperatorRef in Services is an IDREF to this attribute
+  OperatorID <- xml2::xml_attr(operators, "id")
 
   if (length(NationalOperatorCode) == 0) {
     NationalOperatorCode <- OperatorCode
@@ -164,13 +166,17 @@ import_operators <- function(operators) {
   if (length(TradingName) == 0) {
     TradingName <- rep(NA, length(NationalOperatorCode))
   }
+  if (length(OperatorID) == 0) {
+    OperatorID <- rep(NA, length(NationalOperatorCode))
+  }
 
   operators <- data.frame(
     NationalOperatorCode = NationalOperatorCode,
     OperatorCode = OperatorCode,
     OperatorShortName = OperatorShortName,
     OperatorNameOnLicence = OperatorNameOnLicence,
-    TradingName = TradingName
+    TradingName = TradingName,
+    OperatorID = OperatorID
   )
   return(operators)
 }
@@ -189,13 +195,34 @@ import_services <- function(service, full_import = TRUE) {
   }
   Description <- xml2::xml_text(xml2::xml_find_first(service, ".//d1:Description"))
   RegisteredOperatorRef <- import_simple(service, ".//d1:RegisteredOperatorRef")
+  if (length(RegisteredOperatorRef) == 0) {
+    RegisteredOperatorRef <- rep(NA, length(ServiceCode))
+  }
   StartDate <- xml2::xml_text(xml2::xml_find_first(service, ".//d1:StartDate"))
   EndDate <- xml2::xml_text(xml2::xml_find_first(service, ".//d1:EndDate"))
   DaysOfWeek <- paste(xml2::xml_name(xml2::xml_children(xml2::xml_find_first(service, ".//d1:DaysOfWeek"))), collapse = " ")
   StopRequirements <- import_simple(service, ".//d1:StopRequirements")
+  if (length(StopRequirements) == 0) {
+    StopRequirements <- rep(NA, length(ServiceCode))
+  }
   Origin <- import_simple_xml(service, ".//d1:Origin")
   Destination <- import_simple_xml(service, ".//d1:Destination")
-  LineName <- import_simple(service, ".//d1:LineName")
+
+  # A service may contain several Lines (e.g. "26" and "26a"); capture them
+  # all so the export can build one GTFS route per line
+  LineNodes <- xml2::xml_find_all(service, ".//d1:Line")
+  Lines <- data.frame(
+    LineID = xml2::xml_attr(LineNodes, "id"),
+    LineName = xml2::xml_text(xml2::xml_find_first(LineNodes, "d1:LineName")),
+    stringsAsFactors = FALSE
+  )
+  if (nrow(Lines) == 0) {
+    LineName <- import_simple(service, ".//d1:LineName")
+    if (length(LineName) == 0) LineName <- NA_character_
+    Lines <- data.frame(LineID = NA_character_, LineName = LineName[1],
+                        stringsAsFactors = FALSE)
+  }
+  LineName <- Lines$LineName[1]
   BankHolidayNonOperation <- import_simple(service, ".//d1:BankHolidayNonOperation")
   if (length(BankHolidayNonOperation) == 0) {
     BankHolidayNonOperation <- rep(NA, length(ServiceCode))
@@ -320,8 +347,8 @@ import_services <- function(service, full_import = TRUE) {
   }
 
 
-  results <- list(StandardService, Services_main, SpecialDaysOperation)
-  names(results) <- c("StandardService", "Services_main", "SpecialDaysOperation")
+  results <- list(StandardService, Services_main, SpecialDaysOperation, Lines)
+  names(results) <- c("StandardService", "Services_main", "SpecialDaysOperation", "Lines")
 
   return(results)
 }

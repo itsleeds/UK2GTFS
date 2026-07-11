@@ -9,6 +9,9 @@ gtfs_read(path)
 \arguments{
 \item{path}{character, path to GTFS zip folder}
 }
+\value{
+a gtfs object: a named list of data frames, one per GTFS table
+}
 \description{
 Read in a GTFS zip  file
 }

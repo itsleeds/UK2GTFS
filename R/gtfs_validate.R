@@ -2,6 +2,7 @@
 #'
 #' Does some basic checks on the validity of the GTFS object
 #' @param gtfs a gtfs object
+#' @return Invisibly returns NULL, called for its printed messages
 #' @export
 
 gtfs_validate_internal <- function(gtfs) {
@@ -20,7 +21,7 @@ gtfs_validate_internal <- function(gtfs) {
     message("No rows in trips")
   }
   if (nrow(gtfs$stop_times) < 1) {
-    message("No rows in warning_times")
+    message("No rows in stop_times")
   }
   if (nrow(gtfs$calendar) < 1) {
     message("No rows in calendar")
@@ -241,7 +242,9 @@ gtfs_validate_external <- function(path_gtfs, path_validator) {
 #' 5. Remove stop_times(calls) that don't exist in stops
 #' 6. Remove Calendar that have service_id that doesn't exist in trips
 #' 7. Remove Calendar_dates that have service_id that doesn't exist in trips
+#' 8. Remove transfers that reference stops that don't exist in stops
 #'
+#' @return a gtfs object
 #' @export
 gtfs_force_valid <- function(gtfs) {
   message("This function does not fix problems it just removes them")
@@ -266,6 +269,14 @@ gtfs_force_valid <- function(gtfs) {
 
   # 7. Calendar_dates that have service_id that doesn't exist in trip
   gtfs$calendar_dates <- gtfs$calendar_dates[gtfs$calendar_dates$service_id %in%  gtfs$trips$service_id,]
+
+  # 8. Transfers that reference stops that don't exist in stops. Both
+  # from_stop_id and to_stop_id are required and must be valid stop_ids,
+  # otherwise the feed is invalid and may be rejected by routing engines.
+  if ("transfers" %in% names(gtfs) && !is.null(gtfs$transfers)) {
+    gtfs$transfers <- gtfs$transfers[gtfs$transfers$from_stop_id %in% gtfs$stops$stop_id &
+                                       gtfs$transfers$to_stop_id %in% gtfs$stops$stop_id, ]
+  }
 
   return(gtfs)
 }

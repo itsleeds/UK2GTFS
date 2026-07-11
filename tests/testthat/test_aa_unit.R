@@ -43,7 +43,7 @@ printDifferences <- function( v1, v2 )
 
 test_that("test changing module level variable", {
 
-  env <- asNamespace("UK2GTFS")
+  env <- uk2gtfs_cache
 
   current = get("STOP_PROCESSING_UID", envir=env)
 
@@ -173,7 +173,7 @@ test_that("test setupDatesCache", {
   start = c(2,3,4,5,6,7,1)
   expected = rep( start, length.out = 53)
 
-  env = asNamespace("UK2GTFS")
+  env = uk2gtfs_cache
 
   OK = TRUE
 

@@ -58,11 +58,158 @@ count_weekday_runs <- function(cal){
 
 
 
+#' Convert GTFS times to seconds since midnight
+#'
+#' Handles the different classes GTFS time columns arrive in: lubridate
+#' Period (stop_times from gtfs_read), ITime/difftime (fread auto-detection),
+#' or "HH:MM:SS" character. Times past 24:00:00 are preserved.
+#'
+#' @param x a vector of times
+#' @return numeric seconds since midnight
+#'
+#' @noRd
+gtfs_time_to_seconds <- function(x){
+  if(inherits(x, "Period")){
+    return(lubridate::period_to_seconds(x))
+  }
+  if(inherits(x, "difftime")){
+    return(as.numeric(x, units = "secs"))
+  }
+  if(inherits(x, "ITime")){
+    return(as.numeric(unclass(x)))
+  }
+  if(is.character(x)){
+    return(vapply(strsplit(x, ":", fixed = TRUE), function(p){
+      sum(as.numeric(p) * c(3600, 60, 1)[seq_along(p)])
+    }, numeric(1)))
+  }
+  as.numeric(x)
+}
+
+#' Count the departures represented by each frequencies.txt row
+#'
+#' Trips depart every headway_secs from start_time up to but not including
+#' end_time, so a row spans ceiling((end - start) / headway) departures.
+#'
+#' @param frequencies GTFS frequencies table
+#' @return integer vector of departures per row
+#'
+#' @noRd
+frequency_departures <- function(frequencies){
+  start_secs <- gtfs_time_to_seconds(frequencies$start_time)
+  end_secs <- gtfs_time_to_seconds(frequencies$end_time)
+  headway <- as.numeric(frequencies$headway_secs)
+  pmax(ceiling((end_secs - start_secs) / headway), 1)
+}
+
+#' Total departures per day for each frequency-based trip
+#'
+#' @param frequencies GTFS frequencies table
+#' @return data frame of trip_id and freq_runs (departures per day)
+#'
+#' @noRd
+frequency_runs_per_trip <- function(frequencies){
+  frequencies <- as.data.frame(frequencies)
+  frequencies$trip_id <- as.character(frequencies$trip_id)
+  frequencies$n_departures <- frequency_departures(frequencies)
+  freq_runs <- dplyr::group_by(frequencies, trip_id)
+  freq_runs <- dplyr::summarise(freq_runs, freq_runs = sum(n_departures))
+  freq_runs
+}
+
+#' Expand frequency-based trips into one pseudo-trip per departure
+#'
+#' Each departure implied by frequencies.txt becomes its own trip in
+#' gtfs$trips and gtfs$stop_times, with stop times shifted so that departure
+#' hours (and so time bands) are correct. The stop_times of a frequency-based
+#' trip define relative travel times from its first stop.
+#'
+#' @param gtfs GTFS object with a frequencies table
+#' @return the GTFS object with trips and stop_times expanded
+#'
+#' @noRd
+expand_frequency_trips <- function(gtfs){
+  freq <- as.data.frame(gtfs$frequencies)
+  freq$trip_id <- as.character(freq$trip_id)
+  freq <- freq[freq$trip_id %in% gtfs$trips$trip_id, ]
+  if(nrow(freq) == 0){
+    return(gtfs)
+  }
+
+  start_secs <- gtfs_time_to_seconds(freq$start_time)
+  headway <- as.numeric(freq$headway_secs)
+  n_dep <- frequency_departures(freq)
+
+  departures <- data.frame(
+    trip_id = rep(freq$trip_id, n_dep),
+    dep_secs = unlist(mapply(function(s, h, n){s + (seq_len(n) - 1) * h},
+                             start_secs, headway, n_dep, SIMPLIFY = FALSE))
+  )
+  departures$trip_id_new <- paste0(departures$trip_id, "_freq",
+                                   seq_len(nrow(departures)))
+
+  trips <- as.data.frame(gtfs$trips)
+  is_freq_trip <- trips$trip_id %in% departures$trip_id
+  trips_freq <- trips[is_freq_trip, , drop = FALSE]
+  trips_freq <- dplyr::left_join(trips_freq,
+                                 departures[, c("trip_id", "trip_id_new")],
+                                 by = "trip_id", relationship = "many-to-many")
+  trips_freq$trip_id <- trips_freq$trip_id_new
+  trips_freq$trip_id_new <- NULL
+  gtfs$trips <- rbind(trips[!is_freq_trip, , drop = FALSE], trips_freq)
+
+  secs_to_hms <- function(secs){
+    lubridate::hms(ifelse(is.na(secs), NA_character_,
+                          sprintf("%02d:%02d:%02d",
+                                  as.integer(secs %/% 3600),
+                                  as.integer((secs %% 3600) %/% 60),
+                                  as.integer(secs %% 60))),
+                   quiet = TRUE)
+  }
+
+  stop_times <- as.data.frame(gtfs$stop_times)
+  # Expanded rows get Period times, so all rows must use them
+  if(!inherits(stop_times$departure_time, "Period")){
+    stop_times$departure_time <- secs_to_hms(
+      gtfs_time_to_seconds(stop_times$departure_time))
+  }
+  if("arrival_time" %in% names(stop_times) &&
+     !inherits(stop_times$arrival_time, "Period")){
+    stop_times$arrival_time <- secs_to_hms(
+      gtfs_time_to_seconds(stop_times$arrival_time))
+  }
+  is_freq_st <- stop_times$trip_id %in% departures$trip_id
+  st_freq <- stop_times[is_freq_st, , drop = FALSE]
+
+  st_freq$TMP_dep <- gtfs_time_to_seconds(st_freq$departure_time)
+  first_dep <- dplyr::group_by(st_freq, trip_id)
+  first_dep <- dplyr::summarise(first_dep, TMP_first = min(TMP_dep, na.rm = TRUE))
+  st_freq <- dplyr::left_join(st_freq, first_dep, by = "trip_id")
+  st_freq <- dplyr::left_join(st_freq, departures, by = "trip_id",
+                              relationship = "many-to-many")
+
+  shift <- st_freq$dep_secs - st_freq$TMP_first
+  st_freq$departure_time <- secs_to_hms(st_freq$TMP_dep + shift)
+  if("arrival_time" %in% names(st_freq)){
+    st_freq$arrival_time <- secs_to_hms(
+      gtfs_time_to_seconds(st_freq$arrival_time) + shift)
+  }
+  st_freq$trip_id <- st_freq$trip_id_new
+  st_freq <- st_freq[, names(stop_times), drop = FALSE]
+  gtfs$stop_times <- rbind(stop_times[!is_freq_st, , drop = FALSE], st_freq)
+
+  return(gtfs)
+}
+
+
 #' Count the number of trips stopping at each stop between two dates
 #'
 #' @param gtfs GTFS object from gtfs_read()
 #' @param startdate Start date
 #' @param enddate End date
+#' @return the stops table with total stop counts and stops per week added
+#' @details For frequency-based services (frequencies.txt), each trip is
+#'   counted once per departure implied by its frequency windows.
 #'
 #' @export
 gtfs_stop_frequency <- function(gtfs,
@@ -107,10 +254,26 @@ gtfs_stop_frequency <- function(gtfs,
   calendar_days <- calendar_days[calendar_days$date >= calendar_days$start_date, ]
   calendar_days <- calendar_days[calendar_days$date <= calendar_days$end_date, ]
 
+  # A date can only be added or cancelled once per service
+  calendar_days <- calendar_days[!duplicated(
+    paste(calendar_days$service_id, calendar_days$date, calendar_days$exception_type)), ]
+
+  # GTFS semantics: a cancellation only removes a trip on a day the calendar
+  # operates, and an extra only adds a trip on a day it does not already
+  # operate. Feeds contain cancellations on non-operating days (no-ops), which
+  # would otherwise make counts go negative.
+  dow_cols <- c("monday","tuesday","wednesday","thursday","friday","saturday","sunday")
+  calendar_days <- dplyr::left_join(calendar_days,
+                                    calendar[, c("service_id", dow_cols)],
+                                    by = "service_id")
+  calendar_days$day_flag <- as.matrix(calendar_days[, dow_cols])[
+    cbind(seq_len(nrow(calendar_days)),
+          lubridate::wday(calendar_days$date, week_start = 1))]
+
   calendar_days <- dplyr::group_by(calendar_days, service_id)
   calendar_days <- dplyr::summarise(calendar_days,
-                     runs_extra = sum(exception_type == 1),
-                     runs_canceled = sum(exception_type == 2))
+                     runs_extra = sum(exception_type == 1 & day_flag == 0),
+                     runs_canceled = sum(exception_type == 2 & day_flag == 1))
 
   trips <- trips[trips$service_id %in% calendar$service_id, ]
   stop_times <- stop_times[stop_times$trip_id %in% trips$trip_id,]
@@ -134,6 +297,15 @@ gtfs_stop_frequency <- function(gtfs,
 
   trips$runs_total <-  trips$runs_days + trips$runs_extra - trips$runs_canceled
 
+  # Frequency-based trips represent multiple departures per day
+  if(!is.null(gtfs$frequencies) && nrow(gtfs$frequencies) > 0){
+    message("Scaling frequency-based trips by departures per day")
+    freq_runs <- frequency_runs_per_trip(gtfs$frequencies)
+    trips <- dplyr::left_join(trips, freq_runs, by = "trip_id")
+    trips$freq_runs[is.na(trips$freq_runs)] <- 1
+    trips$runs_total <- trips$runs_total * trips$freq_runs
+  }
+
   trips <- trips[,c("trip_id","start_date","end_date","runs_total")]
   stop_times <- dplyr::left_join(stop_times, trips, by = "trip_id")
   stop_times_summary <- dplyr::group_by(stop_times, stop_id)
@@ -151,6 +323,7 @@ gtfs_stop_frequency <- function(gtfs,
 #' @param gtfs GTFS object from gtfs_read()
 #' @param startdate Start date
 #' @param enddate End date
+#' @return a gtfs object trimmed to services running between the two dates
 #'
 #' @export
 gtfs_trim_dates <- function(gtfs,
@@ -206,6 +379,10 @@ gtfs_trim_dates <- function(gtfs,
   trips <- trips[trips$service_id %in% calendar$service_id, ]
   stop_times <- stop_times[stop_times$trip_id %in% trips$trip_id,]
 
+  if(!is.null(gtfs$frequencies)){
+    gtfs$frequencies <- gtfs$frequencies[gtfs$frequencies$trip_id %in% trips$trip_id, ]
+  }
+
   gtfs$stop_times <- stop_times
   gtfs$trips <- trips
   gtfs$calendar <- calendar
@@ -226,6 +403,10 @@ gtfs_trim_dates <- function(gtfs,
 #' @param time_bands list with two named vectors breaks and labels. Used to
 #'   define the time breakdown. Length of breaks must be one greater than length
 #'   of labels.
+#' @return a data frame of trips per zone, day of week, and time band
+#' @details For frequency-based services (frequencies.txt), each departure
+#'   implied by a frequency window is counted as a separate trip in the time
+#'   band of its departure time.
 #'
 #' @export
 gtfs_trips_per_zone <- function(gtfs,
@@ -264,8 +445,21 @@ gtfs_trips_per_zone <- function(gtfs,
   # Trim GTFS to study period
   gtfs <- gtfs_trim_dates(gtfs, startdate = startdate, enddate = enddate)
 
+  # Expand frequency-based trips into one pseudo-trip per departure so each
+  # departure is counted in its own time band
+  if(!is.null(gtfs$frequencies) && nrow(gtfs$frequencies) > 0){
+    message("Expanding frequency-based trips into individual departures")
+    gtfs <- expand_frequency_trips(gtfs)
+  }
+
   # Get the summaries for calendar
   calendar_dates_summary <- gtfs$calendar_dates
+  # A date can only be added or cancelled once per service; duplicate rows
+  # (e.g. from merged feeds) would otherwise be double-counted
+  calendar_dates_summary <- calendar_dates_summary[!duplicated(
+    paste(calendar_dates_summary$service_id,
+          calendar_dates_summary$date,
+          calendar_dates_summary$exception_type)), ]
   calendar_dates_summary$weekday = as.character(lubridate::wday(calendar_dates_summary$date, label = TRUE))
   calendar_dates_summary <- dplyr::group_by(calendar_dates_summary, service_id, weekday)
   calendar_dates_summary <- dplyr::summarise(calendar_dates_summary,
@@ -315,13 +509,18 @@ gtfs_trips_per_zone <- function(gtfs,
     ifelse(is.na(x),0,x)
   })
 
-  trips$runs_Mon <- trips$runs_Mon + trips$extra_Mon - trips$canceled_Mon
-  trips$runs_Tue <- trips$runs_Tue + trips$extra_Tue - trips$canceled_Tue
-  trips$runs_Wed <- trips$runs_Wed + trips$extra_Wed - trips$canceled_Wed
-  trips$runs_Thu <- trips$runs_Thu + trips$extra_Thu - trips$canceled_Thu
-  trips$runs_Fri <- trips$runs_Fri + trips$extra_Fri - trips$canceled_Fri
-  trips$runs_Sat <- trips$runs_Sat + trips$extra_Sat - trips$canceled_Sat
-  trips$runs_Sun <- trips$runs_Sun + trips$extra_Sun - trips$canceled_Sun
+  # Apply calendar_dates exceptions with GTFS semantics: a cancellation
+  # (exception_type 2) only removes a trip on a day the calendar operates, and
+  # an extra (exception_type 1) only adds a trip on a day it does not already
+  # operate. TransXChange feeds routinely cancel special days for every service
+  # of a route regardless of its day pattern; subtracting those no-op
+  # cancellations produced negative run counts.
+  for(d in c("Mon","Tue","Wed","Thu","Fri","Sat","Sun")){
+    runs <- trips[[paste0("runs_", d)]]
+    trips[[paste0("runs_", d)]] <- ifelse(runs > 0,
+                                          pmax(runs - trips[[paste0("canceled_", d)]], 0),
+                                          trips[[paste0("extra_", d)]])
+  }
 
   # trim out unneeded data
   if(by_mode){

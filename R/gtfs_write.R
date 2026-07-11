@@ -6,10 +6,11 @@
 #' @param gtfs named list of data.frames
 #' @param folder folder to save the gtfs file to
 #' @param name the name of the zip file without the .zip extension, default "gtfs"
-#' @param stripComma logical, should commas be stripped from text, default = TRUE
-#' @param stripTab logical, should tab be stripped from text, default = TRUE
-#' @param stripNewline logical, should newline tag be stripped from text, default = TRUE
-#' @param quote logical, should strings be quoted, default = FALSE, passed to data.table::fwrite
+#' @param stripComma logical, should commas be stripped from text, default = FALSE
+#' @param stripTab logical, should tabs be stripped from text, default = FALSE
+#' @param stripNewline logical, should newlines be stripped from text, default = FALSE
+#' @param quote logical, should strings be quoted, default = TRUE, passed to data.table::fwrite
+#' @return Invisibly returns NULL, called for the side effect of writing a zip file
 #' @export
 #'
 gtfs_write <- function(gtfs,
@@ -31,36 +32,23 @@ gtfs_write <- function(gtfs,
       gtfs[[i]] <- stripTabs(gtfs[[i]], stripNewline)
     }
   }
+ 
 
-
-  if (FALSE)
-  {
-    #Format times
-    if(inherits(gtfs$stop_times$arrival_time, "Period")){
-      gtfs$stop_times$arrival_time <- period2gtfs(gtfs$stop_times$arrival_time)
-    }
-
-    if(inherits(gtfs$stop_times$departure_time, "Period")){
-      gtfs$stop_times$departure_time <- period2gtfs(gtfs$stop_times$departure_time)
-    }
-
-    if("frequencies" %in% names(gtfs))
-    {
-      if("difftime" %in% class(gtfs$frequencies$start_time)){
-        gtfs$frequencies$start_time <- format(gtfs$frequencies$start_time, format = "%H:%M:%S")
-      }
-
-      if("difftime" %in% class(gtfs$frequencies$end_time)){
-        gtfs$frequencies$end_time <- format(gtfs$frequencies$end_time, format = "%H:%M:%S")
-      }
-    }
-  }
-
+  # remove any stale files from a previous write before creating the folder,
+  # otherwise they would be included in the new zip
+  unlink(paste0(tempdir(), "/gtfs_temp"), recursive = TRUE)
   dir.create(paste0(tempdir(), "/gtfs_temp"))
 
   for ( tableName in names(gtfs) )
   {
     table <- gtfs[[tableName]]
+
+    # formatAttributesToGtfsSchema() uses data.table syntax, so plain
+    # data.frames (e.g. tables manipulated with base R after gtfs_read)
+    # must be converted first
+    if (!is.null(table) && !data.table::is.data.table(table)) {
+      table <- data.table::as.data.table(table)
+    }
 
     table <- formatAttributesToGtfsSchema( table )
 
@@ -139,7 +127,11 @@ period2gtfs <- function(x) {
     stop("Days detected in period objects, incorectly formatted period object")
   }
 
-  return( sprintf("%02d:%02d:%02d", lubridate::hour(x), lubridate::minute(x), lubridate::second(x)) )
+  # unknown times must be written as an empty field, not "NA:NA:NA"
+  out <- rep(NA_character_, length(x))
+  ok <- !is.na(x)
+  out[ok] <- sprintf("%02d:%02d:%02d", lubridate::hour(x[ok]), lubridate::minute(x[ok]), lubridate::second(x[ok]))
+  return(out)
 }
 
 

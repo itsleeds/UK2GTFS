@@ -23,6 +23,18 @@ gtfs_compress <- function(gtfs) {
   stops$stop_id <- as.integer(factor(stops$stop_id, levels = stop_id))
   stop_times$stop_id <- as.integer(factor(stop_times$stop_id, levels = stop_id))
 
+  # transfers.txt references stops by stop_id, so it must be remapped with the
+  # same factor levels, otherwise it would point at stop_ids that no longer
+  # exist and the feed would fail to load (e.g. in OpenTripPlanner).
+  if (!is.null(gtfs$transfers)) {
+    transfers <- gtfs$transfers
+    transfers$from_stop_id <- as.integer(factor(transfers$from_stop_id, levels = stop_id))
+    transfers$to_stop_id <- as.integer(factor(transfers$to_stop_id, levels = stop_id))
+    # Drop any transfer whose endpoints are not in the stop table
+    transfers <- transfers[!is.na(transfers$from_stop_id) & !is.na(transfers$to_stop_id), ]
+    gtfs$transfers <- transfers
+  }
+
   # Simplify trip_ids
   trip_id <- unique(trips$trip_id)
   trips$trip_id <- as.integer(factor(trips$trip_id, levels = trip_id))

@@ -14,6 +14,9 @@ gtfs_fast_trips(gtfs, maxspeed = 83, routes = TRUE)
 
 \item{routes}{logical, do one trip per route, faster but may miss some trips}
 }
+\value{
+a character vector of trip_ids that exceed `maxspeed`
+}
 \description{
 Fast trips can identify problems with the input data or
   conversion process. This function returns trip_ids for trips that exceed

@@ -3,7 +3,7 @@
 #' Convert ATOC CIF files from Network Rail to GTFS
 #'
 #' @param path_in Character, path to Network Rail ATOC file e.g."C:/input/toc-full.CIF.gz"
-#' @param silent Logical, should progress messages be surpressed (default TRUE)
+#' @param silent Logical, should progress messages be suppressed (default TRUE)
 #' @param ncores Numeric, When parallel processing how many cores to use
 #'   (default 1)
 #' @param locations where to get tiploc locations (see details)

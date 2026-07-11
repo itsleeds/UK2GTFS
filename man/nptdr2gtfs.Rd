@@ -23,6 +23,10 @@ nptdr2gtfs(
 
 \item{naptan}{Naptan Locations from get_naptan()}
 }
+\value{
+A gtfs object: a named list of data frames representing the tables
+  of a GTFS file
+}
 \description{
 Import the .CIF file
 }

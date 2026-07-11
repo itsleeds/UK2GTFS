@@ -15,3 +15,7 @@ inst/exdata/failingexamples
 temp_naptan
 tmp
 ^codecov\.yml$
+^tests/check_vs_BODS\.R$
+^data/.*\.pdf$
+^\.claude$
+^cran-comments\.md$

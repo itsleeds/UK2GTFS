@@ -9,6 +9,11 @@ import_vehiclejourneys2 <- function(vehiclejourneys) {
   VehicleJourneyCode <- import_simple(vehiclejourneys, ".//d1:VehicleJourneyCode")
   ServiceRef <- import_simple(vehiclejourneys, ".//d1:ServiceRef")
   LineRef <- import_simple(vehiclejourneys, ".//d1:LineRef")
+  if (length(LineRef) != length(VehicleJourneyCode)) {
+    # LineRef is mandatory per the TransXchange schema, but be robust to files
+    # that omit it on some journeys: align per journey, NA where missing
+    LineRef <- xml2::xml_text(xml2::xml_find_first(xml2::xml_children(vehiclejourneys), "d1:LineRef"))
+  }
   # JourneyPatternRef <- import_simple(vehiclejourneys, ".//d1:JourneyPatternRef")
   DepartureTime <- import_simple(vehiclejourneys, ".//d1:DepartureTime")
   BankHolidaysOperate <- import_simple(vehiclejourneys, ".//d1:BankHolidaysOperate")

@@ -18,14 +18,15 @@ get_naptan <- function(url = "https://naptan.api.dft.gov.uk/v1/access-nodes?data
 
   load_data("naptan_missing")
 
-  dir.create("temp_naptan")
+  temp_folder <- file.path(tempdir(), "temp_naptan")
+  dir.create(temp_folder, showWarnings = FALSE)
 
   tryCatch({
-    utils::download.file(url = url, destfile = "temp_naptan/Stops.csv", mode = "wb", quiet = TRUE)
-    #naptan <- readr::read_csv("temp_naptan/Stops.csv", progress = FALSE, show_col_types = FALSE)
-    naptan <- data.table::fread("temp_naptan/Stops.csv")
+    utils::download.file(url = url, destfile = file.path(temp_folder, "Stops.csv"),
+                         mode = "wb", quiet = TRUE)
+    naptan <- data.table::fread(file.path(temp_folder, "Stops.csv"))
   }, finally = {
-    unlink("temp_naptan", recursive = TRUE)
+    unlink(temp_folder, recursive = TRUE)
   })
 
   # clean file
@@ -37,11 +38,15 @@ get_naptan <- function(url = "https://naptan.api.dft.gov.uk/v1/access-nodes?data
   naptan <- cbind(sf::st_drop_geometry(naptan), sf::st_coordinates(naptan))
   names(naptan) <- c("stop_id", "stop_code", "stop_name", "stop_lon", "stop_lat")
 
-  naptan$stop_lon <- format(round(naptan$stop_lon, 6), scientific = FALSE)
-  naptan$stop_lat <- format(round(naptan$stop_lat, 6), scientific = FALSE)
+  # keep coordinates numeric: format() would convert them to space-padded
+  # strings, which breaks downstream functions expecting numeric coordinates
+  naptan$stop_lon <- round(naptan$stop_lon, 6)
+  naptan$stop_lat <- round(naptan$stop_lat, 6)
 
   # Append alternative tags
   naptan_extra <- naptan_extra[!naptan_extra$stop_id %in% naptan$stop_id,]
+  naptan_extra$stop_lon <- as.numeric(naptan_extra$stop_lon)
+  naptan_extra$stop_lat <- as.numeric(naptan_extra$stop_lat)
   naptan <- rbind(naptan, naptan_extra)
 
   return(naptan)
@@ -91,7 +96,7 @@ get_naptan <- function(url = "https://naptan.api.dft.gov.uk/v1/access-nodes?data
 #'
 #'   As of 2023 Naptan is published under a more permissive (OGL3) licence than ATOC data (creative commons licence).
 #'
-#' http://naptan.dft.gov.uk/naptan/schema/2.5.1/napt/NaPT_stop-v2-5-1.xsd
+#' https://naptan.dft.gov.uk/naptan/schema/2.5.1/napt/NaPT_stop-v2-5-1.xsd
 #'
 #' <StopPoint
 #'   <AtcoCode>
@@ -149,21 +154,15 @@ get_naptan_xml_doc <- function(url = "https://naptan.api.dft.gov.uk/v1/access-no
                                timeout=300L,
                                method = getOption("url.method", "default") )
 {
-  #shonky global option controls timeout
+  #shonky global option controls timeout; put it back however we leave
   currentTimeout = getOption("timeout")
-
   options(timeout=timeout)
+  on.exit(options(timeout = currentTimeout), add = TRUE)
 
-  tryCatch({
+  stream = url(description=url, method=method, open = "rb" )
+  on.exit(close( stream ), add = TRUE)
 
-    stream = url(description=url, method=method, open = "rb" )
-
-    doc = xml2::read_xml( stream, options="HUGE" )
-
-  }, finally = {
-    options(timeout=currentTimeout)
-    close( stream )
-  })
+  doc = xml2::read_xml( stream, options="HUGE" )
 
 
   #debugging is a lot easier writing to a temp file

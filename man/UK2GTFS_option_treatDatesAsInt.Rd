@@ -9,6 +9,10 @@ UK2GTFS_option_treatDatesAsInt(value)
 \arguments{
 \item{value}{option value to be set (logical)}
 }
+\value{
+the current option value when called with no arguments, otherwise
+  the result of setting the option
+}
 \description{
 sets/gets a logical value which determines how dates are processed while building calendar - used for debugging
 }

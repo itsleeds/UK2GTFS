@@ -14,6 +14,7 @@
 #'
 #' @param gtfs named list of data.frames
 #' @param ncores number of cores to use
+#' @return a gtfs object with interpolated stop times
 #' @export
 #'
 
@@ -21,11 +22,11 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
   stop_times <- gtfs$stop_times
 
   if(!inherits(stop_times$arrival_time, "Period")){
-    stop_times$arrival_time <- lubridate::hms(stop_times$arrival_time)
+    stop_times$arrival_time <- lubridate::hms(stop_times$arrival_time, quiet = TRUE)
   }
 
   if(!inherits(stop_times$departure_time, "Period")){
-    stop_times$departure_time <- lubridate::hms(stop_times$departure_time)
+    stop_times$departure_time <- lubridate::hms(stop_times$departure_time, quiet = TRUE)
   }
 
   if(inherits(stop_times$stop_sequence, "character")){
@@ -49,16 +50,20 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
     # rm(cl)
 
     future::plan(future::multisession, workers = ncores)
-    keep <- furrr::future_map(.x = stop_times,
-                              .f = stops_interpolate,
-                              .progress = TRUE)
+    stop_times <- furrr::future_map(.x = stop_times,
+                                    .f = stops_interpolate,
+                                    .progress = TRUE)
     future::plan(future::sequential)
 
   }
 
   stop_times <- data.table::rbindlist(stop_times)
-  stop_times$arrival_time <- lubridate::hms(stop_times$arrival_time)
-  stop_times$departure_time <- lubridate::hms(stop_times$departure_time)
+  # Period (S4) columns do not survive data.table row subsetting, so hand back
+  # a plain data.frame (as gtfs_read does) before restoring the Period times
+  data.table::setDF(stop_times)
+  # quiet: NA times (untouched trips) legitimately fail to parse back
+  stop_times$arrival_time <- lubridate::hms(stop_times$arrival_time, quiet = TRUE)
+  stop_times$departure_time <- lubridate::hms(stop_times$departure_time, quiet = TRUE)
 
   gtfs$stop_times <- stop_times
   return(gtfs)
@@ -67,8 +72,12 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
 
 
 stops_interpolate <- function(x){
-  # skip if NAs in times, as can't handel
-  if(anyNA(x$arrival_time, x$departure_time)){
+  # skip if NAs in times, as they cannot be handled. Times are still converted
+  # to character (as on the main path below) so that rbindlist() can combine
+  # trips from both paths.
+  if(anyNA(x$arrival_time) || anyNA(x$departure_time)){
+    x$arrival_time <- period2gtfs(x$arrival_time)
+    x$departure_time <- period2gtfs(x$departure_time)
     return(x)
   }
 

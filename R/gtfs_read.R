@@ -3,6 +3,7 @@
 #' Read in a GTFS zip  file
 #'
 #' @param path character, path to GTFS zip folder
+#' @return a gtfs object: a named list of data frames, one per GTFS table
 #' @export
 #'
 
@@ -10,6 +11,7 @@ gtfs_read <- function(path){
   checkmate::assert_file_exists(path)
 
   tmp_folder <- file.path(tempdir(),"gtfsread")
+  unlink(tmp_folder, recursive = TRUE) # remove any stale files from a previous read
   dir.create(tmp_folder)
   utils::unzip(path, exdir = tmp_folder)
 

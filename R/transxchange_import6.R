@@ -6,7 +6,8 @@
 #'
 #' @details This function imports the raw transXchange XML files and converts
 #' them to a R readable format.
-
+#' @return named list of data frames, one per TransXchange section (or NULL if
+#'   the file contains no services)
 #' @export
 
 transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
@@ -77,6 +78,7 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
     StandardService <- Services$StandardService
     Services_main <- Services$Services_main
     SpecialDaysOperation <- Services$SpecialDaysOperation
+    Lines <- Services$Lines
     rm(Services)
   } else {
     warning("No Services in ",file)
@@ -110,7 +112,8 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
   } else {
     Operators <- import_operators(operators = Operators)
     if (nrow(Operators) != 1) {
-      Operators <- Operators[Operators$OperatorCode %in% Services_main$RegisteredOperatorRef, ]
+      Operators <- Operators[Operators$OperatorCode %in% Services_main$RegisteredOperatorRef |
+                               Operators$OperatorID %in% Services_main$RegisteredOperatorRef, ]
       if (nrow(Operators) != 1) {
         message("Can't match operators to services, forcing link")
         if (nrow(Operators) == 0) {
@@ -157,7 +160,7 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
     SpecialDaysOperation, StopPoints, VehicleJourneys,
     DaysOfOperation, DaysOfNonOperation,
     VehicleJourneysTimingLinks, VehicleJourneys_notes,
-    ServicedOrganisations,
+    ServicedOrganisations, Lines,
     basename(file)
   )
   names(finalres) <- c(
@@ -166,7 +169,7 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
     "SpecialDaysOperation", "StopPoints", "VehicleJourneys",
     "DaysOfOperation", "DaysOfNonOperation",
     "VehicleJourneysTimingLinks", "VehicleJourneys_notes",
-    "ServicedOrganisations",
+    "ServicedOrganisations", "Lines",
     "filename"
   )
 

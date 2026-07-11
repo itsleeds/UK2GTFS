@@ -9,6 +9,9 @@ gtfs_validate_internal(gtfs)
 \arguments{
 \item{gtfs}{a gtfs object}
 }
+\value{
+Invisibly returns NULL, called for its printed messages
+}
 \description{
 Does some basic checks on the validity of the GTFS object
 }

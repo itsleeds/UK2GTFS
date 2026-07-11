@@ -12,13 +12,16 @@ nrdp_routing(
 )
 }
 \arguments{
-\item{destfile}{Detestation and name of the zip file}
+\item{destfile}{Destination path and name of the zip file}
 
 \item{username}{your username}
 
 \item{password}{your password}
 
 \item{url}{URL of data source}
+}
+\value{
+Invisibly returns NULL, called for the side effect of downloading a file
 }
 \description{
 Downloads routing from https://opendata.nationalrail.co.uk

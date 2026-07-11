@@ -10,6 +10,8 @@
 #' @param n_files debug option numerical vector for files to be passed e.g. 1:10
 #' @param enhance_stops Logical, if TRUE will download current NaPTAN to add in any missing stops
 #' @param naptan Naptan Locations from get_naptan()
+#' @return A gtfs object: a named list of data frames representing the tables
+#'   of a GTFS file
 #'
 #' @export
 nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NPTDR/October-2006.zip",
@@ -107,7 +109,9 @@ nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NP
 
   names(exceptions) <- as.character(seq_len(length(exceptions)))
   exceptions <- dplyr::bind_rows(exceptions, .id = "file_id")
-  exceptions$schedule <- paste0(exceptions$file_id,"_",exceptions$schedule)
+  if (nrow(exceptions) > 0) {
+    exceptions$schedule <- paste0(exceptions$file_id,"_",exceptions$schedule)
+  }
 
   timetables <- nptdr_schedule2routes(
     stop_times = stop_times,
@@ -746,6 +750,13 @@ nptdr_schedule2routes <- function(stop_times, schedule, exceptions, silent = TRU
 
 
   # Fix Times
+  # NPTDR times are HHMM but afterMidnight() expects HHMMSS, so append seconds
+  stop_times$arrival_time <- ifelse(nchar(stop_times$arrival_time) == 4,
+                                    paste0(stop_times$arrival_time, "00"),
+                                    stop_times$arrival_time)
+  stop_times$departure_time <- ifelse(nchar(stop_times$departure_time) == 4,
+                                      paste0(stop_times$departure_time, "00"),
+                                      stop_times$departure_time)
   stop_times <- afterMidnight(stop_times)
 
 

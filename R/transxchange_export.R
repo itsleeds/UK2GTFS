@@ -59,7 +59,7 @@ transxchange_export <- function(obj,
 
   # Early Subsets - move to import code
   VehicleJourneys <- VehicleJourneys[, c(
-    "VehicleJourneyCode", "ServiceRef", "JourneyPatternRef", "DepartureTime",
+    "VehicleJourneyCode", "ServiceRef", "LineRef", "JourneyPatternRef", "DepartureTime",
     "DaysOfWeek","BankHolidaysOperate", "BankHolidaysNoOperate",
     "ServicedDaysOfOperation", "ServicedDaysOfOperationType",
     "ServicedDaysOfNonOperation", "ServicedDaysOfNonOperationType",
@@ -198,6 +198,12 @@ transxchange_export <- function(obj,
       vj_so_do <- NULL
    }
 
+  # A journey that references several ServicedOrganisations is imported as
+  # several rows (one per organisation). The organisation dates were captured
+  # in vj_so_do / vj_so_no above, so collapse back to one row per journey to
+  # avoid duplicated trip_ids downstream.
+  VehicleJourneys <- VehicleJourneys[!duplicated(VehicleJourneys$VehicleJourneyCode), ]
+
 
 
   # Append ServicedOrganisations Dates to inclusions and exclusions
@@ -268,10 +274,32 @@ transxchange_export <- function(obj,
   # routes ------------------------------------------------------------------
   # route_id, agency_id, route_short_name, route_long_name, route_desc, route_type
 
-  routes <- Services_main[c("ServiceCode", "RegisteredOperatorRef", "LineName", "Description", "Mode", "Origin", "Destination")]
-  routes$route_long_name <- paste0(routes$Origin, " - ", routes$Destination)
-  names(routes) <- c("route_id", "agency_id", "route_short_name", "route_desc", "route_type", "Origin", "Destination", "route_long_name")
-  routes <- routes[, c("route_id", "agency_id", "route_short_name", "route_long_name", "route_desc", "route_type")]
+  # One GTFS route per Line in the service (e.g. lines "26" and "26a" become
+  # separate routes). Journeys are matched to their line via LineRef further
+  # down; single-line services keep the ServiceCode as their route_id.
+  Lines <- obj[["Lines"]]
+  if (is.null(Lines) || nrow(Lines) == 0) {
+    Lines <- data.frame(LineID = NA_character_,
+                        LineName = Services_main$LineName[1],
+                        stringsAsFactors = FALSE)
+  }
+  route_lines <- unique(Lines[, "LineName", drop = FALSE])
+  if (nrow(route_lines) > 1) {
+    route_lines$route_id <- paste0(Services_main$ServiceCode[1], "L", seq_len(nrow(route_lines)))
+  } else {
+    route_lines$route_id <- Services_main$ServiceCode[1]
+  }
+  Lines <- dplyr::left_join(Lines, route_lines, by = "LineName")
+
+  routes <- data.frame(
+    route_id = route_lines$route_id,
+    agency_id = Services_main$RegisteredOperatorRef[1],
+    route_short_name = route_lines$LineName,
+    route_long_name = paste0(Services_main$Origin[1], " - ", Services_main$Destination[1]),
+    route_desc = Services_main$Description[1],
+    route_type = Services_main$Mode[1],
+    stringsAsFactors = FALSE
+  )
   routes$agency_id <- gsub("OId_", "", routes$agency_id)
   routes$route_type <- sapply(routes$route_type, clean_route_type)
 
@@ -279,7 +307,7 @@ transxchange_export <- function(obj,
   routes$route_short_name <- gsub("Park & Ride", "P&R", routes$route_short_name)
   routes$route_short_name <- gsub("Road", "Rd", routes$route_short_name)
   routes$route_short_name <- gsub("Connecting Communities ", "", routes$route_short_name)
-  routes$route_short_name <- gsub("|the busway", "", routes$route_short_name)
+  routes$route_short_name <- gsub("the busway", "", routes$route_short_name, ignore.case = TRUE)
   routes$route_short_name <- ifelse(nchar(routes$route_short_name) > 6, gsub(" ", "", routes$route_short_name), routes$route_short_name)
   routes$route_short_name[nchar(routes$route_short_name) > 6] <- "" # Remove long names to pass validation check
 
@@ -295,6 +323,16 @@ transxchange_export <- function(obj,
     agency_id <- unique(routes$agency_id)
     agency_name <- rep("Unknown Operator", length(agency_id))
   } else {
+    # RegisteredOperatorRef is an IDREF to Operator/@id (often a local value
+    # like "O1", "2", or a UUID); resolve it to the NationalOperatorCode so
+    # agency_ids are meaningful and consistent across files
+    if (!is.null(Operators$OperatorID) &&
+        !all(routes$agency_id %in% Operators$NationalOperatorCode) &&
+        all(routes$agency_id %in% Operators$OperatorID)) {
+      noc_map <- ifelse(is.na(Operators$NationalOperatorCode) | Operators$NationalOperatorCode == "",
+                        Operators$OperatorCode, Operators$NationalOperatorCode)
+      routes$agency_id <- noc_map[match(routes$agency_id, Operators$OperatorID)]
+    }
     if (all(routes$agency_id %in% Operators$NationalOperatorCode)) {
       agency_id <- Operators$NationalOperatorCode
     } else if (all(routes$agency_id %in% Operators$OperatorCode)) {
@@ -310,11 +348,9 @@ transxchange_export <- function(obj,
     if (is.null(Operators$TradingName)) {
       agency_name <- Operators$OperatorShortName
     } else {
-      if (is.na(Operators$TradingName)) {
-        agency_name <- Operators$OperatorShortName
-      } else {
-        agency_name <- Operators$TradingName
-      }
+      agency_name <- ifelse(is.na(Operators$TradingName),
+                            Operators$OperatorShortName,
+                            Operators$TradingName)
     }
   }
 
@@ -356,9 +392,15 @@ transxchange_export <- function(obj,
 
   # trips calendar calendar_dates -------------------------------------------------
   ###### Redo: Again
-  trips <- VehicleJourneys[, c("ServiceRef", "VehicleJourneyCode", "DepartureTime", "JourneyPatternRef", "DaysOfWeek")]
-  names(trips) <- c("route_id", "trip_id", "DepartureTime", "JourneyPatternRef", "DaysOfWeek")
+  trips <- VehicleJourneys[, c("ServiceRef", "LineRef", "VehicleJourneyCode", "DepartureTime", "JourneyPatternRef", "DaysOfWeek")]
+  names(trips) <- c("route_id", "LineRef", "trip_id", "DepartureTime", "JourneyPatternRef", "DaysOfWeek")
   trips[] <- lapply(trips, as.character)
+
+  # assign each journey to its line's route via LineRef; fall back to the
+  # first route when the LineRef is missing or unmatched
+  trips$route_id <- Lines$route_id[match(trips$LineRef, Lines$LineID)]
+  trips$route_id[is.na(trips$route_id)] <- route_lines$route_id[1]
+  trips$LineRef <- NULL
 
 
   trips$StartDate <- unique(Services_main$StartDate) # unique is bodge to add in support for mulitple services

@@ -11,6 +11,9 @@ gtfs_interpolate_times(gtfs, ncores = 1)
 
 \item{ncores}{number of cores to use}
 }
+\value{
+a gtfs object with interpolated stop times
+}
 \description{
 Sometimes bus timetables do not give unique stop times to every stop. Instead
 several stops in an row are given the same stop time. This function

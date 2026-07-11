@@ -11,6 +11,9 @@ gtfs_clean(gtfs, public_only = FALSE)
 
 \item{public_only}{Logical, if TRUE remove routes with route_type missing}
 }
+\value{
+a gtfs object
+}
 \description{
 Clean simple errors from GTFS files
 }
@@ -27,4 +30,5 @@ Task done:
 6. If public_only=TRUE then remove services with 'train_category' not for public use. e.g. EE (ECS-Empty Coaching Stock)
 7. Remove shapes that no longer have any trips
 8  Remove frequencies that no longer have any trips
+9  Remove transfers that reference stops that no longer exist
 }

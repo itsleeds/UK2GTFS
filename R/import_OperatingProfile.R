@@ -72,8 +72,8 @@ import_OperatingProfile <- function(OperatingProfile) {
         ServicedDaysOfOperation <- NULL
       }
       sndo_check <- try(xml2::xml_child(ServicedDaysOfNonOperation), silent = TRUE)
-      if(inherits(sdo_check, "try-error")){
-        ServicedDaysOfOperation <- NULL
+      if(inherits(sndo_check, "try-error")){
+        ServicedDaysOfNonOperation <- NULL
       }
 
       if (!is.null(ServicedDaysOfOperation)) {
@@ -182,11 +182,11 @@ import_OperatingProfile <- function(OperatingProfile) {
           SDDaysOfNonOperation_end <- c(SDDaysOfNonOperation_end, rep(NA, times = max(laa) - lne))
         }
 
-        if (lns != max(los)) {
+        if (los != max(laa)) {
           SDDaysOfOperation_start <- c(SDDaysOfOperation_start, rep(NA, times = max(laa) - los))
         }
 
-        if (lns != max(loe)) {
+        if (loe != max(laa)) {
           SDDaysOfOperation_end <- c(SDDaysOfOperation_end, rep(NA, times = max(laa) - loe))
         }
       }
@@ -217,22 +217,27 @@ import_OperatingProfile <- function(OperatingProfile) {
       VehicleJourneyCode = VehicleJourneyCode,
       DaysOfWeek = paste(DaysOfWeek, collapse = " "),
       HolidaysOnly = paste(HolidaysOnly, collapse = " "),
-      BHDaysOfOperation = paste(BHDaysOfOperation, collapse = " "),
-      BHDaysOfNonOperation = paste(BHDaysOfNonOperation, collapse = " "),
+      # comma-separated so multi-holiday lists survive break_up_holidays2()
+      BHDaysOfOperation = paste(BHDaysOfOperation, collapse = ", "),
+      BHDaysOfNonOperation = paste(BHDaysOfNonOperation, collapse = ", "),
       #ServicedDaysOfOperation = ServicedDaysOfOperation,
       #ServicedDaysOfNonOperation = ServicedDaysOfNonOperation,
       stringsAsFactors = FALSE
     )
 
+    # merge(by = NULL) is a cross join: a journey can reference several
+    # ServicedOrganisations, giving these frames more than one row each.
+    # The resulting duplicate journey rows are collapsed again in
+    # transxchange_export() once the organisation dates have been extracted.
     if(inherits(ServicedDaysOfOperation, "data.frame")){
-      res <- cbind(res, ServicedDaysOfOperation)
+      res <- merge(res, ServicedDaysOfOperation, by = NULL)
     } else {
       res$ServicedDaysOfOperation <- NA
       res$ServicedDaysOfOperationType <- NA
     }
 
     if(inherits(ServicedDaysOfNonOperation, "data.frame")){
-      res <- cbind(res, ServicedDaysOfNonOperation)
+      res <- merge(res, ServicedDaysOfNonOperation, by = NULL)
     } else {
       res$ServicedDaysOfNonOperation <- NA
       res$ServicedDaysOfNonOperationType <- NA

@@ -12,6 +12,9 @@ gtfs_fast_stops(gtfs, maxspeed = 83)
 \item{maxspeed}{the maximum allowed speed in metres per second default 83 m/s
 (about 185 mph the max speed of trains on HS1 line)}
 }
+\value{
+an sf data frame of stops with speed and distance summary columns
+}
 \description{
 A varient of gtfs_fast_trips that can detect stops that may be in the wrong location
 }

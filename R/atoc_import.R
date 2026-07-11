@@ -3,6 +3,7 @@
 #' @param file Path to .alf file
 #' @details
 #' Imports the .alf file and returns data.frame
+#' @return data frame of fixed links between stations
 #'
 #' @export
 #'
@@ -67,6 +68,7 @@ importALF <- function(file) {
 #' Imports the .flf file and returns data.frame
 #'
 #' @param file Path to .flf file
+#' @return data frame of fixed links between stations
 #' @export
 #'
 importFLF <- function(file) {
@@ -122,6 +124,7 @@ importFLF <- function(file) {
 #' Imports the .tsi file and returns data.frame
 #'
 #' @param file Path to .tsi file
+#' @return data frame of TOC specific interchange times
 #' @export
 #'
 importTSI <- function(file) {
@@ -141,8 +144,9 @@ importTSI <- function(file) {
 #' @details
 #' Imports the .msn file and returns data.frame
 #'
-#' @param file Path to .flf file
+#' @param file Path to .msn file
 #' @param silent logical, should messages be displayed
+#' @return named list of data frames: station, timetable, comment, and alias
 #' @export
 #'
 importMSN <- function(file, silent = TRUE) {
@@ -308,6 +312,8 @@ strip_whitespace_df <- function(df) {
 #' @param full_import import all data, default FALSE
 #' @param working_timetable use rail industry scheduling times instead of public times
 #' @param public_only only return calls that are for public passenger pick up/set down
+#' @return named list of data tables: stop_times and schedule, plus (when
+#'   full_import is TRUE) TI, TA, TD, AA, and CR records
 #' @export
 #'
 importMCA <- function(file,
@@ -557,7 +563,7 @@ importMCA <- function(file,
     if (!silent) {
       message(paste0(Sys.time(), " importing TIPLOC Delete"))
     }
-    TD <- raw[types == "TA"]
+    TD <- raw[types == "TD"]
     TD <- iotools::dstrfw(
       x = TD,
       col_types = rep("character", 3),
@@ -598,8 +604,9 @@ importMCA <- function(file,
     AA$`Record Identity` <- NULL
     AA <- strip_whitespace(AA)
 
-    AA$`Assoc Start date` <- as.Date(AA$`Assoc Start date`, format = "%d%m%y")
-    AA$`Assoc End date` <- as.Date(AA$`Assoc End date`, format = "%d%m%y")
+    # Association dates are yymmdd (RSPS5046 section 5.5.8, fields 5 & 6)
+    AA$`Assoc Start date` <- as.Date(AA$`Assoc Start date`, format = "%y%m%d")
+    AA$`Assoc End date` <- as.Date(AA$`Assoc End date`, format = "%y%m%d")
 
 
     AA$`Transaction Type` <- as.factor(AA$`Transaction Type`)

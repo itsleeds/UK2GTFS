@@ -6,6 +6,8 @@
 #'
 #' @param path path to folder
 #' @param type If "atoc" then downloads ATOC CIF, else TransXchange
+#' @return TRUE if the download succeeded, called for the side effect of
+#'   downloading an example file
 #' @export
 
 dl_example_file <- function(path, type = "atoc"){

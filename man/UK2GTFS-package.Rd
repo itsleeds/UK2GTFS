@@ -4,23 +4,23 @@
 \name{UK2GTFS-package}
 \alias{UK2GTFS}
 \alias{UK2GTFS-package}
-\title{UK2GTFS: Converts UK transport timetable datasets to GTFS format}
+\title{UK2GTFS: Convert UK Transport Timetable Datasets to GTFS Format}
 \description{
 \if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-The UK uses a range of odd formats to store timetable data, this package converts them to the nice GTFS format.
+Convert transport timetable data from the formats used in the United Kingdom to the General Transit Feed Specification ('GTFS') format. Supports the Common Interface File ('CIF') format used by the Rail Delivery Group and Network Rail for heavy and light rail timetables, 'TransXChange' XML files used for bus, coach, and ferry timetables, and the historic National Public Transport Data Repository ('NPTDR') archives. Also provides utilities for reading, writing, cleaning, subsetting, and merging 'GTFS' files.
 }
 \seealso{
 Useful links:
 \itemize{
   \item \url{https://github.com/itsleeds/uk2gtfs}
-  \item \url{https://itsleeds.git.io/uk2gtfs/}
+  \item \url{https://itsleeds.github.io/UK2GTFS/}
   \item Report bugs at \url{https://github.com/itsleeds/uk2gtfs/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: Malcolm Morgan \email{m.morgan1@leeds.ac.uk} (\href{https://orcid.org/0000-0002-9488-9183}{ORCID})
+\strong{Maintainer}: Malcolm Morgan \email{m.morgan1@leeds.ac.uk} (\href{https://orcid.org/0000-0002-9488-9183}{ORCID}) [copyright holder]
 
 Authors:
 \itemize{
