@@ -1,6 +1,3 @@
-
-<!-- README.md is generated from README.Rmd. Please edit that file -->
-
 # UK2GTFS <a href='https://itsleeds.github.io/'><img src='man/figures/logo.png' align="right" height=215/></a>
 
 [![Coverage
@@ -51,7 +48,9 @@ additional functionality:
 
 1.  Data conversion
     - Conversion of TransXchange to GTFS
-    - Conversion of CIF files to GTFS
+    - Conversion of CIF files to GTFS, optionally with route shapes
+      (`shapes.txt`) built by routing services over a map of the UK
+      rail network (`atoc2gtfs(shapes = TRUE)`)
     - Conversion of fares data to GTFS (v1 and Fares v2): BODS NeTEx
       fares for buses, and the National Rail fares feed for heavy rail
     - reading of TransXchange and CIF files is also supported, although
@@ -68,12 +67,20 @@ additional functionality:
 3.  Data polishing
     - Support of journeys past midnight
 4.  GTFS tools, functions for working with GTFS data
-    - Reading / Writing
-    - Cleaning
-    - Compression
-    - Validation
-    - Subsetting
-    - Analysis
+    - Reading / Writing (`gtfs_read()`, `gtfs_write()`)
+    - Cleaning (`gtfs_clean()`, `gtfs_force_valid()`,
+      `gtfs_fast_trips()`)
+    - Compression (`gtfs_compress()`)
+    - Validation (`gtfs_validate_internal()`) - checks required tables
+      and columns, duplicated ids, referential integrity, enum and
+      date/time values, and time/calendar logic across the whole feed
+      including shapes, frequencies, transfers and fare tables
+    - Subsetting (`gtfs_clip()`, `gtfs_trim_dates()`, `gtfs_split()`)
+      and merging (`gtfs_merge()`) - subsetting keeps the optional
+      tables (shapes, frequencies, transfers, fares) consistent with
+      the subset feed
+    - Analysis (`gtfs_stop_frequency()`, `gtfs_trips_per_zone()`),
+      including frequency-based services (`frequencies.txt`)
 
 ## Installation
 
@@ -96,9 +103,12 @@ and [ATOC CIF](https://itsleeds.github.io/UK2GTFS/articles/ATOC.html).
 
 ## Package Status
 
-This package a work in progress and comes with no guarantees. As of
-September 2019, it can convert most train and bus timetables to GTFS but
-occasionally fails on specific files.
+This package is a work in progress and comes with no guarantees. It can
+convert train, bus, tram, metro and ferry timetables to GTFS, add fares
+(rail and bus) and rail route shapes, and provides a toolkit for
+cleaning, validating, subsetting and analysing GTFS feeds. See
+[NEWS.md](NEWS.md) for recent changes. Conversion occasionally fails on
+specific files.
 
 Please report failed conversions as GitHub
 [Issues](https://github.com/itsleeds/uk2gtfs/issues)

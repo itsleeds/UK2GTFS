@@ -17,5 +17,8 @@ a gtfs object clipped to the bounds
 \description{
 Clips the GTFS file to only include stops within the bounds object, trips
 that cross the boundary of the the object are truncated. Any trips that stop
-only once in the bounds are removed completely.
+only once in the bounds are removed completely. The optional tables
+(shapes, frequencies, transfers, pathways and the GTFS v1/Fares v2 fare
+tables) are pruned so they only reference the stops, routes and trips that
+remain.
 }

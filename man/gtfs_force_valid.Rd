@@ -24,5 +24,7 @@ Actions performed
 5. Remove stop_times(calls) that don't exist in stops
 6. Remove Calendar that have service_id that doesn't exist in trips
 7. Remove Calendar_dates that have service_id that doesn't exist in trips
-8. Remove transfers that reference stops that don't exist in stops
+8. Remove rows in the optional tables (shapes, frequencies, transfers,
+   pathways and the GTFS v1/Fares v2 fare tables) that reference stops,
+   routes or trips that don't exist
 }

@@ -12,6 +12,10 @@
     `netex_match_routes()`, `gtfs_add_fares()` and the
     `netex_fares_from_archive()` wrapper, with parallel reading for the
     national archive.
+* `atoc2gtfs()` gains `shapes = TRUE`: heavy rail services are routed over an
+  internal map of the UK rail network to build `shapes.txt` (with `shape_id`
+  in `trips` and `shape_dist_traveled` in `stop_times`), using the
+  `ATOC_shapes()` function, which can also be run on an existing gtfs object.
 * New vignettes: *Adding Fares* (NeTEx) and *NPTDR to GTFS*; expanded ATOC,
   GTFS and TransXChange vignettes.
 * `transxchange2gtfs()` gains `filter_duplicate_files`/`filter_date` (and the
@@ -24,6 +28,23 @@
   frequency-based services (`frequencies.txt`): every departure implied by a
   frequency window is counted, in its correct time band. `gtfs_trim_dates()`
   keeps the `frequencies` table consistent with the trimmed trips.
+* The subsetting and cleaning functions (`gtfs_clip()`, `gtfs_trim_dates()`,
+  `gtfs_clean()`, `gtfs_force_valid()`) now keep all the optional tables
+  consistent with the subset feed: shapes, frequencies, transfers, pathways,
+  the GTFS v1 fare tables (fare_attributes/fare_rules) and the GTFS Fares v2
+  tables (areas, stop_areas, networks, route_networks, fare_leg_rules,
+  fare_transfer_rules, fare_products, rider_categories, fare_media).
+* `gtfs_compress()` now also rewrites the ids referenced by shapes,
+  frequencies, pathways, stop_areas, fare_rules and route_networks (it
+  previously only handled the core tables and transfers), and compresses
+  `shape_id`s.
+* `gtfs_validate_internal()` has been rewritten as a comprehensive validator:
+  it checks required tables/columns for every GTFS table (including the fare
+  tables), duplicated primary keys, referential integrity of every foreign
+  key, coordinate ranges, enum values, colour/currency/date/time formats,
+  time ordering along trips, calendar logic and feed logic, and reports at
+  Error/Warning/Note severities. It now invisibly returns a data frame of
+  the problems found.
 
 ## Bug fixes
 

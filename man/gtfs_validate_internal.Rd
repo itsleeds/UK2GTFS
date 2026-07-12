@@ -10,8 +10,39 @@ gtfs_validate_internal(gtfs)
 \item{gtfs}{a gtfs object}
 }
 \value{
-Invisibly returns NULL, called for its printed messages
+Invisibly returns a data frame of the problems found (columns
+  `severity`, `table`, `message`), with zero rows if no problems were
+  found. Called mainly for its printed messages.
 }
 \description{
-Does some basic checks on the validity of the GTFS object
+Checks a GTFS object against the GTFS specification and reports the
+problems it finds. It does not change the data (see [gtfs_force_valid()]
+for that).
+}
+\details{
+Checks performed include:
+
+* presence of the required tables and required columns of every table,
+  including shapes, frequencies, transfers, pathways, levels, feed_info
+  and the GTFS v1 (fare_attributes/fare_rules) and Fares v2 (areas,
+  stop_areas, networks, route_networks, rider_categories, fare_media,
+  fare_products, fare_leg_rules, fare_transfer_rules) fare tables
+* non-standard columns and tables (reported as notes, the spec allows them)
+* duplicated primary keys in every table
+* referential integrity of every foreign key between tables
+* missing values in required columns
+* coordinate ranges in stops and shapes
+* field values: enums (route_type, location_type, exception_type,
+  pickup/drop_off types, transfer_type, payment_method etc.), colour
+  formats, date and time formats, negative prices and headways
+* time logic: departure before arrival, times that go backwards along a
+  trip, frequency windows that end before they start
+* calendar logic: start after end dates, services that can never run
+* feed logic: trips with fewer than two stop_times, trips without a
+  calendar, agencies with differing timezones, exactly one default rider
+  category, unused stops/routes/services (notes)
+
+Problems are reported at three severities: `Error` (feed breaks the
+spec), `Warning` (probably a mistake) and `Note` (worth knowing, not
+necessarily wrong).
 }

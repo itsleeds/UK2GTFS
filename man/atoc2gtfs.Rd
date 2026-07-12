@@ -129,6 +129,12 @@ feed available from the same National Rail Data Portal. Pass its path
 as \code{fares} to add GTFS fare tables to the output. See
 \code{\link[=gtfs_add_railfares]{gtfs_add_railfares()}} for the fare model, the choices exposed by the
 \verb{fares_*} arguments, and the limitations.
+
+Shapes
+
+The ATOC data does not contain any shape information. If \code{shapes = TRUE},
+the function will attempt to build shapes.txt from an internal map of the
+rail network.
 }
 \seealso{
 Other main: 

@@ -217,7 +217,8 @@ PUBLIC_SERVICE_CATEGORY = c("OL", "OU", "OO", "OW", "XC", "XD", "XI",
 #' 6. If public_only=TRUE then remove services with 'train_category' not for public use. e.g. EE (ECS-Empty Coaching Stock)
 #' 7. Remove shapes that no longer have any trips
 #' 8  Remove frequencies that no longer have any trips
-#' 9  Remove transfers that reference stops that no longer exist
+#' 9  Remove transfers, pathways and fare table rows (GTFS v1 and Fares v2)
+#'    that reference stops, routes or trips that no longer exist
 #'
 #' @return a gtfs object
 #' @export
@@ -312,28 +313,11 @@ gtfs_clean <- function(gtfs, public_only =  FALSE) {
     gc()
   }
 
-  # 7 remove shapes that no longer have any trips
-  if ("shapes" %in% names(gtfs))
-  {
-    gtfs$shapes <- gtfs$shapes[gtfs$shapes$shape_id %in% gtfs$trips$shape_id, ]
-  }
-
-  # 8 remove frequencies that no longer have any trips
-  if ("frequencies" %in% names(gtfs))
-  {
-    gtfs$frequencies <- gtfs$frequencies[gtfs$frequencies$trip_id %in% gtfs$trips$trip_id, ]
-  }
-
-  # 9 remove transfers that reference stops that no longer exist. transfers.txt
-  # requires from_stop_id and to_stop_id to be valid stop_ids; dangling
-  # references make the feed invalid and can cause routing engines (e.g. R5) to
-  # reject the whole feed.
-  if ("transfers" %in% names(gtfs) && !is.null(gtfs$transfers))
-  {
-    valid_stops <- unique(gtfs$stops$stop_id)
-    gtfs$transfers <- gtfs$transfers[gtfs$transfers$from_stop_id %in% valid_stops &
-                                       gtfs$transfers$to_stop_id %in% valid_stops, ]
-  }
+  # 7-9 remove shapes and frequencies that no longer have any trips, transfers
+  # and the other optional tables (pathways, fare tables) that reference stops,
+  # routes or trips that no longer exist. Dangling references make the feed
+  # invalid and can cause routing engines (e.g. R5) to reject the whole feed.
+  gtfs <- gtfs_prune_orphans(gtfs)
 
   return(gtfs)
 }

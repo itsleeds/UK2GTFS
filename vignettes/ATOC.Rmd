@@ -109,6 +109,8 @@ Useful arguments to `atoc2gtfs()`:
   improved dataset.
 * `agency` - where to get `agency.txt`; see [Agency](#agency).
 * `transfers` - if `TRUE` (default) build `transfers.txt` from the `.FLF` file.
+* `shapes` - if `TRUE`, build `shapes.txt` by routing each service over a map
+  of the rail network. Default `FALSE`; see [Shapes](#shapes) below.
 * `working_timetable` - if `TRUE`, use the Working Timetable (WTT) times (used
   operationally) instead of the public times. Default `FALSE`.
 * `public_only` - if `TRUE` (default) keep only calls/services intended for
@@ -323,10 +325,23 @@ arguments; the losses you cannot buy back are listed here.
 
 ## Shapes
 
-Route shapes (the geographic path a train follows) are not produced by default -
-`shapes = FALSE`. Generating rail shapes requires matching schedules to the
-physical rail network, which is handled separately by the experimental
-`ATOC_shapes()` function.
+Route shapes - the geographic path each train follows - are not part of the CIF
+data, but `atoc2gtfs()` can build them for you:
+
+```{r shapes_example, eval=FALSE}
+gtfs <- atoc2gtfs(path_in = path_in, ncores = 3, shapes = TRUE)
+```
+
+With `shapes = TRUE` each heavy-rail service (`route_type = 2`) is routed over
+an internal map of the UK rail network, producing a `shapes.txt` table, a
+`shape_id` column in `trips.txt` and `shape_dist_traveled` values in
+`stop_times.txt`. Services that are not heavy rail (buses, ships, metro) are
+left without shapes.
+
+This is off by default (`shapes = FALSE`) because the routing step adds
+noticeable processing time for a national timetable. If you already have a
+converted feed you can add shapes afterwards with the underlying
+`ATOC_shapes()` function, which takes and returns a gtfs object.
 
 ## Next steps
 

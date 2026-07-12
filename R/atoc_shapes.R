@@ -126,7 +126,7 @@ ATOC_shapes <- function(gtfs) {
   str$stop_chain <- NULL
 
   str5 <- str5[,c("trip_id","stop_id","stop_sequence","shape_dist_traveled")]
-  str5 <- dplyr::left_join(str, str5, by = c("shape_id" = "trip_id"))
+  str5 <- dplyr::left_join(str, str5, by = c("shape_id" = "trip_id"), relationship = "many-to-many")
 
   stop_times = dplyr::left_join(gtfs$stop_times, str5,
                          by = c("trip_id","stop_id","stop_sequence"))

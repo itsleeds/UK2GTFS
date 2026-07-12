@@ -77,12 +77,20 @@ gtfs <- gtfs_clean(gtfs)
 
 ### `gtfs_validate_internal()` - check for problems
 
-`gtfs_validate_internal(gtfs)` runs basic consistency checks in R and reports
-what it finds (for example stop_times referencing a stop that isn't in
-`stops.txt`). It reports problems but does not change the data.
+`gtfs_validate_internal(gtfs)` checks the feed against the GTFS specification
+and reports what it finds at three severities: **Error** (breaks the spec),
+**Warning** (probably a mistake) and **Note** (worth knowing). Checks cover
+every table - including shapes, frequencies, transfers and the fare tables -
+and include: required tables and columns, duplicated ids, referential
+integrity of every cross-table reference (for example stop_times referencing
+a stop that isn't in `stops.txt`), coordinate ranges, enum and date/time
+values, times that go backwards along a trip, and services that can never
+run. It reports problems but does not change the data; it invisibly returns
+a data frame of the problems for programmatic use.
 
 ```{r validate, eval=FALSE}
 gtfs_validate_internal(gtfs)
+problems <- gtfs_validate_internal(gtfs)  # severity / table / message
 ```
 
 ### `gtfs_force_valid()` - make it valid by removing problems
@@ -137,6 +145,9 @@ sel   <- gtfs_split_ids(gtfs, trip_ids = bad_trips)
 `gtfs_clip(gtfs, bounds)` restricts a feed to a geographic area. `bounds` is an
 `sf` polygon (or multi-polygon) in CRS 4326. Trips crossing the boundary are
 truncated at the edge, and trips that call only once inside the area are dropped.
+The optional tables - shapes, frequencies, transfers, pathways and the fare
+tables - are pruned so they only reference the stops, routes and trips that
+remain.
 
 ```{r clip, eval=FALSE}
 library(sf)
@@ -148,7 +159,8 @@ gtfs_leeds <- gtfs_clip(gtfs, bounds = leeds)
 
 `gtfs_trim_dates(gtfs, startdate, enddate)` keeps only services that run between
 two dates and shrinks the calendars accordingly - useful for cutting a
-multi-year feed down to the week or month you care about.
+multi-year feed down to the week or month you care about. Frequencies and
+shapes belonging to removed trips are removed with them.
 
 ```{r trim, eval=FALSE}
 gtfs_march <- gtfs_trim_dates(gtfs,
@@ -160,8 +172,10 @@ gtfs_march <- gtfs_trim_dates(gtfs,
 
 `gtfs_compress(gtfs)` reduces file size by replacing the long, human-readable IDs
 that `UK2GTFS` preserves during conversion (such as NaPTAN stop codes) with
-compact integers. Do this once you no longer need to trace IDs back to the
-source data.
+compact integers. Every table that references a rewritten id - stop_times,
+transfers, pathways, frequencies, shapes, stop_areas, fare_rules and
+route_networks - is updated together, so the feed stays consistent. Do this
+once you no longer need to trace IDs back to the source data.
 
 ```{r compress, eval=FALSE}
 gtfs <- gtfs_compress(gtfs)

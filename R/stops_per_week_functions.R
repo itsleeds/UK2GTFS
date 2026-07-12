@@ -379,14 +379,15 @@ gtfs_trim_dates <- function(gtfs,
   trips <- trips[trips$service_id %in% calendar$service_id, ]
   stop_times <- stop_times[stop_times$trip_id %in% trips$trip_id,]
 
-  if(!is.null(gtfs$frequencies)){
-    gtfs$frequencies <- gtfs$frequencies[gtfs$frequencies$trip_id %in% trips$trip_id, ]
-  }
-
   gtfs$stop_times <- stop_times
   gtfs$trips <- trips
   gtfs$calendar <- calendar
   gtfs$calendar_dates <- calendar_dates
+
+  # keep frequencies, shapes and the other optional tables consistent with
+  # the trips that survived the date trim
+  gtfs <- gtfs_prune_orphans(gtfs)
+
   return(gtfs)
 }
 
