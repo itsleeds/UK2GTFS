@@ -240,6 +240,10 @@ feed available from the same National Rail Data Portal. Pass its path
 as <code>fares</code> to add GTFS fare tables to the output. See
 <code><a href="gtfs_add_railfares.html">gtfs_add_railfares()</a></code> for the fare model, the choices exposed by the
 <code>fares_*</code> arguments, and the limitations.</p>
+<p>Shapes</p>
+<p>The ATOC data does not contain any shape information. If <code>shapes = TRUE</code>,
+the function will attempt to build shapes.txt from an internal map of the
+rail network.</p>
     </div>
     <div id="see-also">
     <h2>See also</h2>

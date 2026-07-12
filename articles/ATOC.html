@@ -98,7 +98,7 @@
                         <h4 data-toc-skip class="author">Malcolm
 Morgan</h4>
             
-            <h4 data-toc-skip class="date">2026-07-11</h4>
+            <h4 data-toc-skip class="date">2026-07-12</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/itsleeds/uk2gtfs/blob/master/vignettes/ATOC.Rmd" class="external-link"><code>vignettes/ATOC.Rmd</code></a></small>
       <div class="hidden name"><code>ATOC.Rmd</code></div>
@@ -248,6 +248,11 @@ for the OS).</li>
 <li>
 <code>transfers</code> - if <code>TRUE</code> (default) build
 <code>transfers.txt</code> from the <code>.FLF</code> file.</li>
+<li>
+<code>shapes</code> - if <code>TRUE</code>, build
+<code>shapes.txt</code> by routing each service over a map of the rail
+network. Default <code>FALSE</code>; see <a href="#shapes">Shapes</a>
+below.</li>
 <li>
 <code>working_timetable</code> - if <code>TRUE</code>, use the
 Working Timetable (WTT) times (used operationally) instead of the public
@@ -533,11 +538,23 @@ clusters become areas. Both are written fine by
 <div class="section level2">
 <h2 id="shapes">Shapes<a class="anchor" aria-label="anchor" href="#shapes"></a>
 </h2>
-<p>Route shapes (the geographic path a train follows) are not produced
-by default - <code>shapes = FALSE</code>. Generating rail shapes
-requires matching schedules to the physical rail network, which is
-handled separately by the experimental <code><a href="../reference/ATOC_shapes.html">ATOC_shapes()</a></code>
-function.</p>
+<p>Route shapes - the geographic path each train follows - are not part
+of the CIF data, but <code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code> can build them for
+you:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">gtfs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/atoc2gtfs.html">atoc2gtfs</a></span><span class="op">(</span>path_in <span class="op">=</span> <span class="va">path_in</span>, ncores <span class="op">=</span> <span class="fl">3</span>, shapes <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<p>With <code>shapes = TRUE</code> each heavy-rail service
+(<code>route_type = 2</code>) is routed over an internal map of the UK
+rail network, producing a <code>shapes.txt</code> table, a
+<code>shape_id</code> column in <code>trips.txt</code> and
+<code>shape_dist_traveled</code> values in <code>stop_times.txt</code>.
+Services that are not heavy rail (buses, ships, metro) are left without
+shapes.</p>
+<p>This is off by default (<code>shapes = FALSE</code>) because the
+routing step adds noticeable processing time for a national timetable.
+If you already have a converted feed you can add shapes afterwards with
+the underlying <code><a href="../reference/ATOC_shapes.html">ATOC_shapes()</a></code> function, which takes and
+returns a gtfs object.</p>
 </div>
 <div class="section level2">
 <h2 id="next-steps">Next steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
