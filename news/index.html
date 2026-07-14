@@ -72,6 +72,12 @@
     <div class="section level2">
 <h2 class="page-header" data-toc-text="0.4.0" id="uk2gtfs-040">UK2GTFS 0.4.0<a class="anchor" aria-label="anchor" href="#uk2gtfs-040"></a></h2>
 <div class="section level3">
+<h3 id="breaking-changes-0-4-0">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-0-4-0"></a></h3>
+<ul><li>Coach services are now coded with GTFS extended route type <strong>200</strong> instead of 3 (bus). This affects <code><a href="../reference/transxchange2gtfs.html">transxchange2gtfs()</a></code> (e.g. the TNDS NCSD national coach archive) and <code><a href="../reference/nptdr2gtfs.html">nptdr2gtfs()</a></code> (ATCO-CIF <code>COACH</code> vehicle types), and matches the coding used by the DfT’s Bus Open Data Service GTFS feeds. Analyses that previously relied on coach being folded into <code>route_type == 3</code> should now select <code>route_type %in% c(3, 200)</code>.</li>
+<li>
+<code><a href="../reference/gtfs_merge.html">gtfs_merge()</a></code> now always returns <code>stop_times</code> and <code>frequencies</code> time columns as lubridate Periods (the class <code><a href="../reference/gtfs_read.html">gtfs_read()</a></code> produces), whatever mix of classes the inputs used.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="new-features-0-4-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-4-0"></a></h3>
 <ul><li>Fares support. GTFS fare tables (both the original <code>fare_attributes</code>/ <code>fare_rules</code> specification and GTFS Fares v2) can now be built from:
 <ul><li>the National Rail fares feed (RSPS5045) via <code><a href="../reference/atoc_fares_read.html">atoc_fares_read()</a></code> and <code><a href="../reference/gtfs_add_railfares.html">gtfs_add_railfares()</a></code>, including child/railcard discounts and optional scenario snapshots (<code>travel_date</code>/<code>travel_time</code>/<code>booking_date</code>), also available directly from <code><a href="../reference/atoc2gtfs.html">atoc2gtfs()</a></code> via the new <code>fares*</code> arguments.</li>
@@ -99,6 +105,15 @@
 <code>station2transfers()</code> no longer emits transfers with missing stop ids, and writes integer <code>transfer_type</code>/<code>min_transfer_time</code>.</li>
 <li>
 <code><a href="../reference/gtfs_clean.html">gtfs_clean()</a></code>, <code><a href="../reference/gtfs_force_valid.html">gtfs_force_valid()</a></code> and <code><a href="../reference/gtfs_compress.html">gtfs_compress()</a></code> now keep <code>transfers.txt</code> consistent with the stops table.</li>
+<li>
+<code><a href="../reference/gtfs_interpolate_times.html">gtfs_interpolate_times()</a></code> only splits and processes the trips that actually contain duplicated stop times. It previously split every trip in the feed into its own data frame, which built lists of millions of small tibbles for national feeds and exhausted memory when dispatched to parallel workers.</li>
+<li>
+<code><a href="../reference/nptdr2gtfs.html">nptdr2gtfs()</a></code> reads ATCO-CIF files as Latin-1: under a UTF-8 locale, accented characters in place names produced invalid UTF-8 strings that aborted the import.</li>
+<li>ATOC calendar overlays that cross a Monday–Sunday week boundary no longer crash (<code>makeAllOneDay()</code>) or select operating dates outside the entry’s own date range (<code>makeAllOneDay()</code> and <code>expandAllWeeks()</code> counted weeks from the raw duration instead of the Monday-aligned weeks the entry touches). This also affected the splitting of multi-day cancellations.</li>
+<li>
+<code><a href="../reference/gtfs_merge.html">gtfs_merge()</a></code> no longer corrupts lubridate Period time columns: <code><a href="https://rdrr.io/pkg/data.table/man/rbindlist.html" class="external-link">data.table::rbindlist()</a></code> silently truncated the S4 columns produced by <code><a href="../reference/gtfs_read.html">gtfs_read()</a></code>, so merging feeds read from disk aborted with a vctrs size mismatch (or worse, mis-assigned times). Time-of-day columns are now normalised to seconds for the merge and restored to Periods afterwards.</li>
+<li>
+<code><a href="../reference/gtfs_read.html">gtfs_read()</a></code> now reads <code>frequencies.txt</code> with proper types (character <code>trip_id</code>, Period <code>start_time</code>/<code>end_time</code>), and coerces <code>*_id</code> columns of non-core tables to character so numeric-looking ids still join against the core tables.</li>
 <li>
 <code><a href="../reference/gtfs_merge.html">gtfs_merge()</a></code> no longer drops all but one <code>calendar_dates</code> exception per service when condensing service patterns.</li>
 <li>
