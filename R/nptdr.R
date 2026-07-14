@@ -257,6 +257,10 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
     con = file,
     n = -1
   )
+  # ATCO-CIF files are Latin-1 encoded; under a UTF-8 locale accented
+  # characters in stop/place names otherwise become invalid UTF-8 strings
+  # that abort later regex operations
+  raw <- iconv(raw, from = "latin1", to = "UTF-8")
   types <- substr(raw, 1, 2)
 
   # Sometime the file is empty

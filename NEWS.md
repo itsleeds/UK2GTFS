@@ -1,5 +1,17 @@
 # UK2GTFS 0.4.0
 
+## Breaking changes
+
+* Coach services are now coded with GTFS extended route type **200** instead
+  of 3 (bus). This affects `transxchange2gtfs()` (e.g. the TNDS NCSD national
+  coach archive) and `nptdr2gtfs()` (ATCO-CIF `COACH` vehicle types), and
+  matches the coding used by the DfT's Bus Open Data Service GTFS feeds.
+  Analyses that previously relied on coach being folded into
+  `route_type == 3` should now select `route_type %in% c(3, 200)`.
+* `gtfs_merge()` now always returns `stop_times` and `frequencies` time
+  columns as lubridate Periods (the class `gtfs_read()` produces), whatever
+  mix of classes the inputs used.
+
 ## New features
 
 * Fares support. GTFS fare tables (both the original `fare_attributes`/
@@ -54,6 +66,28 @@
   writes integer `transfer_type`/`min_transfer_time`.
 * `gtfs_clean()`, `gtfs_force_valid()` and `gtfs_compress()` now keep
   `transfers.txt` consistent with the stops table.
+* `gtfs_interpolate_times()` only splits and processes the trips that
+  actually contain duplicated stop times. It previously split every trip in
+  the feed into its own data frame, which built lists of millions of small
+  tibbles for national feeds and exhausted memory when dispatched to
+  parallel workers.
+* `nptdr2gtfs()` reads ATCO-CIF files as Latin-1: under a UTF-8 locale,
+  accented characters in place names produced invalid UTF-8 strings that
+  aborted the import.
+* ATOC calendar overlays that cross a Monday–Sunday week boundary no longer
+  crash (`makeAllOneDay()`) or select operating dates outside the entry's
+  own date range (`makeAllOneDay()` and `expandAllWeeks()` counted weeks
+  from the raw duration instead of the Monday-aligned weeks the entry
+  touches). This also affected the splitting of multi-day cancellations.
+* `gtfs_merge()` no longer corrupts lubridate Period time columns:
+  `data.table::rbindlist()` silently truncated the S4 columns produced by
+  `gtfs_read()`, so merging feeds read from disk aborted with a vctrs size
+  mismatch (or worse, mis-assigned times). Time-of-day columns are now
+  normalised to seconds for the merge and restored to Periods afterwards.
+* `gtfs_read()` now reads `frequencies.txt` with proper types (character
+  `trip_id`, Period `start_time`/`end_time`), and coerces `*_id` columns of
+  non-core tables to character so numeric-looking ids still join against the
+  core tables.
 * `gtfs_merge()` no longer drops all but one `calendar_dates` exception per
   service when condensing service patterns.
 * `gtfs_stop_frequency()` and `gtfs_trips_per_zone()` apply `calendar_dates`

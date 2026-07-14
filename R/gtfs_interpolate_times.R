@@ -33,31 +33,52 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
     stop_times$stop_sequence <- as.integer(stop_times$stop_sequence)
   }
 
-  stop_times <- dplyr::group_by(stop_times, trip_id)
-  stop_times <- dplyr::group_split(stop_times)
+  # Only trips with duplicated arrival times (and no missing times) need
+  # interpolating; identify them vectorised. Splitting every trip into its
+  # own data frame (the old approach) built a list of millions of small
+  # tibbles for national feeds and exhausted memory when shipped to the
+  # parallel workers.
+  flags <- data.table::data.table(
+    trip_id = stop_times$trip_id,
+    arr = lubridate::period_to_seconds(stop_times$arrival_time),
+    dep = lubridate::period_to_seconds(stop_times$departure_time)
+  )
+  flags <- flags[, list(has_dup = anyDuplicated(arr) > 0L,
+                        has_na = anyNA(arr) || anyNA(dep)),
+                 by = "trip_id"]
+  needs <- flags$trip_id[flags$has_dup & !flags$has_na]
+  n_trips <- nrow(flags)
+  rm(flags)
+  message(length(needs), " of ", n_trips,
+          " trips have duplicated stop times to interpolate")
 
-  if(ncores == 1){
-    #stop_times <- pbapply::pblapply(stop_times, stops_interpolate)
-    stop_times <- purrr::map(stop_times, stops_interpolate, .progress = TRUE)
+  sel <- stop_times$trip_id %in% needs
+  untouched <- stop_times[!sel, , drop = FALSE]
+  # convert times to character, matching what stops_interpolate() returns
+  untouched$arrival_time <- period2gtfs(untouched$arrival_time)
+  untouched$departure_time <- period2gtfs(untouched$departure_time)
+
+  todo <- stop_times[sel, , drop = FALSE]
+  rm(stop_times, sel)
+
+  if (nrow(todo) > 0) {
+    todo <- dplyr::group_by(todo, trip_id)
+    todo <- dplyr::group_split(todo)
+
+    if(ncores == 1 || length(todo) < 100){
+      todo <- purrr::map(todo, stops_interpolate, .progress = TRUE)
+    } else {
+      future::plan(future::multisession, workers = ncores)
+      todo <- furrr::future_map(.x = todo,
+                                .f = stops_interpolate,
+                                .progress = TRUE)
+      future::plan(future::sequential)
+    }
+    stop_times <- data.table::rbindlist(
+      c(todo, list(data.table::as.data.table(untouched))), use.names = TRUE)
   } else {
-    # cl <- parallel::makeCluster(ncores)
-    # parallel::clusterEvalQ(cl, {loadNamespace("UK2GTFS")})
-    # stop_times <- pbapply::pblapply(stop_times,
-    #                                 stops_interpolate,
-    #                                 cl = cl
-    # )
-    # parallel::stopCluster(cl)
-    # rm(cl)
-
-    future::plan(future::multisession, workers = ncores)
-    stop_times <- furrr::future_map(.x = stop_times,
-                                    .f = stops_interpolate,
-                                    .progress = TRUE)
-    future::plan(future::sequential)
-
+    stop_times <- data.table::as.data.table(untouched)
   }
-
-  stop_times <- data.table::rbindlist(stop_times)
   # Period (S4) columns do not survive data.table row subsetting, so hand back
   # a plain data.frame (as gtfs_read does) before restoring the Period times
   data.table::setDF(stop_times)

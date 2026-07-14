@@ -18,6 +18,27 @@ gtfs_merge <- function(gtfs_list, force = FALSE, quiet = TRUE, condenseServicePa
 
   # remove any empty input GTFS objects
   gtfs_list <- gtfs_list[lengths(gtfs_list) != 0]
+
+  # Normalise GTFS time-of-day columns to numeric seconds before binding.
+  # gtfs_read() returns these as lubridate Periods (S4), which
+  # data.table::rbindlist() silently corrupts (the bound column keeps only
+  # one input's data, so any later operation aborts with a size mismatch).
+  # Numeric seconds bind safely and also reconcile inputs with mixed classes
+  # (Period / ITime / character); they are converted back to Period at the
+  # end so the merged object matches what gtfs_read() produces.
+  time_cols <- list(stop_times = c("arrival_time", "departure_time"),
+                    frequencies = c("start_time", "end_time"))
+  gtfs_list <- lapply(gtfs_list, function(gtfs) {
+    for (tb in names(time_cols)) {
+      if (!is.null(gtfs[[tb]])) {
+        for (cl in intersect(time_cols[[tb]], names(gtfs[[tb]]))) {
+          gtfs[[tb]][[cl]] <- gtfs_time_to_seconds(gtfs[[tb]][[cl]])
+        }
+      }
+    }
+    gtfs
+  })
+
   flattened <- unlist(gtfs_list, recursive = FALSE)
   rm(gtfs_list)
 
@@ -356,5 +377,35 @@ gtfs_merge <- function(gtfs_list, force = FALSE, quiet = TRUE, condenseServicePa
   #remove nulls (e.g. tables that are often empty like frequencies)
   res_final <- Filter(Negate(is.null), res_final)
 
-  return (c(res_final, grouped_list))
+  res_final <- c(res_final, grouped_list)
+
+  # Convert the time-of-day columns (numeric seconds, see top of function)
+  # back to lubridate Periods, the class gtfs_read() produces. As data.frame,
+  # not data.table: data.table does not support S4 vector columns, and
+  # gtfs_read() also returns these tables as plain data.frames.
+  for (tb in names(time_cols)) {
+    if (!is.null(res_final[[tb]])) {
+      res_final[[tb]] <- as.data.frame(res_final[[tb]])
+      for (cl in intersect(time_cols[[tb]], names(res_final[[tb]]))) {
+        res_final[[tb]][[cl]] <- seconds_to_period_hms(res_final[[tb]][[cl]])
+      }
+    }
+  }
+
+  return (res_final)
+}
+
+#' Convert seconds since midnight to an hours/minutes/seconds Period
+#'
+#' Unlike lubridate::seconds_to_period(), never produces day components,
+#' which gtfs_write() rejects: GTFS times past 24:00 stay as hours.
+#'
+#' @param secs numeric seconds since midnight
+#' @return a lubridate Period vector
+#' @noRd
+seconds_to_period_hms <- function(secs) {
+  secs <- as.numeric(secs)
+  lubridate::period(hours = secs %/% 3600,
+                    minutes = (secs %% 3600) %/% 60,
+                    seconds = secs %% 60)
 }

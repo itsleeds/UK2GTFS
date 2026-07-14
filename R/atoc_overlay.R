@@ -394,21 +394,32 @@ makeAllOneDay <- function( cal )
   endDayNum = local_lubridate_wday( cal$end_date, label = FALSE, week_start=1L )
   dateSequence = makeReplicationDates( cal, startDayNum, endDayNum )
 
-  #work out how many time we need to replicate each item: number of operating days in week * num weeks
   bitmaskMat = splitBitmaskMat( cal$Days, asInteger=FALSE )
-  dayCount = rowSums(bitmaskMat)
-  numWeeks <- ceiling(as.integer(cal$duration) / 7L)
-  repetitions = dayCount * numWeeks
 
-  #replicate the calendar rows the appropriate number of times
-  replicatedcal <- cal[rep(seq_len(nrow(cal)), times = repetitions),]
+  # Monday-aligned weeks touched by each entry. This is the length of each
+  # entry's window in dateSequence; an entry that crosses a week boundary
+  # touches one more week than ceiling(duration/7) suggests (e.g. Wed 19th
+  # to Mon 24th is 6 days but touches 2 Mon-Sun weeks).
+  numWeeks <- (as.integer(cal$end_date - cal$start_date) +
+                 startDayNum + 7L - endDayNum) %/% 7L
 
-  #get a mask of operating days
-  operatingDayLogical <- rep( split(bitmaskMat, row(bitmaskMat)), times = numWeeks)
+  # mask of operating weekdays across each entry's aligned window, plus the
+  # row each window date belongs to
+  operatingDayLogical <- unlist(rep( split(bitmaskMat, row(bitmaskMat)), times = numWeeks))
+  expandedRow <- rep( seq_len(nrow(cal)), times = 7L * numWeeks )
+
+  # keep only operating days that fall inside the entry's own date range:
+  # the aligned window extends before start_date / after end_date for
+  # entries that do not start on Monday / end on Sunday
+  selected <- operatingDayLogical &
+    as.integer(dateSequence) >= as.integer(cal$start_date)[expandedRow] &
+    as.integer(dateSequence) <= as.integer(cal$end_date)[expandedRow]
+
+  #replicate the calendar rows, one row per selected operating day
+  replicatedcal <- cal[expandedRow[selected],]
 
   #set the start and end date for each calender item to the single day identified earlier
-  selectedDates = dateSequence[unlist(operatingDayLogical)]
-  replicatedcal$end_date <- replicatedcal$start_date <- selectedDates
+  replicatedcal$end_date <- replicatedcal$start_date <- dateSequence[selected]
   #tidy up the values so they are correct for the spilt items
   replicatedcal$duration <- difftime(Sys.Date(),Sys.Date()-1, units = "days") # make a 1 day difftime
   replicatedcal$Days = SINGLE_DAY_PATTERN_VECTOR[ local_lubridate_wday( replicatedcal$start_date, label = FALSE, week_start=1L ) ]
@@ -431,27 +442,26 @@ expandAllWeeks <- function( cal )
     #nothing to do
     return (cal)
   }
-  #duration <- cal$end_date - cal$start_date + 1
-  #make a list of dates for each object being replicated
+
+  # Each weekly chunk runs from the entry's start weekday to its end
+  # weekday: e.g. Mon 2nd - Wed 18th (Mon-Wed pattern) becomes chunks
+  # 2nd-4th, 9th-11th, 16th-18th. The chunk length comes from the weekday
+  # span, which also handles entries whose operating span crosses the
+  # Mon-Sun week boundary (e.g. Fri 5th - Tue 9th stays one Fri-Tue chunk);
+  # the old window-mask implementation crashed on those.
   startDayNum = local_lubridate_wday( cal$start_date, label = FALSE, week_start=1L )
   endDayNum = local_lubridate_wday( cal$end_date, label = FALSE, week_start=1L )
-  dateSequence = makeReplicationDates( cal, startDayNum, endDayNum )
-  numWeeks <- ceiling(as.integer(cal$duration) / 7L)
+  chunkSpan <- ( endDayNum - startDayNum ) %% 7L
+  numChunks <- as.integer(cal$end_date - cal$start_date) %/% 7L + 1L
 
-  #replicate a logical vector for the start date and use that to select the relevant dates from the date sequence
-  startDayLogical <- SINGLE_DAY_PATTERN_LIST[startDayNum]
-  startDays <- rep(startDayLogical, times = numWeeks)
-  startDates <- dateSequence[ unlist(startDays) ]
+  #replicate the calendar rows, one row per weekly chunk
+  expandedRow <- rep( seq_len(nrow(cal)), times = numChunks )
+  replicatedcal <- cal[expandedRow,]
 
-  #replicate a logical vector for the end date and use that to select the relevant dates from the date sequence
-  endDayLogical <- SINGLE_DAY_PATTERN_LIST[endDayNum]
-  endDays <- rep(endDayLogical, times = numWeeks)
-  endDates <- dateSequence[ unlist(endDays) ]
-  #replicate the calendar rows the appropriate number of times
-  replicatedcal <- cal[rep(seq_len(nrow(cal)), times = numWeeks),]
-  #set the start and end date for each calender item
-  replicatedcal$start_date <- startDates
-  replicatedcal$end_date <- endDates
+  #set the start and end date for each chunk
+  weekOffset <- ( sequence(numChunks) - 1L ) * 7L
+  replicatedcal$start_date <- replicatedcal$start_date + weekOffset
+  replicatedcal$end_date <- replicatedcal$start_date + chunkSpan[expandedRow]
 
   #tidy up the values so they are correct for the spilt items
   replicatedcal$duration <- replicatedcal$end_date - replicatedcal$start_date + 1L

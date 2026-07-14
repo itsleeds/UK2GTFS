@@ -151,6 +151,12 @@ clean_times <- function(x) {
 
 #' clean route type
 #' Change rout types from charater to gtfs code
+#'
+#' Coaches are coded as 200 (GTFS extended route type "Coach Service"),
+#' distinguishing them from local bus (3). This matches the DfT's BODS GTFS
+#' feeds and lets analyses separate long-distance coach from local bus (the
+#' TNDS NCSD archive and NPTDR COACH records are the main sources).
+#'
 #' @param rt character route type
 #' @param guess_bus if true guess bus otherwise fail
 #' @noRd
@@ -162,7 +168,7 @@ clean_route_type <- function(rt, guess_bus = FALSE) {
   } else if (rt == "ferry") {
     return(4)
   } else if (rt == "coach") {
-    return(3)
+    return(200)
   } else if (rt == "rail") {
     return(2)
   } else if (rt == "underground") {
@@ -178,7 +184,7 @@ clean_route_type <- function(rt, guess_bus = FALSE) {
   } else if (rt == "BUS") {
     return(3)
   } else if (rt == "COACH") {
-    return(3)
+    return(200)
   } else if (rt == "FERRY") {
     return(4)
   } else if (rt == "TRAM") {

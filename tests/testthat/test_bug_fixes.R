@@ -553,3 +553,209 @@ test_that("gtfs_trips_per_zone expands frequency-based trips into time bands", {
   expect_equal(res$runs_Sat_Midday, 0)
   expect_true(all(as.matrix(res[grep("^runs_", names(res))]) >= 0))
 })
+
+
+# --- July 2026 fixes: Period corruption in gtfs_merge, typed gtfs_read,
+# --- coach as extended route type 200
+
+mk_period_gtfs <- function(pref, times) {
+  n <- length(times)
+  list(
+    agency = data.frame(
+      agency_id = paste0("A", pref), agency_name = paste0("Agency", pref),
+      agency_url = "http://example.com", agency_timezone = "Europe/London",
+      agency_lang = "en", stringsAsFactors = FALSE),
+    stops = data.frame(
+      stop_id = paste0("S", pref, seq_len(n)), stop_name = letters[seq_len(n)],
+      stop_lat = 51 + seq_len(n), stop_lon = -1 - seq_len(n),
+      stringsAsFactors = FALSE),
+    routes = data.frame(
+      route_id = "R1", agency_id = paste0("A", pref), route_short_name = "1",
+      route_long_name = "one", route_type = 3L, stringsAsFactors = FALSE),
+    trips = data.frame(
+      route_id = "R1", service_id = "SV1", trip_id = "T1",
+      stringsAsFactors = FALSE),
+    stop_times = data.frame(
+      trip_id = "T1",
+      arrival_time = lubridate::hms(times),
+      departure_time = lubridate::hms(times),
+      stop_id = paste0("S", pref, seq_len(n)),
+      stop_sequence = seq_len(n)),
+    calendar = data.frame(
+      service_id = "SV1", monday = 1L, tuesday = 1L, wednesday = 1L,
+      thursday = 1L, friday = 1L, saturday = 0L, sunday = 0L,
+      start_date = "20230101", end_date = "20231231",
+      stringsAsFactors = FALSE),
+    calendar_dates = data.frame(
+      service_id = "SV1", date = "20230704", exception_type = 2L,
+      stringsAsFactors = FALSE)
+  )
+}
+
+test_that("gtfs_merge does not corrupt lubridate Period time columns", {
+  # rbindlist() used to keep only one input's S4 Period data, leaving a
+  # column shorter than the table and aborting later dplyr verbs
+  a <- mk_period_gtfs("x", c("08:00:00", "08:10:00", "08:20:00"))
+  b <- mk_period_gtfs("y", c("21:55:00", "25:30:00")) # includes a >24h time
+
+  res <- gtfs_merge(list(a, b), force = TRUE, quiet = TRUE)
+
+  expect_equal(nrow(res$stop_times), 5)
+  expect_s4_class(res$stop_times$arrival_time, "Period")
+  expect_equal(length(res$stop_times$arrival_time), 5)
+  secs <- sort(lubridate::period_to_seconds(res$stop_times$departure_time))
+  expect_equal(secs, sort(c(28800, 29400, 30000, 78900, 91800)))
+  # no day components: gtfs_write() rejects periods with days
+  expect_true(all(res$stop_times$arrival_time@day == 0))
+})
+
+test_that("gtfs_merge reconciles mixed Period and character time columns", {
+  a <- mk_period_gtfs("x", c("08:00:00", "08:10:00"))
+  b <- mk_period_gtfs("y", c("09:00:00", "09:10:00"))
+  b$stop_times$arrival_time <- c("09:00:00", "09:10:00")
+  b$stop_times$departure_time <- c("09:00:00", "09:10:00")
+
+  res <- gtfs_merge(list(a, b), force = TRUE, quiet = TRUE)
+
+  expect_s4_class(res$stop_times$arrival_time, "Period")
+  secs <- sort(lubridate::period_to_seconds(res$stop_times$arrival_time))
+  expect_equal(secs, c(28800, 29400, 32400, 33000))
+})
+
+test_that("clean_route_type codes coach as extended type 200, not bus", {
+  expect_equal(clean_route_type("coach"), 200)
+  expect_equal(clean_route_type("COACH"), 200)
+  expect_equal(clean_route_type("bus"), 3)
+  expect_equal(clean_route_type("BUS"), 3)
+  expect_equal(clean_route_type("tram"), 0)
+  # NPTDR uses guess_bus = TRUE for unknown vehicle codes
+  expect_equal(clean_route_type("UNKNOWN", guess_bus = TRUE), 3)
+})
+
+test_that("gtfs_read types frequencies.txt and id columns correctly", {
+  gtfs <- mk_period_gtfs("x", c("08:00:00", "08:10:00"))
+  gtfs$frequencies <- data.frame(
+    trip_id = "T1", start_time = lubridate::hms("07:00:00"),
+    end_time = lubridate::hms("09:00:00"), headway_secs = 600L)
+  # a non-core table with a numeric-looking id that fread would mistype
+  gtfs$transfers <- data.frame(
+    from_stop_id = "1001", to_stop_id = "1002", transfer_type = 0L,
+    stringsAsFactors = FALSE)
+
+  tmp <- file.path(tempdir(), "gtfs_read_test")
+  dir.create(tmp, showWarnings = FALSE)
+  gtfs_write(gtfs, folder = tmp, name = "freq_test")
+  res <- gtfs_read(file.path(tmp, "freq_test.zip"))
+  unlink(tmp, recursive = TRUE)
+
+  expect_s4_class(res$frequencies$start_time, "Period")
+  expect_type(res$frequencies$trip_id, "character")
+  expect_equal(lubridate::period_to_seconds(res$frequencies$end_time), 32400)
+  expect_type(res$transfers$from_stop_id, "character")
+  expect_type(res$transfers$to_stop_id, "character")
+})
+
+
+# --- atoc calendar overlay: entries crossing a Monday-Sunday week boundary
+
+mk_overlay_cal <- function(uid, start, end, days, stp, rowid) {
+  data.table::data.table(
+    UID = uid,
+    start_date = as.Date(start),
+    end_date = as.Date(end),
+    Days = days,
+    STP = stp,
+    rowID = rowid,
+    originalUID = uid,
+    duration = as.Date(end) - as.Date(start) + 1L
+  )
+}
+
+test_that("makeAllOneDay handles entries crossing a week boundary", {
+  # Wed 19th - Mon 24th, operating Mon/Wed/Thu/Fri: 6 days but touches two
+  # Mon-Sun weeks. The old code recycled a 7-day mask over a 14-day window,
+  # selecting 8 dates for 4 rows (data.table assignment error), and could
+  # select dates outside the entry's own range.
+  cal <- mk_overlay_cal("G18334", "2018-12-19", "2018-12-24", "1011100", "O", 1L)
+  res <- makeAllOneDay(cal)
+
+  expect_equal(nrow(res), 4)
+  expect_equal(sort(res$start_date),
+               as.Date(c("2018-12-19", "2018-12-20", "2018-12-21", "2018-12-24")))
+  expect_true(all(res$start_date == res$end_date))
+  # single-day bitmasks must match the weekday of each date
+  expect_equal(res$Days,
+               c("0010000", "0001000", "0000100", "1000000")[order(order(res$start_date))])
+})
+
+test_that("makeAllOneDay still handles whole Mon-Sun weeks", {
+  cal <- mk_overlay_cal("X1", "2018-12-10", "2018-12-23", "1111100", "O", 1L)
+  res <- makeAllOneDay(cal)
+  expect_equal(nrow(res), 10) # Mon-Fri x 2 weeks
+  expect_true(all(res$start_date >= as.Date("2018-12-10") &
+                    res$start_date <= as.Date("2018-12-23")))
+})
+
+test_that("expandAllWeeks handles chunks crossing the Mon-Sun week boundary", {
+  # Wed 19 Dec - Tue 1 Jan: weekly Wed-Tue chunks cross the week boundary,
+  # which crashed the old window-mask implementation
+  cal <- mk_overlay_cal("X2", "2018-12-19", "2019-01-01", "0111110", "O", 1L)
+  res <- expandAllWeeks(cal)
+
+  expect_equal(nrow(res), 2)
+  expect_equal(res$start_date, as.Date(c("2018-12-19", "2018-12-26")))
+  expect_equal(res$end_date, as.Date(c("2018-12-25", "2019-01-01")))
+  expect_true(all(res$duration == res$end_date - res$start_date + 1))
+
+  # aligned entries keep the documented weekday-span chunk semantics
+  cal2 <- mk_overlay_cal("X3", "2023-01-02", "2023-01-18", "1110000", "P", 1L)
+  res2 <- expandAllWeeks(cal2)
+  expect_equal(res2$start_date,
+               as.Date(c("2023-01-02", "2023-01-09", "2023-01-16")))
+  expect_equal(res2$end_date,
+               as.Date(c("2023-01-04", "2023-01-11", "2023-01-18")))
+})
+
+test_that("makeCalendarInner handles the G18334 overlay pattern (2018 CIF)", {
+  cal <- rbind(
+    mk_overlay_cal("G18334", "2018-12-10", "2018-12-18", "1111100", "P", 1L),
+    mk_overlay_cal("G18334", "2018-12-10", "2018-12-18", "1111100", "O", 2L),
+    mk_overlay_cal("G18334", "2018-12-19", "2019-05-17", "1111100", "P", 3L),
+    mk_overlay_cal("G18334", "2018-12-19", "2018-12-24", "1011100", "O", 4L),
+    mk_overlay_cal("G18334", "2018-12-27", "2019-05-17", "1111100", "O", 5L)
+  )
+  expect_no_error(res <- makeCalendarInner(cal))
+  expect_true(is.data.frame(res[[1]]))
+  expect_true(nrow(res[[1]]) > 0)
+})
+
+
+test_that("gtfs_interpolate_times interpolates only trips that need it", {
+  gtfs <- list(
+    stop_times = data.frame(
+      trip_id = c("T1", "T1", "T1", "T1",   # duplicated times, interpolate
+                  "T2", "T2",               # unique times, untouched
+                  "T3", "T3"),              # NA time, untouched
+      arrival_time = c("10:00:00", "10:00:00", "10:00:00", "10:30:00",
+                       "09:00:00", "09:10:00",
+                       "08:00:00", NA),
+      departure_time = c("10:00:00", "10:00:00", "10:00:00", "10:30:00",
+                         "09:00:00", "09:10:00",
+                         "08:00:00", NA),
+      stop_id = c("S1", "S2", "S3", "S4", "S1", "S2", "S1", "S2"),
+      stop_sequence = c(1:4, 1:2, 1:2),
+      stringsAsFactors = FALSE)
+  )
+
+  res <- suppressMessages(gtfs_interpolate_times(gtfs))
+  st <- res$stop_times
+  st <- st[order(st$trip_id, st$stop_sequence), ]
+
+  t1 <- lubridate::period_to_seconds(st$arrival_time[st$trip_id == "T1"])
+  expect_equal(t1, c(36000, 36600, 37200, 37800)) # 10:00, 10:10, 10:20, 10:30
+  t2 <- lubridate::period_to_seconds(st$arrival_time[st$trip_id == "T2"])
+  expect_equal(t2, c(32400, 33000))
+  t3 <- st$arrival_time[st$trip_id == "T3"]
+  expect_equal(lubridate::period_to_seconds(t3[1]), 28800)
+  expect_true(is.na(lubridate::period_to_seconds(t3[2])))
+})
