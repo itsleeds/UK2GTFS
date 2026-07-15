@@ -242,6 +242,50 @@ nptdr_naptan_import <- function(path_naptan, ukbbox = c(-9,49,2,61)){
 }
 
 
+#' Convert parsed Latin-1 columns to UTF-8
+#'
+#' @details
+#' ATCO-CIF is Latin-1 and its fixed-width layout is byte-based, so records
+#' must be field-split as single-byte Latin-1 and only then converted to
+#' UTF-8. Converting whole records first shifts every field after an
+#' accented character (which becomes two bytes) and can even slice a
+#' multi-byte character in half at a field boundary, creating invalid
+#' UTF-8 that aborts later regex operations.
+#'
+#' @param df data.frame of raw parsed columns from iotools::dstrfw()
+#' @noRd
+latin1_cols_to_utf8 <- function(df) {
+  chr <- vapply(df, is.character, logical(1))
+  df[chr] <- lapply(df[chr], iconv, from = "latin1", to = "UTF-8")
+  df
+}
+
+#' Pad truncated fixed-width records
+#'
+#' @details
+#' Some NPTDR files contain records with trailing fields missing (e.g. the
+#' 2006 archive has QL records without the final NatGazID field), which
+#' makes iotools::dstrfw() error with "input line is too short". Pad such
+#' records with spaces to the full record width so the missing fields
+#' parse as blank.
+#'
+#' @param x character vector of records of one type
+#' @param width full fixed-width record length (sum of dstrfw widths)
+#' @noRd
+pad_fixed_width <- function(x, width) {
+  len <- nchar(x, type = "bytes")
+  short <- !is.na(len) & len < width
+  if (any(short)) {
+    pad <- paste0(x[short], strrep(" ", width - len[short]))
+    # paste0() re-encodes marked latin1 strings as UTF-8, which would break
+    # the byte-based field alignment; convert those back to single-byte
+    fix <- Encoding(pad) == "UTF-8"
+    pad[fix] <- iconv(pad[fix], from = "UTF-8", to = "latin1")
+    x[short] <- pad
+  }
+  x
+}
+
 #' Import the .CIF file
 #'
 #' @details
@@ -257,10 +301,10 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
     con = file,
     n = -1
   )
-  # ATCO-CIF files are Latin-1 encoded; under a UTF-8 locale accented
-  # characters in stop/place names otherwise become invalid UTF-8 strings
-  # that abort later regex operations
-  raw <- iconv(raw, from = "latin1", to = "UTF-8")
+  # ATCO-CIF files are Latin-1 encoded and the fixed-width layout is
+  # byte-based, so keep the single-byte Latin-1 records for field-splitting;
+  # latin1_cols_to_utf8() converts the parsed columns afterwards
+  Encoding(raw) <- "latin1"
   types <- substr(raw, 1, 2)
 
   # Sometime the file is empty
@@ -302,19 +346,19 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
   # QL, QA, QB, QC, QG, QJ, QW - Location
 
 
-  QS <- raw[types == "QS"] # Service
-  QO <- raw[types == "QO"] # Origin
-  QI <- raw[types == "QI"] # Intermediate
-  QT <- raw[types == "QT"] # Terminate
+  QS <- pad_fixed_width(raw[types == "QS"], 65) # Service
+  QO <- pad_fixed_width(raw[types == "QO"], 25) # Origin
+  QI <- pad_fixed_width(raw[types == "QI"], 29) # Intermediate
+  QT <- pad_fixed_width(raw[types == "QT"], 25) # Terminate
 
-  QB <- raw[types == "QB"] # Location
-  QL <- raw[types == "QL"] # Location
+  QB <- pad_fixed_width(raw[types == "QB"], 79) # Location
+  QL <- pad_fixed_width(raw[types == "QL"], 73) # Location
   #QV <- raw[types == "QV"] # Vehicle Type
-  QE <- raw[types == "QE"] # Running date (exceptions)
-  QR <- raw[types == "QR"] # Bus Repetitions
+  QE <- pad_fixed_width(raw[types == "QE"], 19) # Running date (exceptions)
+  QR <- pad_fixed_width(raw[types == "QR"], 38) # Bus Repetitions
 
 
-  HD <- raw[1] # Some info not sure what
+  HD <- pad_fixed_width(raw[1], 74) # Some info not sure what
   tl <- raw[length(raw)]
 
   # Header
@@ -328,6 +372,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
   names(HD) <- c(
     "file_type","major_version","minor_version",
     "originator","source","date","time")
+  HD <- latin1_cols_to_utf8(HD)
 
 
   # Journey Header, Service
@@ -345,6 +390,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
     "route_direction" )
 
   QS$recordID <- NULL
+  QS <- latin1_cols_to_utf8(QS)
   QS <- strip_whitespace(QS)
 
   # clean data
@@ -376,6 +422,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
     "timing_point", "fare_stage"
   )
   QO$recordID <- NULL
+  QO <- latin1_cols_to_utf8(QO)
   QO <- strip_whitespace(QO)
 
   # Add the rowid
@@ -392,6 +439,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
     "timing_point", "fare_stage"
   )
   QT$recordID <- NULL
+  QT <- latin1_cols_to_utf8(QT)
   QT <- strip_whitespace(QT)
 
   # Add the rowid
@@ -409,6 +457,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
   )
   QI$recordID <- NULL
 
+  QI <- latin1_cols_to_utf8(QI)
   QI <- strip_whitespace(QI)
 
   # Add the rowid
@@ -425,6 +474,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
     "point_type","NatGazID"
   )
   QL$recordID <- NULL
+  QL <- latin1_cols_to_utf8(QL)
   QL <- strip_whitespace(QL)
 
   # Additional Location
@@ -438,6 +488,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
   )
   QB$recordID <- NULL
   QB$unknown <- NULL
+  QB <- latin1_cols_to_utf8(QB)
   QB <- strip_whitespace(QB)
 
   # Exceptions
@@ -449,6 +500,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
     )
     names(QE) <- c("recordID", "start_date", "end_date", "exception_type")
     QE$recordID <- NULL
+    QE <- latin1_cols_to_utf8(QE)
     QE$start_date <- as.Date(QE$start_date, format = "%Y%m%d")
     QE$end_date <- as.Date(QE$end_date, format = "%Y%m%d")
     QE$rowID <- seq(from = 1, to = length(types))[types == "QE"]
@@ -469,6 +521,7 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
     )
     names(QR) <- c("recordID", "Location", "departure_time", "uid","running_board","vehicle_type")
     QR$recordID <- NULL
+    QR <- latin1_cols_to_utf8(QR)
     QR$rowID <- seq(from = 1, to = length(types))[types == "QR"]
     QR$schedule <- as.integer(as.character(cut(QR$rowID,
                                                c(QS$rowID, length(raw)),
