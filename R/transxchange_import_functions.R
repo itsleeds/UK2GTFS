@@ -362,9 +362,12 @@ import_services <- function(service, full_import = TRUE) {
 import_notes2 <- function(vehiclejourneys) {
   VehicleJourneyCode <- import_simple(vehiclejourneys, ".//d1:VehicleJourneyCode")
   result <- list()
+  # materialise the child list once: xml_child(x, i) walks the sibling list
+  # from the start on every call, which is O(n^2) over a large file
+  children <- xml2::xml_children(vehiclejourneys)
   for (i in seq(1, xml2::xml_length(vehiclejourneys))) {
     # message(i)
-    chld <- xml2::xml_child(vehiclejourneys, i)
+    chld <- children[[i]]
     NoteCode <- import_simple(chld, ".//d1:NoteCode")
     NoteText <- import_simple(chld, ".//d1:NoteText")
     if (length(NoteCode) == 0) {

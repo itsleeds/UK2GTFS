@@ -13,7 +13,11 @@
 #'
 #'
 #' @param gtfs named list of data.frames
-#' @param ncores number of cores to use
+#' @param ncores unused, kept for backwards compatibility. The interpolation
+#'   is fully vectorised and runs single-threaded; the old per-trip parallel
+#'   implementation spent most of its time splitting millions of trips into
+#'   individual data frames and doing lubridate Period (S4) arithmetic on
+#'   each, which was slower on 10 cores than this version on one.
 #' @return a gtfs object with interpolated stop times
 #' @export
 #'
@@ -34,10 +38,7 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
   }
 
   # Only trips with duplicated arrival times (and no missing times) need
-  # interpolating; identify them vectorised. Splitting every trip into its
-  # own data frame (the old approach) built a list of millions of small
-  # tibbles for national feeds and exhausted memory when shipped to the
-  # parallel workers.
+  # interpolating; identify them vectorised.
   flags <- data.table::data.table(
     trip_id = stop_times$trip_id,
     arr = lubridate::period_to_seconds(stop_times$arrival_time),
@@ -54,7 +55,7 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
 
   sel <- stop_times$trip_id %in% needs
   untouched <- stop_times[!sel, , drop = FALSE]
-  # convert times to character, matching what stops_interpolate() returns
+  # convert times to character, restored to Period at the end
   untouched$arrival_time <- period2gtfs(untouched$arrival_time)
   untouched$departure_time <- period2gtfs(untouched$departure_time)
 
@@ -62,20 +63,47 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
   rm(stop_times, sel)
 
   if (nrow(todo) > 0) {
-    todo <- dplyr::group_by(todo, trip_id)
-    todo <- dplyr::group_split(todo)
+    # Match the historic per-trip processing order (trips sorted by id in the
+    # C locale as dplyr::group_split produced, rows by stop_sequence, stable)
+    ord <- order(todo$trip_id, todo$stop_sequence, method = "radix")
+    todo <- todo[ord, , drop = FALSE]
 
-    if(ncores == 1 || length(todo) < 100){
-      todo <- purrr::map(todo, stops_interpolate, .progress = TRUE)
-    } else {
-      future::plan(future::multisession, workers = ncores)
-      todo <- furrr::future_map(.x = todo,
-                                .f = stops_interpolate,
-                                .progress = TRUE)
-      future::plan(future::sequential)
-    }
+    arr <- lubridate::period_to_seconds(todo$arrival_time)
+    dep <- lubridate::period_to_seconds(todo$departure_time)
+
+    # A "batch" is opened by every arrival time not already seen earlier in
+    # the trip; repeats (consecutive or not) join the batch of the previous
+    # non-repeat row. Interpolation spreads each multi-row batch linearly
+    # from its own first arrival towards the first arrival of the next
+    # batch. The last batch of a trip is never interpolated (no end point).
+    dt <- data.table::data.table(trip_id = todo$trip_id, arr = arr)
+    dt[, batch := cumsum(!duplicated(arr)), by = "trip_id"]
+    dt[, `:=`(k = seq_len(.N) - 1L, frq = .N, tstart = arr[1L]),
+       by = c("trip_id", "batch")]
+    bt <- dt[, list(tstart = arr[1L]), by = c("trip_id", "batch")]
+    bt[, tend := data.table::shift(tstart, -1L), by = "trip_id"]
+    dt[bt, tend := i.tend, on = c("trip_id", "batch")]
+
+    interp <- dt$frq > 1L & !is.na(dt$tend)
+    arr_new <- arr
+    # same arithmetic as the old per-trip loop: round((step) * k) where
+    # step = (tend - tstart) / frq, using base round()
+    arr_new[interp] <- dt$tstart[interp] +
+      round(((dt$tend[interp] - dt$tstart[interp]) / dt$frq[interp]) * dt$k[interp])
+    rm(dt, bt)
+
+    arr_chr <- period2gtfs(todo$arrival_time)
+    arr_chr[interp] <- format_gtfs_seconds(arr_new[interp])
+    dep_chr <- period2gtfs(todo$departure_time)
+    fix <- dep < arr_new
+    dep_chr[fix] <- arr_chr[fix]
+
+    todo$arrival_time <- arr_chr
+    todo$departure_time <- dep_chr
+
     stop_times <- data.table::rbindlist(
-      c(todo, list(data.table::as.data.table(untouched))), use.names = TRUE)
+      list(data.table::as.data.table(todo),
+           data.table::as.data.table(untouched)), use.names = TRUE)
   } else {
     stop_times <- data.table::as.data.table(untouched)
   }
@@ -89,6 +117,21 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
   gtfs$stop_times <- stop_times
   return(gtfs)
 
+}
+
+#' Format seconds-since-midnight as a GTFS HH:MM:SS string
+#'
+#' Matches the string the old per-trip implementation produced via
+#' seconds_to_period() + period_days_to_hours() + period2gtfs():
+#' hours absorb whole days, so times past 24:00 stay as hours.
+#' @param secs numeric whole seconds since midnight
+#' @noRd
+format_gtfs_seconds <- function(secs) {
+  p <- lubridate::seconds_to_period(secs)
+  sprintf("%02d:%02d:%02d",
+          lubridate::hour(p) + lubridate::day(p) * 24,
+          lubridate::minute(p),
+          lubridate::second(p))
 }
 
 

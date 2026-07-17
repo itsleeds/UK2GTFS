@@ -14,243 +14,168 @@ import_name <- function(node) {
   }
 }
 
+#' Import the OperatingProfile of every VehicleJourney
+#'
+#' Fully vectorised: every field is pulled with one flat xml_find_all()/
+#' xml_find_first() over the whole nodeset (C level) and regrouped per
+#' profile arithmetically. The old implementation looped over every
+#' OperatingProfile (one per vehicle journey) doing ~20 xml2 calls plus
+#' data.frame construction and merge() per iteration; on TransXChange files
+#' where every journey carries SpecialDaysOperation date ranges (e.g. school
+#' services, 30k+ journeys per file) that took hours per file.
+#'
+#' Semantics preserved exactly, including: "NA" strings for absent
+#' sections (the old paste(NA) result), "" for present-but-childless,
+#' the merge(by = NULL) cross-join row expansion for journeys referencing
+#' several ServicedOrganisations (operation ref cycling fastest), and the
+#' NA-padding of SpecialDays start/end date vectors to equal length.
+#'
+#' @param OperatingProfile xml_nodeset of OperatingProfile elements
+#' @noRd
 import_OperatingProfile <- function(OperatingProfile) {
-  result <- list()
-  result_special <- list()
-  # for(i in seq(1, 10)){
-  for (i in seq(1, length(OperatingProfile))) {
-    chld <- OperatingProfile[i]
-    # VehicleJourneyCode <- xml2::xml_text(xml2::xml_child(xml2::xml_parent(chld), "d1:VehicleJourneyCode"))
-    VehicleJourneyCode <- xml2::xml_children(xml2::xml_parent(chld))
-    nms_VehicleJourneyCode <- xml2::xml_name(VehicleJourneyCode)
-    VehicleJourneyCode <- import_child(VehicleJourneyCode, nms_VehicleJourneyCode, "VehicleJourneyCode")
-    VehicleJourneyCode <- xml2::xml_text(VehicleJourneyCode)
 
-    # Top Level Sections
-    chld <- xml2::xml_children(chld)
-    nms <- xml2::xml_name(chld)
-    RegularDayType <- import_child(chld, nms, "RegularDayType")
-    ServicedOrganisationDayType <- import_child(chld, nms, "ServicedOrganisationDayType")
-    BankHolidayOperation <- import_child(chld, nms, "BankHolidayOperation")
-    SpecialDaysOperation <- import_child(chld, nms, "SpecialDaysOperation")
+  n <- length(OperatingProfile)
 
-    # Main Section #########################
-    # RegularDayType
-    if (!is.null(RegularDayType)) {
-      RegularDayType <- xml2::xml_children(RegularDayType)
-      nms_RegularDayType <- xml2::xml_name(RegularDayType)
+  # Temporary index attribute so nodes found by flat searches can be mapped
+  # back to their profile; removed again below
+  xml2::xml_set_attr(OperatingProfile, "uk2gtfs_tmp_idx",
+                     as.character(seq_len(n)))
+  anc_idx <- function(nodes) {
+    as.integer(xml2::xml_attr(
+      xml2::xml_find_first(nodes, "ancestor::d1:OperatingProfile"),
+      "uk2gtfs_tmp_idx"))
+  }
+  # profiles (by index) containing at least one node matching xpath
+  present_at <- function(xpath) {
+    tabulate(anc_idx(xml2::xml_find_all(OperatingProfile, xpath)), n) > 0
+  }
+  # Child-name summary per profile, matching the old import_name() + paste()
+  # semantics: "NA" where the target node is absent, "" where present but
+  # childless, otherwise the child element names pasted with `collapse`.
+  paste_child_names <- function(xpath, collapse) {
+    out <- rep("NA", n)
+    out[present_at(xpath)] <- ""
+    kids <- xml2::xml_find_all(OperatingProfile, paste0(xpath, "/*"))
+    if (length(kids) > 0) {
+      idx <- anc_idx(kids)
+      pasted <- vapply(split(xml2::xml_name(kids), idx), paste,
+                       character(1), collapse = collapse)
+      out[as.integer(names(pasted))] <- pasted
+    }
+    out
+  }
+  # flat text + per-profile position for repeated descendants of xpath
+  flat_field <- function(xpath) {
+    nodes <- xml2::xml_find_all(OperatingProfile, xpath)
+    idx <- anc_idx(nodes)
+    k <- tabulate(idx, n)
+    list(txt = xml2::xml_text(nodes), k = k, start = cumsum(k) - k)
+  }
 
-      DaysOfWeek <- import_child(RegularDayType, nms_RegularDayType, "DaysOfWeek")
-      DaysOfWeek <- import_name(DaysOfWeek)
+  parents <- xml2::xml_parent(OperatingProfile)
+  VehicleJourneyCode <- xml2::xml_text(
+    xml2::xml_find_first(parents, "d1:VehicleJourneyCode"))
 
-      HolidaysOnly <- import_child(RegularDayType, nms_RegularDayType, "HolidaysOnly")
-      if (!is.null(HolidaysOnly)) {
-        HolidaysOnly <- xml2::xml_name(HolidaysOnly)
-      } else {
-        HolidaysOnly <- NA
-      }
-    } else {
-      DaysOfWeek <- NA
-      HolidaysOnly <- NA
+  DaysOfWeek <- paste_child_names("d1:RegularDayType/d1:DaysOfWeek", " ")
+  HolidaysOnly <- ifelse(present_at("d1:RegularDayType/d1:HolidaysOnly"),
+                         "HolidaysOnly", "NA")
+  # comma-separated so multi-holiday lists survive break_up_holidays2()
+  BHDaysOfOperation <- paste_child_names(
+    "d1:BankHolidayOperation/d1:DaysOfOperation", ", ")
+  BHDaysOfNonOperation <- paste_child_names(
+    "d1:BankHolidayOperation/d1:DaysOfNonOperation", ", ")
+
+  ## ServicedOrganisationDayType ------------------------------------------
+  # A journey may reference several ServicedOrganisations; the old code
+  # cross-joined (merge by = NULL) the one-row profile frame with the k-row
+  # refs frames, operation refs cycling fastest. r_* = rows contributed.
+  so_do_active <- present_at("d1:ServicedOrganisationDayType/d1:DaysOfOperation")
+  so_no_active <- present_at("d1:ServicedOrganisationDayType/d1:DaysOfNonOperation")
+  so_do <- flat_field("d1:ServicedOrganisationDayType/d1:DaysOfOperation//d1:ServicedOrganisationRef")
+  so_no <- flat_field("d1:ServicedOrganisationDayType/d1:DaysOfNonOperation//d1:ServicedOrganisationRef")
+
+  type_of <- function(xpath) {
+    nodes <- xml2::xml_find_all(OperatingProfile, xpath)
+    out <- rep(NA_character_, n)
+    out[anc_idx(nodes)] <- xml2::xml_name(nodes)
+    out
+  }
+  so_do_type <- type_of("d1:ServicedOrganisationDayType/d1:DaysOfOperation/*[1]")
+  so_no_type <- type_of("d1:ServicedOrganisationDayType/d1:DaysOfNonOperation/*[1]")
+
+  r_do <- ifelse(so_do_active, so_do$k, 1L)
+  r_no <- ifelse(so_no_active, so_no$k, 1L)
+  m <- r_do * r_no
+  prof <- rep.int(seq_len(n), m)
+  j <- sequence(m) - 1L # 0-based position within each profile's row block
+
+  SDO <- rep(NA_character_, length(prof))
+  SDOT <- SDO
+  SDNO <- SDO
+  SDNOT <- SDO
+  sel <- so_do_active[prof]
+  SDO[sel] <- so_do$txt[so_do$start[prof[sel]] + (j[sel] %% r_do[prof[sel]]) + 1L]
+  SDOT[sel] <- so_do_type[prof[sel]]
+  sel <- so_no_active[prof]
+  SDNO[sel] <- so_no$txt[so_no$start[prof[sel]] + (j[sel] %/% r_do[prof[sel]]) + 1L]
+  SDNOT[sel] <- so_no_type[prof[sel]]
+
+  result <- data.frame(
+    VehicleJourneyCode = VehicleJourneyCode[prof],
+    DaysOfWeek = DaysOfWeek[prof],
+    HolidaysOnly = HolidaysOnly[prof],
+    BHDaysOfOperation = BHDaysOfOperation[prof],
+    BHDaysOfNonOperation = BHDaysOfNonOperation[prof],
+    ServicedDaysOfOperation = SDO,
+    ServicedDaysOfOperationType = SDOT,
+    ServicedDaysOfNonOperation = SDNO,
+    ServicedDaysOfNonOperationType = SDNOT,
+    stringsAsFactors = FALSE
+  )
+
+  ## SpecialDaysOperation --------------------------------------------------
+  # One SpecialDays row set per profile that has a SpecialDaysOperation
+  # section: the four start/end vectors (a DaysOf(Non)Operation section that
+  # is absent contributes a single NA) are NA-padded to a common length.
+  sd_present <- present_at("d1:SpecialDaysOperation")
+  sd_do_present <- present_at("d1:SpecialDaysOperation/d1:DaysOfOperation")
+  sd_no_present <- present_at("d1:SpecialDaysOperation/d1:DaysOfNonOperation")
+  os <- flat_field("d1:SpecialDaysOperation/d1:DaysOfOperation//d1:StartDate")
+  oe <- flat_field("d1:SpecialDaysOperation/d1:DaysOfOperation//d1:EndDate")
+  ns <- flat_field("d1:SpecialDaysOperation/d1:DaysOfNonOperation//d1:StartDate")
+  ne <- flat_field("d1:SpecialDaysOperation/d1:DaysOfNonOperation//d1:EndDate")
+
+  maxlen <- pmax(ifelse(sd_do_present, os$k, 1L),
+                 ifelse(sd_do_present, oe$k, 1L),
+                 ifelse(sd_no_present, ns$k, 1L),
+                 ifelse(sd_no_present, ne$k, 1L))
+  sdp <- which(sd_present)
+
+  if (length(sdp) > 0) {
+    mrow <- maxlen[sdp]
+    prof_s <- rep.int(sdp, mrow)
+    posn <- sequence(mrow) # 1-based row within each profile's SpecialDays set
+
+    sd_col <- function(fld, fld_present) {
+      val <- rep(NA_character_, length(prof_s))
+      sel <- fld_present[prof_s] & posn <= fld$k[prof_s]
+      val[sel] <- fld$txt[fld$start[prof_s[sel]] + posn[sel]]
+      as.Date(val)
     }
 
-    # ServicedOrganisationDayType
-    if (!is.null(ServicedOrganisationDayType)) {
-      ServicedOrganisationDayType <- xml2::xml_children(ServicedOrganisationDayType)
-      nms_ServicedOrganisationDayType <- xml2::xml_name(ServicedOrganisationDayType)
-
-      ServicedDaysOfOperation <- import_child(ServicedOrganisationDayType, nms_ServicedOrganisationDayType, "DaysOfOperation")
-      ServicedDaysOfNonOperation <- import_child(ServicedOrganisationDayType, nms_ServicedOrganisationDayType, "DaysOfNonOperation")
-
-      # message(str(xml2::as_list(ServicedOrganisationDayType)))
-      # ServicedDaysOfOperation <- xml2::xml_child(ServicedOrganisationDayType, "d1:DaysOfOperation")
-      # ServicedDaysOfNonOperation <- xml2::xml_child(ServicedOrganisationDayType, "d1:DaysOfNonOperation")
-
-      # Check for children
-      sdo_check <- try(xml2::xml_child(ServicedDaysOfOperation), silent = TRUE)
-      if(inherits(sdo_check, "try-error")){
-        ServicedDaysOfOperation <- NULL
-      }
-      sndo_check <- try(xml2::xml_child(ServicedDaysOfNonOperation), silent = TRUE)
-      if(inherits(sndo_check, "try-error")){
-        ServicedDaysOfNonOperation <- NULL
-      }
-
-      if (!is.null(ServicedDaysOfOperation)) {
-        ServicedDaysOfOperationType <- xml2::xml_name(xml2::xml_child(ServicedDaysOfOperation))
-        ServicedDaysOfOperationRef <- xml2::xml_find_all(ServicedDaysOfOperation, ".//d1:ServicedOrganisationRef")
-        ServicedDaysOfOperationRef <- xml2::xml_text(ServicedDaysOfOperationRef)
-        ServicedDaysOfOperation <- data.frame(ServicedDaysOfOperation = ServicedDaysOfOperationRef,
-                                              ServicedDaysOfOperationType = ServicedDaysOfOperationType,
-                                              stringsAsFactors = FALSE)
-      } else {
-        ServicedDaysOfOperation <- NA
-      }
-
-      if (!is.null(ServicedDaysOfNonOperation)) {
-        ServicedDaysOfNonOperationType <- xml2::xml_name(xml2::xml_child(ServicedDaysOfNonOperation))
-        ServicedDaysOfNonOperationRef <- xml2::xml_find_all(ServicedDaysOfNonOperation, ".//d1:ServicedOrganisationRef")
-        ServicedDaysOfNonOperationRef <- xml2::xml_text(ServicedDaysOfNonOperationRef)
-        ServicedDaysOfNonOperation <- data.frame(ServicedDaysOfNonOperation = ServicedDaysOfNonOperationRef,
-                                              ServicedDaysOfNonOperationType = ServicedDaysOfNonOperationType,
-                                              stringsAsFactors = FALSE)
-      } else {
-        ServicedDaysOfNonOperation <- NA
-      }
-    } else {
-      ServicedDaysOfOperation <- NA
-      ServicedDaysOfNonOperation <- NA
-    }
-
-    # BankHolidayOperation
-    if (!is.null(BankHolidayOperation)) {
-      BankHolidayOperation <- xml2::xml_children(BankHolidayOperation)
-      nms_BankHolidayOperation <- xml2::xml_name(BankHolidayOperation)
-
-      BHDaysOfNonOperation <- import_child(BankHolidayOperation, nms_BankHolidayOperation, "DaysOfNonOperation")
-      BHDaysOfNonOperation <- import_name(BHDaysOfNonOperation)
-
-      BHDaysOfOperation <- import_child(BankHolidayOperation, nms_BankHolidayOperation, "DaysOfOperation")
-      BHDaysOfOperation <- import_name(BHDaysOfOperation)
-
-      # BHDaysOfNonOperation <- xml2::xml_child(BankHolidayOperation, "d1:DaysOfNonOperation")
-      # BHDaysOfOperation    <- xml2::xml_child(BankHolidayOperation, "d1:DaysOfOperation")
-      #
-      # # Should be text based e.g. "AllBankHolidays"
-      # BHDaysOfNonOperation <- xml2::xml_name(xml2::xml_children(BHDaysOfNonOperation))
-      # BHDaysOfOperation <- xml2::xml_name(xml2::xml_children(BHDaysOfOperation))
-
-      # # Clean NA
-      # if(length(BHDaysOfNonOperation) == 0){
-      #   BHDaysOfNonOperation <- NA
-      # }
-      #
-      # if(length(BHDaysOfOperation) == 0){
-      #   BHDaysOfOperation <- NA
-      # }
-    } else {
-      BHDaysOfNonOperation <- NA
-      BHDaysOfOperation <- NA
-    }
-
-    # SpecialDaysOperation
-    if (!is.null(SpecialDaysOperation)) {
-      SpecialDaysOperation <- xml2::xml_children(SpecialDaysOperation)
-      nms_SpecialDaysOperation <- xml2::xml_name(SpecialDaysOperation)
-
-      SDDaysOfNonOperation <- import_child(SpecialDaysOperation, nms_SpecialDaysOperation, "DaysOfNonOperation")
-      SDDaysOfOperation <- import_child(SpecialDaysOperation, nms_SpecialDaysOperation, "DaysOfOperation")
-
-      # SDDaysOfNonOperation <- xml2::xml_child(SpecialDaysOperation, "d1:DaysOfNonOperation")
-      # SDDaysOfOperation    <- xml2::xml_child(SpecialDaysOperation, "d1:DaysOfOperation")
-
-      if (!is.null(SDDaysOfNonOperation)) {
-        SDDaysOfNonOperation_start <- xml2::xml_find_all(SDDaysOfNonOperation, ".//d1:StartDate")
-        SDDaysOfNonOperation_start <- xml2::xml_text(SDDaysOfNonOperation_start)
-        SDDaysOfNonOperation_end <- xml2::xml_find_all(SDDaysOfNonOperation, ".//d1:EndDate")
-        SDDaysOfNonOperation_end <- xml2::xml_text(SDDaysOfNonOperation_end)
-      } else {
-        SDDaysOfNonOperation_start <- NA
-        SDDaysOfNonOperation_end <- NA
-      }
-
-
-      if (!is.null(SDDaysOfOperation)) {
-        SDDaysOfOperation_start <- xml2::xml_find_all(SDDaysOfOperation, ".//d1:StartDate")
-        SDDaysOfOperation_start <- xml2::xml_text(SDDaysOfOperation_start)
-        SDDaysOfOperation_end <- xml2::xml_find_all(SDDaysOfOperation, ".//d1:EndDate")
-        SDDaysOfOperation_end <- xml2::xml_text(SDDaysOfOperation_end)
-      } else {
-        SDDaysOfOperation_start <- NA
-        SDDaysOfOperation_end <- NA
-      }
-
-      # Check for when lenghts don't match
-      lns <- length(SDDaysOfNonOperation_start)
-      lne <- length(SDDaysOfNonOperation_end)
-      los <- length(SDDaysOfOperation_start)
-      loe <- length(SDDaysOfOperation_end)
-      laa <- c(lns, lne, los, loe)
-
-
-      if (length(unique(laa)) != 1) {
-        if (lns != max(laa)) {
-          SDDaysOfNonOperation_start <- c(SDDaysOfNonOperation_start, rep(NA, times = max(laa) - lns))
-        }
-
-        if (lne != max(laa)) {
-          SDDaysOfNonOperation_end <- c(SDDaysOfNonOperation_end, rep(NA, times = max(laa) - lne))
-        }
-
-        if (los != max(laa)) {
-          SDDaysOfOperation_start <- c(SDDaysOfOperation_start, rep(NA, times = max(laa) - los))
-        }
-
-        if (loe != max(laa)) {
-          SDDaysOfOperation_end <- c(SDDaysOfOperation_end, rep(NA, times = max(laa) - loe))
-        }
-      }
-
-
-      ssdf <- data.frame(
-        VehicleJourneyCode = VehicleJourneyCode,
-        OperateStart = as.Date(SDDaysOfOperation_start),
-        OperateEnd = as.Date(SDDaysOfOperation_end),
-        NoOperateStart = as.Date(SDDaysOfNonOperation_start),
-        NoOperateEnd = as.Date(SDDaysOfNonOperation_end),
-        stringsAsFactors = FALSE
-      )
-
-      result_special[[i]] <- ssdf
-      rm(
-        SDDaysOfOperation_start, SDDaysOfOperation_end,
-        SDDaysOfNonOperation_start, SDDaysOfNonOperation_end,
-        ssdf
-      )
-    } else {
-      result_special[[i]] <- NULL
-    }
-
-
-    # Build Results #######################
-    res <- data.frame(
-      VehicleJourneyCode = VehicleJourneyCode,
-      DaysOfWeek = paste(DaysOfWeek, collapse = " "),
-      HolidaysOnly = paste(HolidaysOnly, collapse = " "),
-      # comma-separated so multi-holiday lists survive break_up_holidays2()
-      BHDaysOfOperation = paste(BHDaysOfOperation, collapse = ", "),
-      BHDaysOfNonOperation = paste(BHDaysOfNonOperation, collapse = ", "),
-      #ServicedDaysOfOperation = ServicedDaysOfOperation,
-      #ServicedDaysOfNonOperation = ServicedDaysOfNonOperation,
+    result_special <- data.frame(
+      VehicleJourneyCode = VehicleJourneyCode[prof_s],
+      OperateStart = sd_col(os, sd_do_present),
+      OperateEnd = sd_col(oe, sd_do_present),
+      NoOperateStart = sd_col(ns, sd_no_present),
+      NoOperateEnd = sd_col(ne, sd_no_present),
       stringsAsFactors = FALSE
     )
-
-    # merge(by = NULL) is a cross join: a journey can reference several
-    # ServicedOrganisations, giving these frames more than one row each.
-    # The resulting duplicate journey rows are collapsed again in
-    # transxchange_export() once the organisation dates have been extracted.
-    if(inherits(ServicedDaysOfOperation, "data.frame")){
-      res <- merge(res, ServicedDaysOfOperation, by = NULL)
-    } else {
-      res$ServicedDaysOfOperation <- NA
-      res$ServicedDaysOfOperationType <- NA
-    }
-
-    if(inherits(ServicedDaysOfNonOperation, "data.frame")){
-      res <- merge(res, ServicedDaysOfNonOperation, by = NULL)
-    } else {
-      res$ServicedDaysOfNonOperation <- NA
-      res$ServicedDaysOfNonOperationType <- NA
-    }
-
-    result[[i]] <- res
-    rm(
-      DaysOfWeek, HolidaysOnly,
-      BHDaysOfOperation, BHDaysOfNonOperation
-    )
+  } else {
+    result_special <- dplyr::bind_rows(list())
   }
-  result <- dplyr::bind_rows(result)
-  result_special <- dplyr::bind_rows(result_special)
+
+  xml2::xml_set_attr(OperatingProfile, "uk2gtfs_tmp_idx", NULL)
 
   # Check for HolidaysOnly services with NA Days of the week
   result$DaysOfWeek <- ifelse(result$DaysOfWeek == "NA",
