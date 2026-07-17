@@ -133,18 +133,16 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
 
   routes <- trips
 
-  routes <- dplyr::group_by(routes, `ATOC Code`, route_long_name, `Train Category`, route_type )
+  routes <- dplyr::group_by(routes, `ATOC Code`, route_long_name, route_short_name, `Train Category`, route_type )
   routes <- dplyr::summarise(routes)
   routes$route_id <- 1:nrow(routes)
 
   #join route_id back into trip table
-  trips <- dplyr::left_join(trips, routes, by = c("ATOC Code", "route_long_name", "Train Category", "route_type"))
+  trips <- dplyr::left_join(trips, routes, by = c("ATOC Code", "route_long_name", "route_short_name", "Train Category", "route_type"))
 
-  routes <- routes[, c("route_id", "route_type", "ATOC Code", "route_long_name", "Train Category" )]
-  names(routes) <- c("route_id", "route_type", "agency_id", "route_long_name", "train_category" )
+  routes <- routes[, c("route_id", "route_type", "ATOC Code", "route_short_name", "route_long_name", "Train Category" )]
+  names(routes) <- c("route_id", "route_type", "agency_id", "route_short_name", "route_long_name", "train_category" )
 
-  # IDs are not meaningful, just leave out
-  routes$route_short_name <- "" # was: routes$route_id
 
 
   ### Section 6: #######################################################
