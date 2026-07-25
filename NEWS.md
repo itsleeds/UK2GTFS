@@ -60,6 +60,18 @@
 
 ## Bug fixes
 
+* `gtfs_trim_dates()` no longer discards services defined only in
+  `calendar_dates.txt`. The GTFS specification allows a `service_id` with no
+  `calendar.txt` row, in which case it runs on exactly the dates added with
+  `exception_type = 1`. Such services (and their trips, stop times and
+  exceptions) were dropped outright, so anything downstream of the trim
+  under-counted them as zero — including `gtfs_trips_per_zone()` and
+  `gtfs_stop_frequency()`, which trim before counting. The DfT's Bus Open
+  Data Service GTFS relies on these services for school-holiday timetables:
+  in its 2026-02-04 national feed 1,544 services carrying 4.9% of all trips
+  have no `calendar.txt` row, and over a 28-day February window that removed
+  4.3% of counted bus journeys across 4,793 of 13,153 bus routes. Services
+  whose added dates all fall outside the window are still dropped, as before.
 * `importMCA()` reads TIPLOC Delete (TD) records correctly and parses
   association dates as yymmdd per RSPS5046.
 * `station2transfers()` no longer emits transfers with missing stop ids, and

@@ -555,6 +555,72 @@ test_that("gtfs_trips_per_zone expands frequency-based trips into time bands", {
 })
 
 
+# GTFS allows a service_id defined only in calendar_dates.txt: it then runs on
+# exactly the dates added there. The DfT's BODS GTFS uses this for
+# school-holiday timetables, so dropping such services silently removes real
+# service. SV1 is a conventional Mon-Fri service; SVX has no calendar.txt row
+# and runs on two Mondays inside the window; SVY likewise but entirely outside.
+mk_dates_only_gtfs <- function() {
+  g <- mk_freq_gtfs()
+  g$frequencies <- NULL
+  g$trips <- rbind(g$trips,
+                   data.frame(route_id = "R1", service_id = c("SVX", "SVY"),
+                              trip_id = c("TX", "TY"), stringsAsFactors = FALSE))
+  g$stop_times <- rbind(
+    g$stop_times,
+    data.frame(trip_id = c("TX", "TY"),
+               arrival_time = lubridate::hms(c("12:00:00", "12:00:00")),
+               departure_time = lubridate::hms(c("12:00:00", "12:00:00")),
+               stop_id = "S1", stop_sequence = 1L, stringsAsFactors = FALSE))
+  g$calendar_dates <- data.frame(
+    service_id = c("SVX", "SVX", "SVY"),
+    date = as.Date(c("2023-10-09", "2023-10-16", "2023-12-04")),
+    exception_type = 1L, stringsAsFactors = FALSE)
+  g
+}
+
+
+test_that("gtfs_trim_dates keeps services defined only in calendar_dates", {
+  res <- suppressMessages(gtfs_trim_dates(
+    mk_dates_only_gtfs(),
+    startdate = lubridate::ymd("2023-10-02"),
+    enddate = lubridate::ymd("2023-10-29")))
+
+  # SVX runs on two dates inside the window and must survive
+  expect_true("TX" %in% res$trips$trip_id)
+  expect_setequal(res$calendar_dates$service_id[
+    res$calendar_dates$exception_type == 1], c("SVX", "SVX"))
+  expect_true(all(res$stop_times$trip_id %in% res$trips$trip_id))
+
+  # SVY's only date is outside the window, so it goes, like a calendar.txt
+  # service whose date range never reaches the window
+  expect_false("TY" %in% res$trips$trip_id)
+  expect_false("SVY" %in% res$calendar_dates$service_id)
+
+  # the conventional service is unaffected
+  expect_true("T1" %in% res$trips$trip_id)
+})
+
+
+test_that("gtfs_trips_per_zone counts calendar_dates-only services", {
+  zone <- sf::st_sf(zone_id = "Z1",
+                    geometry = sf::st_sfc(sf::st_buffer(
+                      sf::st_point(c(-1.5, 53.8)), 0.01), crs = 4326))
+
+  res <- suppressWarnings(suppressMessages(
+    gtfs_trips_per_zone(mk_dates_only_gtfs(), zone,
+                        startdate = lubridate::ymd("2023-10-02"),
+                        enddate = lubridate::ymd("2023-10-29"))
+  ))
+  res <- as.data.frame(res)
+
+  # T1 on 4 Mondays plus TX on its 2 added Mondays; TY is outside the window
+  expect_equal(res$runs_Mon_Midday, 6)
+  # neither service runs at the weekend
+  expect_equal(res$runs_Sat_Midday, 0)
+})
+
+
 # --- July 2026 fixes: Period corruption in gtfs_merge, typed gtfs_read,
 # --- coach as extended route type 200
 

@@ -324,6 +324,13 @@ gtfs_stop_frequency <- function(gtfs,
 #' @param startdate Start date
 #' @param enddate End date
 #' @return a gtfs object trimmed to services running between the two dates
+#' @details The GTFS specification allows a `service_id` to be defined in
+#'   `calendar_dates.txt` alone, with no row in `calendar.txt`; the service
+#'   then runs on exactly the dates listed with `exception_type = 1`. Such
+#'   services are kept if any of those dates falls inside the window. The
+#'   DfT's Bus Open Data Service GTFS uses them heavily (for example for
+#'   school-holiday timetables), so dropping them silently removes real
+#'   service.
 #'
 #' @export
 gtfs_trim_dates <- function(gtfs,
@@ -350,6 +357,13 @@ gtfs_trim_dates <- function(gtfs,
     calendar_dates$date <- as.Date(calendar_dates$date)
   }
 
+  # service_ids that exist only in calendar_dates.txt, which the date range in
+  # calendar.txt therefore cannot be used to trim
+  dates_only <- character()
+  if(!is.null(calendar_dates)){
+    dates_only <- setdiff(unique(as.character(calendar_dates$service_id)),
+                          unique(as.character(calendar$service_id)))
+  }
 
   calendar <- calendar[calendar$start_date <= enddate,]
   calendar <- calendar[calendar$end_date >= startdate,]
@@ -360,10 +374,30 @@ gtfs_trim_dates <- function(gtfs,
   calendar$end_date <- dplyr::if_else(calendar$end_date > enddate,
                                       enddate,
                                       calendar$end_date)
+
+  keep_dates_only <- character()
   if(!is.null(calendar_dates)){
-    calendar_dates <- calendar_dates[calendar_dates$service_id %in% calendar$service_id,]
+    calendar_dates <- calendar_dates[calendar_dates$service_id %in%
+                                       c(calendar$service_id, dates_only),]
     calendar_dates <- calendar_dates[calendar_dates$date >= startdate,]
     calendar_dates <- calendar_dates[calendar_dates$date <= enddate,]
+
+    # A calendar_dates-only service runs on the dates it adds; if none of them
+    # is in the window it is outside the window and goes, like a calendar.txt
+    # service whose date range does not reach the window.
+    keep_dates_only <- unique(as.character(
+      calendar_dates$service_id[as.character(calendar_dates$service_id) %in% dates_only &
+                                  calendar_dates$exception_type == 1]))
+    calendar_dates <- calendar_dates[calendar_dates$service_id %in%
+                                       c(calendar$service_id, keep_dates_only),]
+
+    # Clip exceptions to their own service's (already clipped) date range.
+    # Services with no calendar.txt row have no range to clip to, so they are
+    # held back from the join and returned unchanged.
+    cd_only_rows <- calendar_dates[as.character(calendar_dates$service_id) %in%
+                                     keep_dates_only, ]
+    calendar_dates <- calendar_dates[!as.character(calendar_dates$service_id) %in%
+                                       keep_dates_only, ]
 
     calendar_dates <- dplyr::left_join(calendar_dates,
                                        calendar[,c("service_id", "start_date", "end_date")],
@@ -374,9 +408,13 @@ gtfs_trim_dates <- function(gtfs,
 
     calendar_dates$start_date <- NULL
     calendar_dates$end_date <- NULL
+
+    if(nrow(cd_only_rows) > 0){
+      calendar_dates <- rbind(calendar_dates, cd_only_rows)
+    }
   }
 
-  trips <- trips[trips$service_id %in% calendar$service_id, ]
+  trips <- trips[trips$service_id %in% c(calendar$service_id, keep_dates_only), ]
   stop_times <- stop_times[stop_times$trip_id %in% trips$trip_id,]
 
   gtfs$stop_times <- stop_times
