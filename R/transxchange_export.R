@@ -222,10 +222,17 @@ transxchange_export <- function(obj,
 
 
   # Import ServicedOrganisations in to VehicleJourneys
-  # VehicleJourneys_exclude <- rbind(VehicleJourneys_exclude, ServicedOrganisations_holidays)
-  # VehicleJourneys_include <- rbind(VehicleJourneys_include, ServicedOrganisations_workdays)
+  #
+  # Non-operation is restrictive whichever section it came from, so the
+  # ServicedOrganisation dates join the SpecialDaysOperation ones.
+  #
+  # Operation is NOT: SpecialDaysOperation/DaysOfOperation means "also run on
+  # these extra dates" (Christmas specials and the like) and stays additive,
+  # while ServicedOrganisationDayType/DaysOfOperation means "run ONLY on this
+  # organisation's dates" and restricts the journey's calendar. They are kept
+  # apart here and handled separately in Steps 1b and 1c.
   VehicleJourneys_exclude <- rbind(VehicleJourneys_exclude, vj_so_no)
-  VehicleJourneys_include <- rbind(VehicleJourneys_include, vj_so_do)
+  VehicleJourneys_so_include <- vj_so_do
 
   if (!is.null(VehicleJourneys_exclude)) {
     if (nrow(VehicleJourneys_exclude) == 0) {
@@ -236,6 +243,12 @@ transxchange_export <- function(obj,
   if (!is.null(VehicleJourneys_include)) {
     if (nrow(VehicleJourneys_include) == 0) {
       VehicleJourneys_include <- NULL
+    }
+  }
+
+  if (!is.null(VehicleJourneys_so_include)) {
+    if (nrow(VehicleJourneys_so_include) == 0) {
+      VehicleJourneys_so_include <- NULL
     }
   }
 
@@ -425,29 +438,39 @@ transxchange_export <- function(obj,
                                     function(x){nrow(x) > 0},
                                     FUN.VALUE = TRUE, USE.NAMES = FALSE)]
     trips <- dplyr::bind_rows(trip_split)
-    if(nrow(trips) > 0 ){
-      trips_exclude <- trips[, c("trip_id", "exclude_days")]
-      trips_exclude <- trips_exclude[lengths(trips_exclude$exclude_days) > 0, ] # For lists
-      trips_exclude <- trips_exclude[!is.na(trips_exclude$exclude_days), ] # For NAs
-      if (nrow(trips_exclude) > 0) {
-        trips_exclude <- data.frame(
-          trip_id = rep(trips_exclude$trip_id, times = lengths(trips_exclude$exclude_days)),
-          date = as.Date(unlist(trips_exclude$exclude_days), origin = "1970-01-01"),
-          stringsAsFactors = FALSE
-        )
-        trips_exclude$exception_type <- 2
-      } else {
-        rm(trips_exclude)
-      }
-    } else {
+    if(nrow(trips) == 0){
       # Total Exclusion
       return(NULL)
     }
-
-
   }
 
-  # Step 1b: Do we have any Inclusions
+  # Step 1b: ServicedOrganisation days of operation
+  # A ServicedOrganisationDayType/DaysOfOperation reference means the journey
+  # runs ONLY on that organisation's dates, so it restricts the journey's
+  # calendar rather than adding to it - see include_trips().
+  if (inherits(VehicleJourneys_so_include,"data.frame")) {
+    VehicleJourneys_so_include <- VehicleJourneys_so_include[
+      VehicleJourneys_so_include$StartDate <= VehicleJourneys_so_include$EndDate,]
+    if (nrow(VehicleJourneys_so_include) > 0) {
+      if (!"exclude_days" %in% names(trips)) {
+        trips$exclude_days <- NA
+      }
+      trip_inc <- split(VehicleJourneys_so_include,
+                        VehicleJourneys_so_include$VehicleJourneyCode)
+      trip_split <- split(trips, trips$trip_id)
+      trip_split <- lapply(trip_split, include_trips, trip_inc = trip_inc)
+      trip_split <- trip_split[vapply(trip_split,
+                                      function(x){nrow(x) > 0},
+                                      FUN.VALUE = TRUE, USE.NAMES = FALSE)]
+      trips <- dplyr::bind_rows(trip_split)
+      if(nrow(trips) == 0){
+        # Every journey is outside its serviced organisation's dates
+        return(NULL)
+      }
+    }
+  }
+
+  # Step 1c: SpecialDaysOperation days of operation, which are additive
   if (inherits(VehicleJourneys_include,"data.frame")) {
     trips_include <- split(VehicleJourneys_include, VehicleJourneys_include$VehicleJourneyCode)
     trips_include <- lapply(trips_include, list_include_days)
@@ -457,6 +480,34 @@ transxchange_export <- function(obj,
       stringsAsFactors = FALSE
     )
     trips_include$exception_type <- 1
+  }
+
+  # Step 1d: Turn whatever exclusions Steps 1 and 1b left into calendar_dates
+  if ("exclude_days" %in% names(trips)) {
+    trips_exclude <- trips[, c("trip_id", "exclude_days")]
+    trips_exclude <- trips_exclude[lengths(trips_exclude$exclude_days) > 0, ] # For lists
+    trips_exclude <- trips_exclude[!is.na(trips_exclude$exclude_days), ] # For NAs
+    if (nrow(trips_exclude) > 0) {
+      trips_exclude <- data.frame(
+        trip_id = rep(trips_exclude$trip_id, times = lengths(trips_exclude$exclude_days)),
+        date = as.Date(unlist(trips_exclude$exclude_days), origin = "1970-01-01"),
+        stringsAsFactors = FALSE
+      )
+      trips_exclude$exception_type <- 2
+      # An explicit SpecialDaysOperation inclusion wins over an exclusion
+      # implied by a serviced organisation's date ranges, so that no date ends
+      # up both added and cancelled for the same service
+      if (exists("trips_include")) {
+        trips_exclude <- trips_exclude[
+          !paste(trips_exclude$trip_id, trips_exclude$date) %in%
+            paste(trips_include$trip_id, trips_include$date), ]
+      }
+      if (nrow(trips_exclude) == 0) {
+        rm(trips_exclude)
+      }
+    } else {
+      rm(trips_exclude)
+    }
   }
 
 

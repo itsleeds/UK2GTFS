@@ -60,6 +60,23 @@
 
 ## Bug fixes
 
+* `transxchange2gtfs()` treats a `ServicedOrganisationDayType/DaysOfOperation`
+  reference as restrictive. It means the journey runs *only* on that
+  organisation's dates — typically a school's holidays — but it was converted
+  by leaving the weekly calendar untouched and adding `exception_type = 1`
+  rows on those dates. Under GTFS semantics an added date on a day the
+  calendar already operates does nothing, so the journey ran every week
+  alongside the term-time journey it was meant to replace, and it also gained
+  service on days of the week it never runs (a Saturday-only journey was
+  forced to run on weekdays and Sundays inside the term ranges). The journey
+  is now clipped to the span the organisation's ranges cover, with the days
+  between ranges excluded, by the new `include_trips()` — the mirror of the
+  existing `exclude_trips()`. `SpecialDaysOperation/DaysOfOperation` remains
+  additive, as it should: it means "also run on these extra dates". On the
+  TNDS London route 69 for February 2026 this takes an ordinary weekday from
+  574 journeys to the published 286, leaves half-term at 288 and Saturday and
+  Sunday unchanged at 272 and 204, and reduces `calendar_dates.txt` because
+  the redundant additions are gone.
 * `gtfs_trim_dates()` no longer discards services defined only in
   `calendar_dates.txt`. The GTFS specification allows a `service_id` with no
   `calendar.txt` row, in which case it runs on exactly the dates added with

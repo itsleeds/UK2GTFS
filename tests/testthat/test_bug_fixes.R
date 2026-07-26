@@ -621,6 +621,98 @@ test_that("gtfs_trips_per_zone counts calendar_dates-only services", {
 })
 
 
+# A ServicedOrganisationDayType/DaysOfOperation reference means the journey
+# runs only on that organisation's dates (typically a school's holidays). It
+# must restrict the journey's calendar, not add to it: emitting
+# exception_type = 1 rows while leaving the weekly calendar alone produces a
+# journey that runs every week, because under GTFS semantics an added date on
+# a day the calendar already operates does nothing.
+
+mk_include_trips <- function() {
+  trips <- data.frame(trip_id = c("VJ1", "VJ2"),
+                      StartDate = as.Date("2024-01-01"),
+                      EndDate = as.Date("2024-03-31"),
+                      DaysOfWeek = "Monday Tuesday Wednesday Thursday Friday",
+                      stringsAsFactors = FALSE)
+  trips$exclude_days <- NA
+  trips
+}
+
+# two school holiday weeks inside the trip's period
+mk_include_ranges <- function() {
+  inc <- data.frame(VehicleJourneyCode = "VJ1",
+                    StartDate = as.Date(c("2024-02-12", "2024-03-25")),
+                    EndDate   = as.Date(c("2024-02-16", "2024-03-29")),
+                    stringsAsFactors = FALSE)
+  split(inc, inc$VehicleJourneyCode)
+}
+
+
+test_that("include_trips restricts a trip to its serviced organisation dates", {
+  trips <- mk_include_trips()
+  out <- dplyr::bind_rows(lapply(split(trips, trips$trip_id), include_trips,
+                                 trip_inc = mk_include_ranges()))
+
+  # VJ1 is clipped to the span the holiday ranges cover
+  expect_equal(out$StartDate[out$trip_id == "VJ1"], as.Date("2024-02-12"))
+  expect_equal(out$EndDate[out$trip_id == "VJ1"], as.Date("2024-03-29"))
+
+  excluded <- out$exclude_days[[which(out$trip_id == "VJ1")]]
+  # the term-time weekdays between the two holiday weeks are excluded
+  expect_true(all(lubridate::wday(excluded, week_start = 1) <= 5))
+  expect_false(any(excluded %in% c(
+    seq(as.Date("2024-02-12"), as.Date("2024-02-16"), by = "days"),
+    seq(as.Date("2024-03-25"), as.Date("2024-03-29"), by = "days"))))
+
+  # what survives is exactly the two holiday weeks: 10 weekdays
+  span <- seq(as.Date("2024-02-12"), as.Date("2024-03-29"), by = "days")
+  span <- span[lubridate::wday(span, week_start = 1) <= 5]
+  expect_equal(length(setdiff(span, excluded)), 10)
+
+  # a trip with no inclusion keeps its own calendar
+  expect_equal(out$StartDate[out$trip_id == "VJ2"], as.Date("2024-01-01"))
+  expect_equal(out$EndDate[out$trip_id == "VJ2"], as.Date("2024-03-31"))
+  expect_equal(length(out$exclude_days[[which(out$trip_id == "VJ2")]]), 0)
+})
+
+
+test_that("include_trips drops a trip whose organisation dates do not overlap", {
+  trips <- mk_include_trips()
+  inc <- data.frame(VehicleJourneyCode = "VJ1",
+                    StartDate = as.Date("2025-02-12"),
+                    EndDate = as.Date("2025-02-16"), stringsAsFactors = FALSE)
+  res <- include_trips(trips[trips$trip_id == "VJ1", ],
+                       split(inc, inc$VehicleJourneyCode))
+  expect_equal(nrow(res), 0)
+})
+
+
+test_that("include_trips keeps exclusions already applied to the trip", {
+  trips <- mk_include_trips()
+  trips <- trips[trips$trip_id == "VJ1", ]
+  # a bank holiday inside one of the holiday weeks, excluded earlier
+  trips$exclude_days <- list(as.Date("2024-02-14"))
+  res <- include_trips(trips, mk_include_ranges())
+  expect_true(as.Date("2024-02-14") %in% res$exclude_days[[1]])
+})
+
+
+test_that("include_trips leaves a trip alone when the ranges cover it", {
+  trips <- mk_include_trips()
+  trips <- trips[trips$trip_id == "VJ1", ]
+  inc <- data.frame(VehicleJourneyCode = "VJ1",
+                    StartDate = as.Date("2023-01-01"),
+                    EndDate = as.Date("2025-01-01"), stringsAsFactors = FALSE)
+  res <- include_trips(trips, split(inc, inc$VehicleJourneyCode))
+
+  # clipped to the trip's own period, and nothing to exclude
+  expect_equal(res$StartDate, as.Date("2024-01-01"))
+  expect_equal(res$EndDate, as.Date("2024-03-31"))
+  expect_equal(length(res$exclude_days[[1]]), 1)   # the untouched NA
+  expect_true(is.na(res$exclude_days[[1]]))
+})
+
+
 # --- July 2026 fixes: Period corruption in gtfs_merge, typed gtfs_read,
 # --- coach as extended route type 200
 

@@ -60,6 +60,65 @@ list_exclude_days <- function(exclude_days) {
   return(res)
 }
 
+#' include trips
+#'
+#' Restrict a trip to the dates of the ServicedOrganisations it operates on.
+#'
+#' A `ServicedOrganisationDayType/DaysOfOperation` reference means the journey
+#' runs *only* on that organisation's dates (typically a school's holidays),
+#' so it restricts the journey's calendar rather than adding to it. This is the
+#' mirror of `exclude_trips()`: the trip is clipped to the span the ranges
+#' cover, and any day inside that span but outside every range is added to the
+#' trip's exclusions.
+#'
+#' Emitting `exception_type = 1` rows instead, while leaving the weekly
+#' calendar untouched, produces a journey that runs every week: under GTFS
+#' semantics an added date on a day the calendar already operates is a no-op.
+#'
+#' @param trip_sub one-row data frame for a single trip
+#' @param trip_inc named list of inclusion date ranges, split by
+#'   VehicleJourneyCode
+#' @noRd
+include_trips <- function(trip_sub, trip_inc) {
+  trip_inc_sub <- trip_inc[[trip_sub$trip_id[1]]]
+  if (is.null(trip_inc_sub)) {
+    # No inclusions, the trip keeps its own calendar
+    return(trip_sub)
+  }
+
+  # Clip the trip to the span the organisation's date ranges cover
+  start <- max(min(trip_inc_sub$StartDate), trip_sub$StartDate[1])
+  end <- min(max(trip_inc_sub$EndDate), trip_sub$EndDate[1])
+  if (start > end) {
+    # Trip and organisation dates do not overlap, so the trip never runs
+    return(trip_sub[NULL, ])
+  }
+  trip_sub$StartDate <- start
+  trip_sub$EndDate <- end
+
+  # Days inside the span but outside every range are days the trip does not
+  # run. Only days the weekly calendar would otherwise operate need excluding.
+  operates <- list_include_days(trip_inc_sub)
+  gaps <- seq(start, end, by = "days")
+  gaps <- gaps[!gaps %in% operates]
+  if (length(gaps) > 0) {
+    days <- clean_days(as.character(trip_sub$DaysOfWeek[1]))
+    gaps <- gaps[days[lubridate::wday(gaps, week_start = 1)] == 1]
+  }
+
+  if (length(gaps) > 0) {
+    prev <- trip_sub$exclude_days[[1]]
+    if (!inherits(prev, "Date")) {
+      prev <- as.Date(character())
+    } else {
+      prev <- prev[!is.na(prev)]
+    }
+    trip_sub$exclude_days <- list(sort(unique(c(prev, gaps))))
+  }
+
+  return(trip_sub)
+}
+
 #' list exclude days
 #' break up star and end include days into list of days
 #' @param include_days desc
