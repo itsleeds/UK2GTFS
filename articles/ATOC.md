@@ -1,0 +1,384 @@
+# Heavy Rail CIF to GTFS - Train Timetables
+
+This vignette explains how to convert Great Britain’s **heavy rail**
+timetables into [GTFS](https://gtfs.org/), where the source data comes
+from, and why there are two different conversion functions for what
+looks like the same format.
+
+## Background: the CIF format
+
+Great Britain’s national rail timetable is published in the **Common
+Interface File** (CIF) format - a fixed-width text format dating back to
+the mainframe era. Each line is a record whose meaning is given by its
+first two characters (for example `BS` = basic schedule, `LO` = origin
+location, `LI` = intermediate location, `LT` = terminating location). It
+is compact and complete but thoroughly unfriendly to modern tools: there
+are no column headers, positions are counted in fixed character offsets,
+and locations are given as **TIPLOC** codes (Timing Point Locations)
+rather than coordinates.
+
+A full timetable download is actually a bundle of related files:
+
+| Extension | Contents | Used by UK2GTFS |
+|----|----|----|
+| `.MCA` | The main timetable (schedules, calls, times) | **Yes** (required) |
+| `.MSN` | Master Station Names - station names and (rough) locations | Yes, for names and fallback locations |
+| `.FLF` | Fixed Links - interchange/transfer times between stations | Optional (`transfers = TRUE`) |
+| `.ALF` | Additional fixed links | Not used |
+| `.TSI`, `.SET`, `.DAT`, `.ZTR`, `.REJ` | Ancillary/rejected data | Not used |
+
+Only the `.MCA`, `.MSN` and `.FLF` files are needed to build a GTFS
+feed.
+
+## Where to get CIF data
+
+There are two sources, and this determines which function you use.
+
+### 1. Rail Delivery Group (via the National Rail Data Portal)
+
+The [National Rail Data Portal](https://opendata.nationalrail.co.uk/)
+(NRDP) publishes the Rail Delivery Group’s timetable feed - historically
+known as the **ATOC** feed. This is the *public passenger* timetable and
+is the right choice for most users. It arrives as a zip folder (with a
+name like `ttis627.zip`) containing the `.MCA`, `.MSN`, `.FLF` and other
+files described above.
+
+Convert it with
+**[`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md)**.
+
+### 2. Network Rail
+
+[Network Rail](https://www.networkrail.co.uk/) publishes its own CIF
+feed through its data feeds portal. It contains essentially the same
+schedules but is packaged differently - a single gzip-compressed file
+(for example `toc-full.CIF.gz`) rather than a zip of separate files -
+and has small formatting differences. It also tends to include more
+operational detail (such as empty-stock and freight movements).
+
+Convert it with
+**[`nr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nr2gtfs.md)**.
+
+> **In short:** RDG/ATOC zip →
+> [`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md);
+> Network Rail `.CIF.gz` →
+> [`nr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nr2gtfs.md).
+> The two functions share most of their internals but expect different
+> packaging.
+
+## Downloading from the National Rail Data Portal
+
+You need a free account at <https://opendata.nationalrail.co.uk/>. Store
+your credentials as `NRDP_username` and `NRDP_password` in your
+`.Renviron` file - `usethis::edit_r_environ()` opens it for you. Restart
+R after editing.
+
+``` r
+
+library(UK2GTFS)
+nrdp_timetable("myfolder/timetable.zip")
+```
+
+The companion functions
+[`nrdp_fares()`](https://itsleeds.github.io/UK2GTFS/reference/nrdp_fares.md)
+and
+[`nrdp_routing()`](https://itsleeds.github.io/UK2GTFS/reference/nrdp_routing.md)
+download the fares and routeing feeds respectively. The fares feed can
+be converted to GTFS fare tables alongside the timetable - see [Adding
+fares](#adding-fares) below. The routeing guide is not used.
+
+## Converting RDG/ATOC data to GTFS
+
+``` r
+
+path_in <- "myfolder/timetable.zip"
+gtfs <- atoc2gtfs(path_in = path_in, ncores = 3)
+```
+
+``` r
+
+gtfs_write(gtfs, folder = "C:/GTFS", name = "gtfs_rail")
+```
+
+This writes `C:/GTFS/gtfs_rail.zip`.
+
+Useful arguments to
+[`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md):
+
+- `ncores` - cores for parallel processing (leave one free for the OS).
+- `locations` - where to get TIPLOC coordinates; see [TIPLOC
+  locations](#tiploc-locations). Default `"tiplocs"` uses the package’s
+  improved dataset.
+- `agency` - where to get `agency.txt`; see [Agency](#agency).
+- `transfers` - if `TRUE` (default) build `transfers.txt` from the
+  `.FLF` file.
+- `shapes` - if `TRUE`, build `shapes.txt` by routing each service over
+  a map of the rail network. Default `FALSE`; see [Shapes](#shapes)
+  below.
+- `working_timetable` - if `TRUE`, use the Working Timetable (WTT) times
+  (used operationally) instead of the public times. Default `FALSE`.
+- `public_only` - if `TRUE` (default) keep only calls/services intended
+  for public pickup and set-down, dropping empty-stock and non-passenger
+  moves.
+
+## Converting Network Rail data to GTFS
+
+The interface is almost identical, but the input is the `.CIF.gz` file:
+
+``` r
+
+gtfs <- nr2gtfs(path_in = "toc-full.CIF.gz", ncores = 3)
+gtfs_write(gtfs, folder = "C:/GTFS", name = "gtfs_rail_nr")
+```
+
+[`nr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nr2gtfs.md)
+shares the `locations`, `agency`, `working_timetable` and `public_only`
+arguments with
+[`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md).
+
+## What the conversion does under the hood
+
+Both functions are wrappers around lower-level importers, which you can
+call directly if you need finer control:
+
+- [`importMCA()`](https://itsleeds.github.io/UK2GTFS/reference/importMCA.md) -
+  reads the main `.MCA` timetable file (the core data).
+- [`importMSN()`](https://itsleeds.github.io/UK2GTFS/reference/importMSN.md) -
+  reads the `.MSN` station file (used when `locations = "file"` or to
+  fill in missing TIPLOCs).
+- [`importFLF()`](https://itsleeds.github.io/UK2GTFS/reference/importFLF.md) -
+  reads the `.FLF` fixed-links file (used when `transfers = TRUE`).
+
+Other files in the bundle are currently ignored.
+
+## TIPLOC locations
+
+The timetable refers to stations, junctions and other points by
+**TIPLOC** code. The `.MSN` file does contain coordinates for these, but
+they are often only accurate to about a kilometre and are occasionally
+badly wrong. `UK2GTFS` therefore ships an improved `tiplocs` dataset
+with corrected coordinates, used by default (`locations = "tiplocs"`).
+
+You have alternatives:
+
+- `locations = "file"` - use the (lower quality) coordinates from the
+  `.MSN` file instead.
+- Pass your own `sf` data frame of points in the same format as
+  `tiplocs`.
+- Pass a path to a CSV formatted like a GTFS `stops.txt`.
+
+If you use the improved dataset but the timetable references a TIPLOC
+not in it,
+[`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md)
+(with `missing_tiplocs = TRUE`, the default) falls back to the `.MSN`
+location and warns you. The improved locations are maintained in the
+[UK2GTFS-data](https://github.com/itsleeds/UK2GTFS-data) repository -
+corrections are welcome via pull request. You can also build the stops
+manually from the station file with
+[`station2stops()`](https://itsleeds.github.io/UK2GTFS/reference/station2stops.md).
+
+## Agency
+
+The CIF files do **not** contain the information needed to build GTFS
+`agency.txt` (operator names, URLs, timezones). `UK2GTFS` therefore
+ships an [example agency
+file](https://github.com/itsleeds/UK2GTFS-data/blob/main/data/raw/atoc_agency.csv)
+which is used by default (`agency = "atoc_agency"`). You can pass your
+own data frame of agency information instead. Contributions to the
+shared file are welcome via pull request.
+
+## Adding fares
+
+The timetable feed contains no prices. Fares are published separately by
+the Rail Delivery Group as the **fares feed** (specification RSPS5045),
+which you can download from the same National Rail Data Portal account
+with `nrdp_fares("myfolder/fares.zip")`. The feed is a set of
+fixed-width text files (`RJFAF756.FFL`, `.LOC`, `.TTY`, …) listing every
+advertised point-to-point fare in Great Britain - the same data ticket
+machines use.
+
+The simplest route is to pass the fares zip straight to
+[`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md):
+
+``` r
+
+gtfs <- atoc2gtfs("myfolder/timetable.zip", ncores = 3,
+                  fares = "myfolder/fares.zip",
+                  fares_version = 2)
+```
+
+Or do it as a separate step, which lets you inspect the fares data and
+convert the same feed several ways:
+
+``` r
+
+fares <- atoc_fares_read("myfolder/fares.zip")
+fares$ticket_type   # every ticket code, with description, class and type
+fares$railcard      # every railcard code
+
+# GTFS v1: the cheapest standard-class single per station pair
+gtfs_v1 <- gtfs_add_railfares(gtfs, fares, fares_version = 1)
+
+# GTFS Fares v2: adult, child and 16-25 Railcard singles and returns
+gtfs_v2 <- gtfs_add_railfares(gtfs, fares, fares_version = 2,
+                              railcards = "YNG")
+```
+
+### How rail fares map onto GTFS
+
+Rail fares are set per **flow**: an origin/destination pair, a fare
+route (“via any permitted”, “not via London”, …) and a ticket type. A
+flow endpoint is not always a single station - it can be a **station
+cluster** (stations that share fares) or a **group station** such as
+“LONDON TERMINALS”. This maps onto the two GTFS fare models as follows:
+
+| Fares feed concept | GTFS v1 | GTFS Fares v2 |
+|----|----|----|
+| Station | `stops.zone_id` (CRS code) | member of `areas`/`stop_areas` |
+| Cluster / group station | expanded to member stations | one area with many stops |
+| Flow (O/D pair) | `fare_rules` origin/destination | `fare_leg_rules` from/to area |
+| Ticket type + price | `fare_attributes` (cheapest only) | `fare_products` |
+| Adult / child / railcard | *(not representable)* | `rider_categories` |
+
+Which tickets are converted is controlled by arguments:
+`fares_ticket_class` (standard/first), `fares_ticket_type`
+(single/return/season) or explicit `fares_ticket_codes`;
+`fares_rider_categories` and `fares_railcards` choose the passenger
+types (v2 only). By default only **walk-up** tickets - the Anytime,
+Off-Peak and Super Off-Peak families - are converted
+(`fares_walkup_only = TRUE`); the feed also prices trade, carnet and
+advance-purchase tier tickets, which are misleadingly cheap in a journey
+planner. See
+[`?gtfs_add_railfares`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_railfares.md)
+for details.
+
+### Scenario conversion: a specific travel date, time and booking date
+
+GTFS cannot carry the full restriction model of rail ticketing (validity
+varies by date, time, route and train). What the converter *can* do is
+evaluate those restrictions for you at conversion time, for one concrete
+scenario, and output plain GTFS containing exactly the fares available
+in that scenario:
+
+``` r
+
+# Fares for a journey departing 08:00 on Monday 3 August,
+# with the ticket bought on 1 July
+gtfs <- atoc2gtfs("myfolder/timetable.zip", ncores = 3,
+                  fares = "myfolder/fares.zip",
+                  fares_version = 2,
+                  fares_travel_date = as.Date("2026-08-03"),
+                  fares_travel_time = "08:00",
+                  fares_booking_date = as.Date("2026-07-01"))
+```
+
+Three things happen:
+
+- records are read as valid on the **travel date** (the feed contains
+  current and future fares rounds);
+- the restriction data (RST file) is evaluated for that date and
+  departure time: Off-Peak and Super Off-Peak fares are dropped where
+  their time restriction makes them invalid (e.g. departing before 09:30
+  on a weekday), as are fares date-banned on the travel date;
+- with a **booking date**, Advance tickets whose booking horizon (TAP
+  file) is satisfied are added at their tier prices, instead of being
+  excluded.
+
+This is the recommended way to do fare-sensitive analysis
+(e.g. comparing peak vs off-peak accessibility, or walk-up vs advance
+pricing): build one feed per scenario and compare. Omit
+`fares_travel_time` to apply only date-level restrictions; omit
+`fares_booking_date` for walk-up fares only.
+
+Two caveats. Advance *availability* is quota-controlled per train by the
+reservation system and is in no public feed, so Advance prices are the
+bookable tiers - a best case. And restriction evaluation covers date
+bands and departure-time bands (network-wide or
+origin-station-specific); arrival-based, via-based and train-specific
+restrictions, easements and minimum-fare windows are treated as “fare
+remains valid”, so the filter errs towards keeping a fare.
+
+### Limitations and trade-offs
+
+Like the bus fares conversion (see the *Adding Fares - NeTEx to GTFS*
+vignette), converting rail fares to GTFS is lossy. Choices are surfaced
+as arguments; the losses you cannot buy back are listed here.
+
+1.  **GTFS v1 cannot express ticket choice or passenger types.** With
+    `fares_version = 1` every station pair gets exactly one price: the
+    *cheapest* fare among the ticket types you selected (default:
+    standard-class singles). Child, railcard and return fares are
+    ignored. Use v2 if you need them.
+2.  **Ticket time restrictions are not carried into the output.** An
+    Off-Peak Single is emitted with its price, but GTFS cannot say it is
+    invalid at 08:00, so a journey planner sees an Anytime and an
+    Off-Peak product between the same stations and cannot choose
+    correctly. Either convert a scenario
+    (`fares_travel_date`/`fares_travel_time` above), or restrict
+    conversion to Anytime products (e.g.
+    `fares_ticket_codes = c("SDS", "SOS")`).
+3.  **Returns are priced for the round trip.** GTFS has no native return
+    ticket; a return product’s `amount` is the price of the whole return
+    journey attached to a single leg. Season tickets are excluded by
+    default for the same reason (their feed price is the weekly rate).
+4.  **Advance fares appear only in booking scenarios.** Advance tickets
+    are quota-controlled: the flow file lists their price *tiers* with
+    no information about which tier is on sale for which train. By
+    default they are dropped (`fares_walkup_only = TRUE`); with a
+    `fares_booking_date` scenario the bookable tiers are included as
+    best-case prices.
+5.  **Child and railcard prices are calculated, not quoted.** The feed
+    derives them from the adult fare via the status discount file
+    (typically 50% for children). UK2GTFS applies the percentage and the
+    flat-fare/minimum-fare caps, but not the industry rounding rules or
+    railcard minimum-fare rules, so a calculated price can differ from
+    the retail price by a few pence.
+6.  **Some flows cannot be placed.** Flow endpoints that are not
+    stations (county codes, travelcard zones without member stations) or
+    stations absent from your timetable are dropped, with a message
+    reporting the count.
+7.  **TOC-specific ticketing is simplified.** Fares are attached to one
+    national “rail” network (v2) or to no route at all (v1), i.e. they
+    are treated as inter-available. Operator-only tickets (the TSP file)
+    and cross-London rules are not modelled.
+8.  **Feed size.** The national flow file holds ~700,000 flows and ~7
+    million prices. A national v1 conversion expands clusters to station
+    pairs and produces a multi-million-row `fare_rules.txt`; v2 stays
+    close to the source size because clusters become areas. Both are
+    written fine by
+    [`gtfs_write()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_write.md),
+    but consumers vary in what they accept.
+
+## Shapes
+
+Route shapes - the geographic path each train follows - are not part of
+the CIF data, but
+[`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md)
+can build them for you:
+
+``` r
+
+gtfs <- atoc2gtfs(path_in = path_in, ncores = 3, shapes = TRUE)
+```
+
+With `shapes = TRUE` each heavy-rail service (`route_type = 2`) is
+routed over an internal map of the UK rail network, producing a
+`shapes.txt` table, a `shape_id` column in `trips.txt` and
+`shape_dist_traveled` values in `stop_times.txt`. Services that are not
+heavy rail (buses, ships, metro) are left without shapes.
+
+This is off by default (`shapes = FALSE`) because the routing step adds
+noticeable processing time for a national timetable. If you already have
+a converted feed you can add shapes afterwards with the underlying
+[`ATOC_shapes()`](https://itsleeds.github.io/UK2GTFS/reference/ATOC_shapes.md)
+function, which takes and returns a gtfs object.
+
+## Next steps
+
+After conversion, use the tools in the [Working with GTFS
+files](https://itsleeds.github.io/UK2GTFS/articles/GTFS.md) vignette -
+in particular
+[`gtfs_clean()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.md)
+and
+[`gtfs_fast_trips()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_trips.md),
+which is handy for spotting schedules with implausible speeds caused by
+a mislocated TIPLOC.

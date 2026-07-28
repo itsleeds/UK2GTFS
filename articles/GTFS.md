@@ -1,0 +1,310 @@
+# Working with GTFS files - Cleaning, Manipulating and Analysing
+
+As well as converting UK formats to GTFS, `UK2GTFS` provides a toolkit
+for reading, cleaning, checking, reshaping and analysing GTFS feeds -
+whether they came from `UK2GTFS` itself or from anywhere else.
+
+## Background: what is GTFS, and what is a “gtfs object”?
+
+The [General Transit Feed Specification](https://gtfs.org/) (GTFS) is a
+`.zip` file containing a set of related CSV tables - `agency.txt`,
+`stops.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`,
+`calendar.txt`, `calendar_dates.txt`, and optional extras such as
+`shapes.txt` and `frequencies.txt`. The tables are linked by ID columns
+(a trip belongs to a route, has many stop_times, and runs on a
+service_id calendar).
+
+In `UK2GTFS` a GTFS feed is held in memory as a **named list of data
+frames** - one element per table, named after the file (`gtfs$stops`,
+`gtfs$trips`, and so on). Every function below takes and/or returns such
+an object, so you can chain them together and inspect any table directly
+as an ordinary data frame.
+
+``` r
+
+library(UK2GTFS)
+
+gtfs <- gtfs_read("myfeed.zip")
+names(gtfs)      # the tables present
+head(gtfs$stops) # inspect any table as a data frame
+```
+
+## Reading and writing
+
+| Function                         | Purpose                               |
+|----------------------------------|---------------------------------------|
+| `gtfs_read(path)`                | Read a GTFS `.zip` into a gtfs object |
+| `gtfs_write(gtfs, folder, name)` | Write a gtfs object back to a `.zip`  |
+
+``` r
+
+gtfs <- gtfs_read("myfeed.zip")
+# ... work on it ...
+gtfs_write(gtfs, folder = "C:/GTFS", name = "myfeed_clean")
+```
+
+[`gtfs_write()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_write.md)
+has options to strip commas, tabs and newlines from text fields
+(`stripComma`, `stripTab`, `stripNewline`) - useful because stray
+delimiters in operator or stop names can break strict GTFS consumers.
+
+## Cleaning and validating
+
+Real-world feeds - and conversions of messy source data - contain
+errors. Two families of function help.
+
+### `gtfs_clean()` - fix common errors
+
+`gtfs_clean(gtfs)` removes a set of well-known problems, including:
+stops with no coordinates or no location information; trips with fewer
+than two stops; stops that are never used; and (with
+`public_only = TRUE`) non-public services such as freight or empty-stock
+moves that have no GTFS route type and would otherwise break tools like
+OpenTripPlanner. It also tidies up orphaned shapes and frequencies.
+
+``` r
+
+gtfs <- gtfs_clean(gtfs)
+```
+
+### `gtfs_validate_internal()` - check for problems
+
+`gtfs_validate_internal(gtfs)` checks the feed against the GTFS
+specification and reports what it finds at three severities: **Error**
+(breaks the spec), **Warning** (probably a mistake) and **Note** (worth
+knowing). Checks cover every table - including shapes, frequencies,
+transfers and the fare tables - and include: required tables and
+columns, duplicated ids, referential integrity of every cross-table
+reference (for example stop_times referencing a stop that isn’t in
+`stops.txt`), coordinate ranges, enum and date/time values, times that
+go backwards along a trip, and services that can never run. It reports
+problems but does not change the data; it invisibly returns a data frame
+of the problems for programmatic use.
+
+``` r
+
+gtfs_validate_internal(gtfs)
+problems <- gtfs_validate_internal(gtfs)  # severity / table / message
+```
+
+### `gtfs_force_valid()` - make it valid by removing problems
+
+Where
+[`gtfs_validate_internal()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_validate_internal.md)
+only reports, `gtfs_force_valid(gtfs)` acts: it drops stops with missing
+locations, routes not present in `agency`, trips not in `routes`,
+stop_times not in `trips` or `stops`, and calendar entries with no
+matching trips. Use it as a last resort to guarantee referential
+integrity when a downstream tool refuses a slightly broken feed.
+
+### `gtfs_fast_trips()` and `gtfs_fast_stops()` - catch mislocated stops
+
+A frequent, sneaky error is a stop placed in the wrong location, which
+makes a vehicle appear to “teleport” across the country between two
+calls. `gtfs_fast_trips(gtfs)` returns the `trip_id`s whose fastest
+segment exceeds `maxspeed` (default 83 m/s ≈ 185 mph, the top speed on
+HS1);
+[`gtfs_fast_stops()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_stops.md)
+returns an `sf` data frame of the suspect stops for mapping.
+
+``` r
+
+bad_trips <- gtfs_fast_trips(gtfs, maxspeed = 45) # ~100 mph, for a bus feed
+bad_stops <- gtfs_fast_stops(gtfs)
+```
+
+## Manipulating
+
+### Merging
+
+`gtfs_merge(gtfs_list)` combines a list of gtfs objects into one,
+handling ID clashes (if duplicate IDs are found across feeds it
+regenerates fresh IDs). If small inconsistencies (such as an operator
+name spelt two ways) block a clean merge, pass `force = TRUE` to take
+the first instance as authoritative.
+
+``` r
+
+combined <- gtfs_merge(list(gtfs_bus, gtfs_rail), force = TRUE)
+```
+
+### Splitting
+
+`gtfs_split(gtfs, n_split = 2)` divides a large feed into a list of
+smaller, size-balanced feeds (split by `agency_id`), which is helpful
+when a feed is too big for a downstream tool.
+`gtfs_split_ids(gtfs, trip_ids)` splits on a specific set of `trip_id`s,
+returning a `$true` feed (matching trips) and a `$false` feed
+(everything else).
+
+``` r
+
+parts <- gtfs_split(gtfs, n_split = 4)
+sel   <- gtfs_split_ids(gtfs, trip_ids = bad_trips)
+```
+
+### Clipping to an area
+
+`gtfs_clip(gtfs, bounds)` restricts a feed to a geographic area.
+`bounds` is an `sf` polygon (or multi-polygon) in CRS 4326. Trips
+crossing the boundary are truncated at the edge, and trips that call
+only once inside the area are dropped. The optional tables - shapes,
+frequencies, transfers, pathways and the fare tables - are pruned so
+they only reference the stops, routes and trips that remain.
+
+``` r
+
+library(sf)
+leeds <- st_read("leeds_boundary.geojson") # must be EPSG:4326
+gtfs_leeds <- gtfs_clip(gtfs, bounds = leeds)
+```
+
+### Trimming to a date range
+
+`gtfs_trim_dates(gtfs, startdate, enddate)` keeps only services that run
+between two dates and shrinks the calendars accordingly - useful for
+cutting a multi-year feed down to the week or month you care about.
+Frequencies and shapes belonging to removed trips are removed with them.
+
+``` r
+
+gtfs_march <- gtfs_trim_dates(gtfs,
+                              startdate = as.Date("2024-03-01"),
+                              enddate   = as.Date("2024-03-31"))
+```
+
+### Compressing
+
+`gtfs_compress(gtfs)` reduces file size by replacing the long,
+human-readable IDs that `UK2GTFS` preserves during conversion (such as
+NaPTAN stop codes) with compact integers. Every table that references a
+rewritten id - stop_times, transfers, pathways, frequencies, shapes,
+stop_areas, fare_rules and route_networks - is updated together, so the
+feed stays consistent. Do this once you no longer need to trace IDs back
+to the source data.
+
+``` r
+
+gtfs <- gtfs_compress(gtfs)
+```
+
+## Analysing
+
+### Quick summary
+
+`gtfs_summary(gtfs)` prints the number of rows in each table and the
+date range covered by the calendar - the fastest way to sanity-check a
+feed.
+
+``` r
+
+gtfs_summary(gtfs)
+```
+
+### Service frequency at each stop
+
+`gtfs_stop_frequency(gtfs, startdate, enddate)` counts how many trips
+call at each stop over a date range, returning the `stops` table with
+`stops_total` and `stops_per_week` columns added. This accounts for the
+calendar *and* calendar exceptions, so it reflects services actually
+running - a good proxy for “how well served is this stop?”.
+
+``` r
+
+stops <- gtfs_stop_frequency(gtfs,
+                             startdate = as.Date("2024-03-01"),
+                             enddate   = as.Date("2024-03-31"))
+```
+
+> Note the date range must fall inside the feed’s calendar or you will
+> get no results - a common gotcha with short feeds such as those from
+> the [NPTDR](https://itsleeds.github.io/UK2GTFS/articles/NPTDR.md).
+
+### Trips per zone, by time of day and mode
+
+`gtfs_trips_per_zone(gtfs, zone, ...)` aggregates trips into your own
+set of geographic zones (an `sf` polygon data frame), broken down by day
+of week, time band and (optionally) mode. The default time bands split
+the day into Night, Morning Peak, Midday, Afternoon Peak and Evening,
+and you can supply your own via the `time_bands` argument.
+
+``` r
+
+library(sf)
+zones <- st_read("msoa_zones.geojson")
+
+trips <- gtfs_trips_per_zone(
+  gtfs,
+  zone      = zones,
+  zone_id   = "MSOA_code",
+  startdate = as.Date("2024-03-04"),
+  enddate   = as.Date("2024-03-10"),
+  by_mode   = TRUE
+)
+```
+
+## Mapping
+
+Three helpers turn GTFS tables into `sf` objects you can plot with
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html), `ggplot2` or
+`tmap`:
+
+| Function | Returns |
+|----|----|
+| `gtfs_stops_sf(gtfs)` | Stops as points |
+| `gtfs_trips_sf(gtfs)` | Every trip as a line |
+| `gtfs_routes_sf(gtfs)` | One representative line per route (lighter to plot) |
+
+``` r
+
+library(sf)
+stops_sf  <- gtfs_stops_sf(gtfs)
+routes_sf <- gtfs_routes_sf(gtfs)
+plot(st_geometry(routes_sf))
+```
+
+## Fixing uneven stop times
+
+Some bus timetables give several consecutive stops the *same* time
+rather than a unique time each. `gtfs_interpolate_times(gtfs)` spreads
+these out, assigning each stop a distinct arrival and departure time by
+interpolating between the known times - which makes speed and
+journey-time analysis far more meaningful.
+
+``` r
+
+gtfs <- gtfs_interpolate_times(gtfs)
+```
+
+## A typical workflow
+
+Putting it together, a common end-to-end pattern is:
+
+``` r
+
+library(UK2GTFS)
+
+gtfs <- gtfs_read("myfeed.zip")   # 1. read
+gtfs_summary(gtfs)                #    look
+gtfs <- gtfs_clean(gtfs)          # 2. clean
+gtfs_validate_internal(gtfs)      # 3. check what remains
+
+gtfs <- gtfs_clip(gtfs, bounds = my_area)              # 4. subset to area
+gtfs <- gtfs_trim_dates(gtfs, start_date, end_date)    #    and to dates
+
+stops <- gtfs_stop_frequency(gtfs, start_date, end_date) # 5. analyse
+
+gtfs_write(gtfs, folder = "C:/GTFS", name = "myfeed_clean") # 6. save
+```
+
+## See also
+
+- [TransXChange to
+  GTFS](https://itsleeds.github.io/UK2GTFS/articles/transxchange.md) -
+  converting bus, coach, tram, metro and ferry timetables.
+- [Heavy Rail CIF to
+  GTFS](https://itsleeds.github.io/UK2GTFS/articles/ATOC.md) -
+  converting train timetables.
+- [NPTDR to
+  GTFS](https://itsleeds.github.io/UK2GTFS/articles/NPTDR.md) -
+  converting historic all-mode archives.

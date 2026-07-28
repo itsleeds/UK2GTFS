@@ -1,0 +1,111 @@
+# TransXchange to GTFS
+
+TransXchange to GTFS
+
+## Usage
+
+``` r
+transxchange2gtfs(
+  path_in,
+  silent = TRUE,
+  ncores = 1,
+  cal = get_bank_holidays(),
+  naptan = get_naptan(),
+  scotland = "auto",
+  try_mode = TRUE,
+  force_merge = FALSE,
+  filter_duplicate_files = FALSE,
+  filter_date = Sys.Date()
+)
+```
+
+## Arguments
+
+- path_in:
+
+  Either a character vector of paths to TransXchange xml files, or a
+  single path to a zip archive of TransXchange files. The zip may be a
+  simple flat archive of xml files or a nested archive containing
+  sub-folders and further zip files (such as the Bus Open Data Service
+  change archive); nested zip files are extracted automatically.
+
+- silent:
+
+  Logical, should progress be shown
+
+- ncores:
+
+  Numeric, When parallel processing how many cores to use
+
+- cal:
+
+  Calendar object from get_bank_holidays()
+
+- naptan:
+
+  Naptan stop locations from get_naptan()
+
+- scotland:
+
+  character, should Scottish bank holidays be used? Can be "auto"
+  (default), "yes", "no". If "auto" and path_in ends with "S.zip"
+  Scottish bank holidays will be used, otherwise England and Wales bank
+  holidays are used.
+
+- try_mode:
+
+  Logical, if TRUE import and conversion are wrapped in try calls thus a
+  failure on a single file will not cause the whole process to fail.
+  Warning this could result in a GTFS file with missing routes.
+
+- force_merge:
+
+  Logical, passed to gtfs_merge(force), default FALSE
+
+- filter_duplicate_files:
+
+  Logical, if TRUE superseded versions of the same service are removed
+  before conversion using \[txc_filter_files()\] (default FALSE). See
+  Details.
+
+- filter_date:
+
+  Date, the reference date used by \`filter_duplicate_files\` to decide
+  which version of each service is operative (default \`Sys.Date()\`).
+  Only used when \`filter_duplicate_files = TRUE\`.
+
+## Value
+
+A GTFS named list
+
+## Details
+
+Convert transxchange files to GTFS
+
+This is a meta function which aids TransXchange to GTFS conversion. It
+simple runs transxchange_import(), transxchange_export(), gtfs_merge(),
+gtfs_write()
+
+Progress Bars
+
+To minimise overall processing when using multiple cores the function
+works from largest to smallest file.This can mean the progress bar sits
+a 0 quite some time, before starting to move rapidly.
+
+Duplicate / superseded files
+
+Archives of TransXchange data (for example the Bus Open Data Service
+change archive) often contain several versions of the same registered
+service: each time an operator revises a timetable a new file is
+uploaded, but the superseded files remain in the archive and usually
+still declare an open-ended operating period. Converting all of them
+causes the same physical journey to appear once per file version, so
+counting trips on a given date over-estimates service levels (in one
+test archive the same bus route appeared five times). A normal single
+download of current data does not have this problem, as each service
+appears only once.
+
+Set \`filter_duplicate_files = TRUE\` to keep only the operative version
+of each service before converting (see \[txc_filter_files()\] for the
+exact rules and limitations). For historical analysis also set
+\`filter_date\` to a date within the period you are studying.

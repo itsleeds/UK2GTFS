@@ -1,0 +1,278 @@
+# UK2GTFS
+
+[![Coverage
+Status](https://img.shields.io/codecov/c/github/itsleeds/UK2GTFS/master.svg)](https://codecov.io/gh/itsleeds/UK2GTFS)
+
+UK2GTFS is an R package to convert and work with train, tram, bus,
+ferry, and metro timetable data from the unfriendly and difficult to use
+formats used in the UK to the easy to use
+[GTFS](https://developers.google.com/transit/gtfs/) format. The main
+purpose of developing the package is to support using
+[OpenTripPlanner](https://github.com/ropensci/opentripplanner) in the
+UK.
+
+**Example results are published as [GitHub
+releases](https://github.com/ITSLeeds/UK2GTFS/releases) these come with
+no guarantee of quality.**
+
+## Introduction
+
+The UK has two main sources of public transport timetable data
+[**Traveline**](https://www.travelinedata.org.uk/) publishes data on
+buses and light rail and [**National
+Rail**](https://opendata.nationalrail.co.uk/) publishes data on heavy
+rail. Each uses a data format that is unique to that organisation and
+both formats are old and difficult to use. Many countries have adopted
+the [GTFS](https://developers.google.com/transit/gtfs/) format which was
+developed by Google as a simple standard for publishing timetable data.
+Due to the wide-spread adoption of GTFS many useful tools have been
+developed that accept GTFS files as inputs. This package is intended to
+make the conversion of UK data to the GTFS format simple and easy.
+
+**Update November 2020**
+
+The [Open Bus Data Service](https://data.bus-data.dft.gov.uk/downloads/)
+now offers a national GTFS download option based on [ITO
+World’s](https://www.itoworld.com) TransXchange to GTFS converter. These
+include bus and light rail but not heavy rail timetables. For non-expert
+users it will probably be easier to download these files. However this
+packages is still being maintained to support conversion of historical
+files, and because the conversion of TransXchange to GTFS is open to
+interpretation and having alternative converters is useful.
+
+## Capabilities - why we need another package
+
+There are a number of pre-existing options for converting data to GTFS.
+This package aims to go beyond basic conversion by providing a range of
+additional functionality:
+
+1.  Data conversion
+    - Conversion of TransXchange to GTFS
+    - Conversion of CIF files to GTFS, optionally with route shapes
+      (`shapes.txt`) built by routing services over a map of the UK rail
+      network (`atoc2gtfs(shapes = TRUE)`)
+    - Conversion of fares data to GTFS (v1 and Fares v2): BODS NeTEx
+      fares for buses, and the National Rail fares feed for heavy rail
+    - reading of TransXchange and CIF files is also supported, although
+      some parts which are not required for GTFS conversion are only
+      partially supported.
+2.  Data cleaning, the raw data often contains clear errors, the package
+    does not blindly convert but also corrects some known errors
+    - Improved locations of tiplocs - used to locate features on the
+      heavy rail network
+    - Add bus stops missing in the NAPTAN
+    - Correction of spelling errors
+    - Removal of on-demand bus services (GTFS does not support services
+      that are on-demand)
+3.  Data polishing
+    - Support of journeys past midnight
+4.  GTFS tools, functions for working with GTFS data
+    - Reading / Writing
+      ([`gtfs_read()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_read.md),
+      [`gtfs_write()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_write.md))
+    - Cleaning
+      ([`gtfs_clean()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.md),
+      [`gtfs_force_valid()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_force_valid.md),
+      [`gtfs_fast_trips()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_trips.md))
+    - Compression
+      ([`gtfs_compress()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_compress.md))
+    - Validation
+      ([`gtfs_validate_internal()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_validate_internal.md)) -
+      checks required tables and columns, duplicated ids, referential
+      integrity, enum and date/time values, and time/calendar logic
+      across the whole feed including shapes, frequencies, transfers and
+      fare tables
+    - Subsetting
+      ([`gtfs_clip()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clip.md),
+      [`gtfs_trim_dates()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_trim_dates.md),
+      [`gtfs_split()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_split.md))
+      and merging
+      ([`gtfs_merge()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_merge.md)) -
+      subsetting keeps the optional tables (shapes, frequencies,
+      transfers, fares) consistent with the subset feed
+    - Analysis
+      ([`gtfs_stop_frequency()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_stop_frequency.md),
+      [`gtfs_trips_per_zone()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_trips_per_zone.md)),
+      including frequency-based services (`frequencies.txt`)
+
+## Installation
+
+Install the package with **remotes** as follows:
+
+``` r
+
+install.packages("remotes") # If you do not already have the remotes package
+remotes::install_github("ITSleeds/UK2GTFS")
+library(UK2GTFS)
+```
+
+## Use
+
+You can find [full documentation for the
+package](https://itsleeds.github.io/UK2GTFS/), including a list of
+[functions](https://itsleeds.github.io/UK2GTFS/reference/index.html) and
+more detail on converting
+[TransXchange](https://itsleeds.github.io/UK2GTFS/articles/transxchange.html)
+and [ATOC CIF](https://itsleeds.github.io/UK2GTFS/articles/ATOC.html).
+
+## Package Status
+
+This package is a work in progress and comes with no guarantees. It can
+convert train, bus, tram, metro and ferry timetables to GTFS, add fares
+(rail and bus) and rail route shapes, and provides a toolkit for
+cleaning, validating, subsetting and analysing GTFS feeds. See
+[NEWS.md](https://itsleeds.github.io/UK2GTFS/NEWS.md) for recent
+changes. Conversion occasionally fails on specific files.
+
+Please report failed conversions as GitHub
+[Issues](https://github.com/itsleeds/uk2gtfs/issues)
+
+# Package index
+
+## All functions
+
+- [`ATOC_shapes()`](https://itsleeds.github.io/UK2GTFS/reference/ATOC_shapes.md)
+  : Make shapes.txt for train GTFS
+- [`UK2GTFS_option_stopProcessingAtUid()`](https://itsleeds.github.io/UK2GTFS/reference/UK2GTFS_option_stopProcessingAtUid.md)
+  : UK2GTFS option stopProcessingAtUid
+- [`UK2GTFS_option_treatDatesAsInt()`](https://itsleeds.github.io/UK2GTFS/reference/UK2GTFS_option_treatDatesAsInt.md)
+  : UK2GTFS option treatDatesAsInt
+- [`UK2GTFS_option_updateCachedDataOnLibaryLoad()`](https://itsleeds.github.io/UK2GTFS/reference/UK2GTFS_option_updateCachedDataOnLibaryLoad.md)
+  : UK2GTFS option updateCachedDataOnLibaryLoad
+- [`activity_codes`](https://itsleeds.github.io/UK2GTFS/reference/activity_codes.md)
+  : Activity Codes
+- [`as_data_table_naptan_stop_area()`](https://itsleeds.github.io/UK2GTFS/reference/as_data_table_naptan_stop_area.md)
+  : as data table naptan stop area
+- [`as_data_table_naptan_stop_point()`](https://itsleeds.github.io/UK2GTFS/reference/as_data_table_naptan_stop_point.md)
+  : as data table naptan stop point
+- [`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md)
+  : ATOC to GTFS
+- [`atoc_fares_read()`](https://itsleeds.github.io/UK2GTFS/reference/atoc_fares_read.md)
+  : Read a National Rail (DTD/RSPS5045) fares feed
+- [`dl_example_file()`](https://itsleeds.github.io/UK2GTFS/reference/dl_example_file.md)
+  : Download Test Files
+- [`get_bank_holidays()`](https://itsleeds.github.io/UK2GTFS/reference/get_bank_holidays.md)
+  : Get Bank Holiday Calendar
+- [`get_naptan()`](https://itsleeds.github.io/UK2GTFS/reference/get_naptan.md)
+  : Get naptan
+- [`get_naptan_xml_doc()`](https://itsleeds.github.io/UK2GTFS/reference/get_naptan_xml_doc.md)
+  : Get naptan xml doc
+- [`gtfs_add_fares()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_fares.md)
+  : Add fares to a GTFS object from NeTEx fare files
+- [`gtfs_add_fares_v1()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_fares_v1.md)
+  : Add GTFS v1 fares (fare_attributes + fare_rules) from NeTEx
+- [`gtfs_add_fares_v2()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_fares_v2.md)
+  : Add GTFS-Fares-v2 tables from NeTEx
+- [`gtfs_add_railfares()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_railfares.md)
+  : Add National Rail fares to a rail GTFS object
+- [`gtfs_clean()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.md)
+  : Clean simple errors from GTFS files
+- [`gtfs_clip()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clip.md)
+  : Clip a GTFS object to a geographical area
+- [`gtfs_compress()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_compress.md)
+  : Reduce file size of a GTFS object
+- [`gtfs_fast_stops()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_stops.md)
+  : Find fast stops
+- [`gtfs_fast_trips()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_trips.md)
+  : Find fast trips
+- [`gtfs_force_valid()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_force_valid.md)
+  : Force a GTFS to be valid by removing problems
+- [`gtfs_interpolate_times()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_interpolate_times.md)
+  : Interpolate stop times
+- [`gtfs_merge()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_merge.md)
+  : merge a list of gtfs files
+- [`gtfs_read()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_read.md)
+  : Read GTFS
+- [`gtfs_routes_sf()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_routes_sf.md)
+  : Make routes into an SF object
+- [`gtfs_split()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_split.md)
+  : Split a GTFS object
+- [`gtfs_split_ids()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_split_ids.md)
+  : Split a GTFS object based on trip_ids
+- [`gtfs_stop_frequency()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_stop_frequency.md)
+  : Count the number of trips stopping at each stop between two dates
+- [`gtfs_stops_sf()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_stops_sf.md)
+  : Make stops into an SF object
+- [`gtfs_summary()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_summary.md)
+  : Summarise a GTFS object
+- [`gtfs_trim_dates()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_trim_dates.md)
+  : Trim a GTFS file between two dates
+- [`gtfs_trips_per_zone()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_trips_per_zone.md)
+  : Trim a GTFS file between two dates
+- [`gtfs_trips_sf()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_trips_sf.md)
+  : Make trips into an SF object
+- [`gtfs_validate_internal()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_validate_internal.md)
+  : Validate a GTFS object (in R)
+- [`gtfs_write()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_write.md)
+  : Write GTFS
+- [`historic_bank_holidays`](https://itsleeds.github.io/UK2GTFS/reference/historic_bank_holidays.md)
+  : Historic Bank Holidays
+- [`importALF()`](https://itsleeds.github.io/UK2GTFS/reference/importALF.md)
+  : Import the .alf file
+- [`importFLF()`](https://itsleeds.github.io/UK2GTFS/reference/importFLF.md)
+  : Import the .flf file
+- [`importMCA()`](https://itsleeds.github.io/UK2GTFS/reference/importMCA.md)
+  : Import the .mca file
+- [`importMSN()`](https://itsleeds.github.io/UK2GTFS/reference/importMSN.md)
+  : Import the .msm file
+- [`importTSI()`](https://itsleeds.github.io/UK2GTFS/reference/importTSI.md)
+  : Import the .tsi file
+- [`load_data()`](https://itsleeds.github.io/UK2GTFS/reference/load_data.md)
+  : Load a built-in UK2GTFS dataset
+- [`netex_fare_types()`](https://itsleeds.github.io/UK2GTFS/reference/netex_fare_types.md)
+  : List the fare products available in a set of NeTEx files
+- [`netex_fares_from_archive()`](https://itsleeds.github.io/UK2GTFS/reference/netex_fares_from_archive.md)
+  : Add NeTEx fares to a GTFS object straight from a BODS archive
+- [`netex_fares_report()`](https://itsleeds.github.io/UK2GTFS/reference/netex_fares_report.md)
+  : Summarise a set of NeTEx fare files (and optionally match to GTFS)
+- [`netex_filter_fares()`](https://itsleeds.github.io/UK2GTFS/reference/netex_filter_fares.md)
+  : Select NeTEx fare files by product attributes
+- [`netex_match_routes()`](https://itsleeds.github.io/UK2GTFS/reference/netex_match_routes.md)
+  : Match NeTEx fare lines to GTFS routes
+- [`netex_read_failures()`](https://itsleeds.github.io/UK2GTFS/reference/netex_read_failures.md)
+  : Failures from the last multi-file NeTEx read
+- [`netex_read_fares()`](https://itsleeds.github.io/UK2GTFS/reference/netex_read_fares.md)
+  : Read a single NeTEx fare file
+- [`netex_read_fares_multiple()`](https://itsleeds.github.io/UK2GTFS/reference/netex_read_fares_multiple.md)
+  : Read many NeTEx fare files
+- [`netex_unzip()`](https://itsleeds.github.io/UK2GTFS/reference/netex_unzip.md)
+  : Extract NeTEx fare files from a BODS archive
+- [`ni2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/ni2gtfs.md)
+  : NI to GTFS
+- [`nptdr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nptdr2gtfs.md)
+  : Import the .CIF file
+- [`nr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nr2gtfs.md)
+  : ATOC to GTFS (Network Rail Version)
+- [`nrdp_fares()`](https://itsleeds.github.io/UK2GTFS/reference/nrdp_fares.md)
+  : Download Fares from National Rail Data Portal
+- [`nrdp_routing()`](https://itsleeds.github.io/UK2GTFS/reference/nrdp_routing.md)
+  : Download routing from National Rail Data Portal
+- [`nrdp_timetable()`](https://itsleeds.github.io/UK2GTFS/reference/nrdp_timetable.md)
+  : Download Timetable from National Rail Data Portal
+- [`school_terms`](https://itsleeds.github.io/UK2GTFS/reference/school_terms.md)
+  : Example School term and holiday dates
+- [`station2stops()`](https://itsleeds.github.io/UK2GTFS/reference/station2stops.md)
+  : Export ATOC stations as GTFS stops.txt
+- [`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
+  : TransXchange to GTFS
+- [`transxchange_import()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange_import.md)
+  : Import a TransXchange XML file
+- [`txc_filter_files()`](https://itsleeds.github.io/UK2GTFS/reference/txc_filter_files.md)
+  : Filter superseded TransXchange file versions
+- [`update_data()`](https://itsleeds.github.io/UK2GTFS/reference/update_data.md)
+  : Update the data inside the UK2GTFS package
+
+# Articles
+
+### All vignettes
+
+- [Heavy Rail CIF to GTFS - Train
+  Timetables](https://itsleeds.github.io/UK2GTFS/articles/ATOC.md):
+- [Adding Fares - NeTEx to GTFS (v1 and
+  v2)](https://itsleeds.github.io/UK2GTFS/articles/Fares.md):
+- [Working with GTFS files - Cleaning, Manipulating and
+  Analysing](https://itsleeds.github.io/UK2GTFS/articles/GTFS.md):
+- [NPTDR to GTFS - Historic
+  Timetables](https://itsleeds.github.io/UK2GTFS/articles/NPTDR.md):
+- [TransXChange to GTFS - Bus, Coach, Tram, Metro and
+  Ferry](https://itsleeds.github.io/UK2GTFS/articles/transxchange.md):

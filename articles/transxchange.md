@@ -1,0 +1,283 @@
+# TransXChange to GTFS - Bus, Coach, Tram, Metro and Ferry
+
+This vignette explains how to convert **TransXChange** timetables into
+[GTFS](https://gtfs.org/), the difference between the two main sources
+of TransXChange data (Traveline and the Bus Open Data Service), and the
+pitfalls to watch out for.
+
+## Background: what is TransXChange?
+
+TransXChange (often abbreviated *TXC*) is the UK Department for
+Transport’s XML standard for describing bus, coach, tram, metro and
+ferry timetables. It is the format that operators must use to register
+services with the Traffic Commissioners, so almost every scheduled
+road-based service in Great Britain is described in TransXChange at some
+point in its life.
+
+Because it was designed for *registration* rather than for *journey
+planning* it has some awkward properties:
+
+- It is verbose XML. A single medium-sized operator can run to tens of
+  thousands of files.
+- One file describes one *service*, and the same real-world journey is
+  often spread across many files (and re-uploaded every time the
+  timetable changes - see [Duplicate and superseded
+  files](#duplicate-and-superseded-files) below).
+- **It does not contain stop coordinates.** Stops are referenced only by
+  their ATCO code, and you must look the location up in the separate
+  NaPTAN database (see [Stop locations - the
+  NaPTAN](#stop-locations---the-naptan)).
+- Operating patterns are described with rules (“every weekday except
+  bank holidays”) rather than explicit dates, so a calendar has to be
+  computed.
+
+GTFS, by contrast, is a flat set of CSV files designed to be consumed
+directly by journey planners such as
+[OpenTripPlanner](https://www.opentripplanner.org/),
+[R5](https://github.com/conveyal/r5) and Google Maps. Converting
+TransXChange to GTFS makes the data usable by that wide ecosystem of
+tools.
+
+## Where to get TransXChange data
+
+There are two national sources. They contain broadly the same underlying
+registrations but differ in packaging, freshness and coverage.
+
+### 1. Traveline National Dataset (TNDS)
+
+[Traveline](https://www.travelinedata.org.uk/traveline-open-data/data-reporting/)
+publishes the *Traveline National Dataset* (TNDS). You must apply for
+free access to their FTP server. The data arrives as zipped folders, one
+per region of Great Britain (for example `EA.zip` for East Anglia,
+`S.zip` for Scotland).
+
+- **Pros:** organised cleanly by region; includes coach, some ferry and
+  light rail; a long-established, relatively stable feed.
+- **Cons:** each region is a separate download; updated less frequently
+  than BODS; being progressively superseded by BODS as the DfT’s
+  preferred source.
+
+### 2. Bus Open Data Service (BODS)
+
+The [Bus Open Data Service](https://data.bus-data.dft.gov.uk/) (BODS) is
+the DfT’s newer, statutory feed. Since 2020 bus operators in England are
+legally required to publish their timetables here, so it is the most
+complete and up-to-date source for English buses. You can download
+TransXChange directly, or download a ready-made national **GTFS** file
+produced by [ITO World’s](https://www.itoworld.com) own converter.
+
+- **Pros:** most current data; legally mandated so very complete for
+  England; offers a ready-made GTFS download.
+- **Cons:** English buses only (Scotland and Wales still rely on TNDS
+  for full coverage); the bulk “change” archives accumulate **many
+  superseded versions of the same service**, which will inflate trip
+  counts if converted naively (see below); tram, metro and ferry are
+  patchy.
+
+### Which should I use?
+
+- If you just want current **English bus** GTFS and are not fussy about
+  the details of conversion, download the ready-made GTFS from BODS - it
+  is the least effort.
+- If you need **tram, metro, ferry or coach**, need **Scotland or
+  Wales**, want a second independent conversion for comparison, or need
+  **historical** timetables, use `UK2GTFS`. The package adds extra data
+  checks and supports the non-bus modes that the ready-made BODS GTFS
+  omits.
+
+## Converting TransXChange to GTFS
+
+The workhorse is
+[`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md).
+In its simplest form:
+
+``` r
+
+library(UK2GTFS)
+
+path_in <- "EA.zip" # a TNDS region zip, or a folder of .xml files
+gtfs <- transxchange2gtfs(path_in = path_in, ncores = 3)
+```
+
+Key arguments:
+
+- `path_in` - a single zip folder, or a character vector of paths to
+  `.xml` files.
+- `ncores` - if `> 1`, multi-core processing is used to speed things up.
+  Always leave one core free for the operating system.
+- `try_mode` - if `TRUE` (the default) files that fail to convert are
+  skipped rather than aborting the whole run. This is robust, but be
+  aware the result may be missing some routes - check the messages.
+- `cal` / `naptan` - the bank-holiday calendar and stop locations. By
+  default these are fetched for you with
+  [`get_bank_holidays()`](https://itsleeds.github.io/UK2GTFS/reference/get_bank_holidays.md)
+  and
+  [`get_naptan()`](https://itsleeds.github.io/UK2GTFS/reference/get_naptan.md).
+  If you are converting many files it is much faster to fetch them once
+  and pass them in (see below).
+- `scotland` - `"auto"`, `"yes"` or `"no"`. Controls whether Scottish
+  bank holidays are used. `"auto"` treats a file ending in `S.zip` as
+  Scottish.
+- `filter_duplicate_files` - see [Duplicate and superseded
+  files](#duplicate-and-superseded-files).
+
+Once converted, save the GTFS to disk:
+
+``` r
+
+gtfs_write(gtfs, folder = "C:/GTFS", name = "gtfs_EA")
+```
+
+This writes `C:/GTFS/gtfs_EA.zip`.
+
+### Converting many regions efficiently
+
+[`get_naptan()`](https://itsleeds.github.io/UK2GTFS/reference/get_naptan.md)
+and
+[`get_bank_holidays()`](https://itsleeds.github.io/UK2GTFS/reference/get_bank_holidays.md)
+download data from the internet. When looping over several regional
+zips, fetch them once and reuse them:
+
+``` r
+
+library(UK2GTFS)
+
+naptan <- get_naptan()
+cal    <- get_bank_holidays()
+
+files <- list.files("path/to/tnds", pattern = "\\.zip$", full.names = TRUE)
+
+for (f in files) {
+  message(f)
+  gtfs <- transxchange2gtfs(
+    path_in = f,
+    cal     = cal,
+    naptan  = naptan,
+    ncores  = 3
+  )
+  name_out <- gsub(".zip", "", basename(f), fixed = TRUE)
+  gtfs_write(gtfs, folder = "path/to/output", name = name_out)
+}
+```
+
+## How the conversion works
+
+[`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
+is a convenience wrapper around several lower-level steps, which you can
+also call individually:
+
+1.  [`transxchange_import()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange_import.md)
+    reads each XML file into R data frames.
+2.  `transxchange_export()` turns those into a GTFS object.
+3.  [`gtfs_merge()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_merge.md)
+    combines the per-file GTFS objects into one.
+4.  [`gtfs_write()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_write.md)
+    saves the result.
+
+Each TransXChange file is converted into its own small GTFS object and
+these are then merged. Understanding this matters because the merge is
+where problems tend to surface.
+
+## Stop locations - the NaPTAN
+
+TransXChange files reference stops only by their ATCO code; they do
+**not** contain coordinates. `UK2GTFS` therefore looks each stop up in
+the
+[NaPTAN](https://www.gov.uk/government/publications/national-public-transport-access-node-schema)
+(National Public Transport Access Nodes), the DfT’s database of every
+public transport stop in Great Britain.
+
+[`get_naptan()`](https://itsleeds.github.io/UK2GTFS/reference/get_naptan.md)
+always downloads the latest copy. The NaPTAN is not perfect - it misses
+some stops and has wrong locations for others - so `UK2GTFS` ships two
+internal correction datasets, `naptan_missing` (stops absent from the
+NaPTAN) and `naptan_replace` (better coordinates for known-bad stops),
+which are applied automatically. Contributions of new or corrected stops
+are welcome via the
+[UK2GTFS-data](https://github.com/itsleeds/UK2GTFS-data) repository.
+
+## Merging problems
+
+Because each file is converted separately and then merged, the merge can
+fail on small inconsistencies between files - most commonly when the
+same operator is spelt two different ways (for example
+`"Yorkshire Coastliner Ltd"` versus `"Yorkshire Coastliner"`), which
+looks like two agencies sharing one ID.
+
+If
+[`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
+cannot merge cleanly it returns a **list** of GTFS objects instead of a
+single object. You can then merge them manually, forcing past the
+conflict:
+
+``` r
+
+gtfs <- gtfs_merge(gtfs_list, force = TRUE)
+```
+
+`force = TRUE` keeps the first instance of each duplicated ID, which is
+almost always the correct behaviour. You can also set
+`force_merge = TRUE` in the original
+[`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
+call to do this automatically.
+
+## Duplicate and superseded files
+
+This is the single most important thing to understand when working with
+**bulk archives** (especially the BODS change archives).
+
+Every time an operator revises a timetable they upload a **new**
+TransXChange file for the same `ServiceCode`, but the older, superseded
+files usually remain in the archive and often still declare an
+open-ended operating period. If you convert all of them, the same
+physical bus journey appears once *per file version*, so counting trips
+on a given date over-estimates service - in one test archive a single
+route appeared five times.
+
+A normal single download of *current* data does not have this problem
+(each service appears once), so you only need to worry about this for
+accumulating archives.
+
+Set `filter_duplicate_files = TRUE` to keep only the operative version
+of each service:
+
+``` r
+
+gtfs <- transxchange2gtfs(
+  path_in                = "bods_archive.zip",
+  filter_duplicate_files = TRUE,
+  filter_date            = as.Date("2024-06-01"), # a date inside the period you care about
+  ncores                 = 3
+)
+```
+
+For historical analysis, set `filter_date` to a date within the period
+you are studying - the filter keeps the version that was operative on
+that date. Under the hood this calls
+[`txc_filter_files()`](https://itsleeds.github.io/UK2GTFS/reference/txc_filter_files.md),
+which you can also run directly on a vector of file paths; see
+[`?txc_filter_files`](https://itsleeds.github.io/UK2GTFS/reference/txc_filter_files.md)
+for the exact rules and their one documented limitation (trip counts can
+still double-count *after* the next scheduled timetable change).
+
+## Comparison with the ready-made BODS GTFS
+
+`UK2GTFS` output has been validated against BODS’s own (ITO World) GTFS.
+Where both feeds cover the same route, agreement is high - around 80% of
+shared operator/line pairs had identical daily trip counts and matching
+departure times. The remaining differences are mostly about *which input
+files are included* (superseded revisions, out-of-region services, and
+coach/ferry datasets that live outside the TransXChange archive) rather
+than the conversion itself. In short: both are reasonable, and having an
+independent open-source converter is useful precisely because
+TransXChange-to-GTFS involves interpretation.
+
+## Next steps
+
+Once you have a GTFS file you will usually want to clean and check it.
+See the [Working with GTFS
+files](https://itsleeds.github.io/UK2GTFS/articles/GTFS.md) vignette for
+[`gtfs_clean()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.md),
+[`gtfs_validate_internal()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_validate_internal.md),
+[`gtfs_clip()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clip.md)
+and the analysis functions.

@@ -1,0 +1,80 @@
+# Load a built-in UK2GTFS dataset
+
+As UK2GTFS has large datasets that update separately to the R package
+they are checked and downloaded at package load time.
+
+## Usage
+
+``` r
+load_data(type, envir = parent.frame())
+```
+
+## Arguments
+
+- type:
+
+  name of data to be loaded e.g. "tiplocs"
+
+- envir:
+
+  environment into which the object is loaded. Defaults to the caller's
+  environment, so calling this from the console loads the object into
+  your workspace and calling it inside a function keeps the object local
+  to that function.
+
+## Value
+
+Invisibly returns a character vector of the names of the objects loaded,
+called for the side effect of loading the named dataset
+
+## Details
+
+This function loads a dataset. Examples are:
+
+"atco_areas" ATCO Admin Areas
+
+Association of Transport Coordinating Officers
+
+Boundaries of the ATCO Admin Areas. Note there are 4 national areas
+represented by a box around the UK.
+
+"atoc_agency" Agency.txt for ATOC data
+
+The ATOC data does not included sufficient information to build
+agency.txt So this data is provided in the package.
+
+"tiplocs" Tiploc Locations
+
+The ATOC data has inaccurate locations for many tiplocs, this is an
+improved dataset
+
+"naptan_missing" Bus Stop Locations missing from NapTAN
+
+A database of bus stops that are missing from the NAPTAN but are known
+to have been used. For some reason the official NAPTAN file is missing a
+small number of bus stops. This file contains a selection of bus stops
+that have appears in TransXchange files, but are missing in the NAPTAN.
+The have been assembled from a range of sources and may be of varying
+quality.
+
+In some cases the name of the Bus Stop has been identified but not the
+location.
+
+"naptan_replace" Bus Stop Locations wrong in the NaPTAN
+
+A database of bus stops that are wrong in the NAPTAN. These have been
+corrected with a mix of manual and automatic techniques. Contributions
+are welcome of improved locations.
+
+"rail_light" Light Rail Network
+
+A simplified version of the UK light rail network.
+
+"rail_heavy" Heavy Rail Network
+
+A simplified version of the UK heavy rail network.
+
+"historic_bank_holidays" Historic Bank Holidays
+
+Bank holidays from 2001 to 2018 in the UK. Note Wales has the same
+holidays as England.

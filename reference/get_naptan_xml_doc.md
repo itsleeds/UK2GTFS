@@ -1,0 +1,72 @@
+# Get naptan xml doc
+
+Download the NaPTAN stop locations in XML format. For more information
+on NaPTAN see https://beta-naptan.dft.gov.uk/
+
+## Usage
+
+``` r
+get_naptan_xml_doc(
+  url = "https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=xml",
+  timeout = 300L,
+  method = getOption("url.method", "default")
+)
+```
+
+## Arguments
+
+- url:
+
+  character, url to the xml format NaPTAN
+
+- timeout:
+
+  int, timeout in seconds to wait for download to complete
+
+- method:
+
+  passed to url
+
+## Value
+
+xml document node
+
+## Details
+
+TransXchange does not store the location of bus stops, so this functions
+downloads them from the offical DfT source.
+
+NrStations with multiple tiplocs seem to be represented as multiple
+natpan nodes, with one AnnotatedRailRef per naptan node, despite the
+schema supporting a multiplicity relationship. e.g. stourbridge, clapham
+junction. these can be joined together on the CRS
+
+As of 2023 Naptan is published under a more permissive (OGL3) licence
+than ATOC data (creative commons licence).
+
+https://naptan.dft.gov.uk/naptan/schema/2.5.1/napt/NaPT_stop-v2-5-1.xsd
+
+\<StopPoint \<AtcoCode\>
+
+sequence of optional elements \<NaptanCode\> \<PlateCode\>
+\<PrivateCode\> \<CleardownCode\> \<FormerStopPointRef\>
+
+\<StopClassification \<StopType (enum) \<OnStreet\|OffStreet
+
+if 'OffStreet' \<Air\|Ferry\|Rail\|Metro\|BusAndCoach\|Telecabine
+
+if 'Rail' \<Entrance\|AccessArea\|Platform\> \<AnnotatedRailRef (0..n)
+\<TiplocRef\> \<CrsRef\> \<StationName\> \<Location
+
+StopType enum ============= AIR, airportEntrance, GAT, airAccessArea,
+FTD, ferryTerminalDockEntrance, FER, ferryDockAccessArea, FBT,
+ferryBerth, FerryBerth, RSE, railStationEntrance, RLY, railAccessArea,
+RPL, railPlatform, TMU, tramMetroUndergroundStationEntrance, MET,
+tramMetroUndergroundAccessArea, PLT, tramMetroUndergroundPlatform, BCE,
+busCoachTrolleyStationEntrance, busCoachTramStationEntrance, BST,
+busCoachStationAccessArea, BCS, busCoachTrolleyStationBay,
+busCoachTramStationBay, BCQ, busCoachTrolleyStationVariableBay,
+busCoachTramStationVariableBay, BCT, busCoachTrolleyOnStreetPoint,
+busCoachTramOnStreetPoint, TXR, taxiRank, STR, sharedTaxiRank, SDA,
+carSetDownPickUpArea, LSE, liftOrCableCarStationEntrance, LCB,
+liftOrCableCarAccessArea, LPL, liftOrCableCarPlatform
