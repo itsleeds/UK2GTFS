@@ -110,7 +110,11 @@ import_journeypatternsections <- function(journeypatternsections) {
 
   JPS <- xml2::xml_children(journeypatternsections)
   JPS_id <- import_simple(JPS, "@id")
-  JPS_id <- rep(JPS_id, times = xml2::xml_length(JPS, only_elements = FALSE))
+  # Count only the timing links, matching how JourneyPatternTimingLink was
+  # selected above. only_elements = FALSE counted XML comments too, so a
+  # commented section inflated JPS_id past the other columns.
+  JPS_id <- rep(JPS_id, times = xml2::xml_find_num(
+    JPS, "count(.//d1:JourneyPatternTimingLink)"))
 
   From.SequenceNumber <- clean_sequence2(From.SequenceNumber, JPS_id, FALSE)
   To.SequenceNumber <- clean_sequence2(To.SequenceNumber, JPS_id, TRUE)

@@ -5,10 +5,22 @@
 #' @noRd
 #'
 import_ServicedOrganisations <- function(ServicedOrganisations, full_import = FALSE) {
-  nmchk <- unique(xml2::xml_name(xml2::xml_children(xml2::xml_children(ServicedOrganisations))))
-  if (!all(nmchk %in% c("OrganisationCode", "Name", "WorkingDays", "Holidays",
-                        "ParentServicedOrganisationRef"))) {
-    stop("Unknown Structure in ServicedOrganisations")
+  # Only WorkingDays and Holidays carry the dates this function extracts. The
+  # schema allows plenty of descriptive siblings (PrivateCode, PostalAddress,
+  # ServicedOrganisationClassification, NatureOfOrganisation, ...) that are
+  # simply not needed, so rather than enumerate them, an unrecognised element
+  # is tolerated unless it contains dates - which would mean operating dates
+  # were being dropped silently.
+  children <- xml2::xml_children(xml2::xml_children(ServicedOrganisations))
+  unknown <- children[!xml2::xml_name(children) %in%
+                        c("OrganisationCode", "Name", "WorkingDays", "Holidays",
+                          "ParentServicedOrganisationRef")]
+  if (length(unknown) > 0) {
+    dates <- xml2::xml_find_num(
+      unknown, "count(.//d1:DateRange | .//d1:StartDate | .//d1:EndDate)")
+    if (any(dates > 0)) {
+      stop("Unknown Structure in ServicedOrganisations")
+    }
   }
   result <- list()
   for (i in seq(1, xml2::xml_length(ServicedOrganisations))) {

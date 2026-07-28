@@ -142,6 +142,11 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
 
   ## VehicleJourneys ##########################################
   VehicleJourneys <- xml2::xml_child(xml, "d1:VehicleJourneys")
+  if (xml2::xml_length(VehicleJourneys) == 0) {
+    # An empty <VehicleJourneys/> means there are no trips to convert
+    warning("No VehicleJourneys in ", file)
+    return(NULL)
+  }
   VehicleJourneys <- import_vehiclejourneys2(VehicleJourneys)
 
   DaysOfOperation <- VehicleJourneys$DaysOfOperation

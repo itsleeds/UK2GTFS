@@ -60,6 +60,26 @@
 
 ## Bug fixes
 
+* `transxchange_import()` no longer rejects a `ServicedOrganisation` that
+  carries descriptive elements alongside `WorkingDays`/`Holidays`. The
+  structure check only allowed `OrganisationCode`, `Name`, `WorkingDays`,
+  `Holidays` and `ParentServicedOrganisationRef`, so a valid
+  `PrivateCode`, `PostalAddress`, `ServicedOrganisationClassification`,
+  `NatureOfOrganisation`, `PhaseOfEducation`, `ContactPerson` or
+  `ContactTelephoneNumber` failed the whole file with "Unknown Structure in
+  ServicedOrganisations". An unrecognised element is now tolerated unless it
+  contains dates, which would mean operating dates were being dropped
+  silently. On the July 2026 BODS TransXChange archive this recovered 61
+  files, mostly school and coach services.
+* `transxchange_import()` no longer fails on XML comments inside a
+  `JourneyPatternSection`. Timing links were counted with
+  `xml_length(only_elements = FALSE)`, which counts comment nodes too, so
+  `JPS_id` came back longer than every other column and the file failed with
+  "arguments imply differing number of rows". Recovered 7 files in the same
+  archive.
+* `transxchange_import()` returns `NULL` with a warning for a file whose
+  `<VehicleJourneys/>` element is empty, instead of failing with "replacement
+  has 1 row, data has 0". Such a file has no trips to convert.
 * `transxchange2gtfs()` treats a `ServicedOrganisationDayType/DaysOfOperation`
   reference as restrictive. It means the journey runs *only* on that
   organisation's dates — typically a school's holidays — but it was converted

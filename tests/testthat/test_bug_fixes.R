@@ -917,3 +917,132 @@ test_that("gtfs_interpolate_times interpolates only trips that need it", {
   expect_equal(lubridate::period_to_seconds(t3[1]), 28800)
   expect_true(is.na(lubridate::period_to_seconds(t3[2])))
 })
+
+
+# --- July 2026 fixes: BODS TransXChange import failures -------------------
+
+# A ServicedOrganisation may carry descriptive siblings alongside WorkingDays
+# and Holidays (PrivateCode, PostalAddress, ServicedOrganisationClassification,
+# NatureOfOrganisation, PhaseOfEducation, ContactPerson, ...). These were
+# rejected outright, dropping the whole file, even though none of them carry
+# operating dates.
+
+so_xml <- function(extra = "") {
+  xml2::read_xml(paste0(
+    '<TransXChange xmlns="http://www.transxchange.org.uk/">',
+    '<ServicedOrganisations><ServicedOrganisation>',
+    '<OrganisationCode>SCH1</OrganisationCode>',
+    '<Name>A School</Name>', extra,
+    '<WorkingDays><DateRange>',
+    '<StartDate>2024-01-08</StartDate><EndDate>2024-02-09</EndDate>',
+    '</DateRange></WorkingDays>',
+    '</ServicedOrganisation></ServicedOrganisations></TransXChange>'))
+}
+
+test_that("import_ServicedOrganisations accepts descriptive siblings", {
+  extras <- c(
+    "<PrivateCode>1234</PrivateCode>",
+    "<ServicedOrganisationClassification>school</ServicedOrganisationClassification>",
+    "<NatureOfOrganisation>LEA</NatureOfOrganisation>",
+    "<PhaseOfEducation>secondary</PhaseOfEducation>",
+    "<ContactPerson>A Person</ContactPerson>",
+    "<ContactTelephoneNumber>01234 567890</ContactTelephoneNumber>",
+    paste0('<PostalAddress><Line xmlns="http://www.govtalk.gov.uk/people/',
+           'AddressAndPersonalDetails">Shirehall</Line></PostalAddress>'))
+
+  for (extra in extras) {
+    so <- xml2::xml_child(so_xml(extra), "d1:ServicedOrganisations")
+    res <- import_ServicedOrganisations(so)
+    expect_equal(nrow(res), 1)
+    expect_equal(res$OrganisationCode, "SCH1")
+    expect_equal(res$WorkingDays.StartDate, as.Date("2024-01-08"))
+    expect_equal(res$WorkingDays.EndDate, as.Date("2024-02-09"))
+  }
+})
+
+test_that("import_ServicedOrganisations still rejects unknown dated elements", {
+  # An unrecognised element that carries dates would mean operating dates were
+  # being dropped silently, so it must still stop()
+  extra <- paste0("<TermTime><DateRange><StartDate>2024-03-01</StartDate>",
+                  "<EndDate>2024-03-08</EndDate></DateRange></TermTime>")
+  so <- xml2::xml_child(so_xml(extra), "d1:ServicedOrganisations")
+  expect_error(import_ServicedOrganisations(so),
+               "Unknown Structure in ServicedOrganisations")
+})
+
+
+# XML comments inside a JourneyPatternSection were counted as timing links by
+# xml_length(only_elements = FALSE), so JPS_id came back longer than every
+# other column and data.frame() aborted with "arguments imply differing
+# number of rows".
+
+test_that("import_journeypatternsections ignores XML comments", {
+  jptl <- function(id, from, to) paste0(
+    '<JourneyPatternTimingLink id="', id, '">',
+    '<From><StopPointRef>', from, '</StopPointRef>',
+    '<TimingStatus>PTP</TimingStatus></From>',
+    '<To><StopPointRef>', to, '</StopPointRef>',
+    '<TimingStatus>PTP</TimingStatus></To>',
+    '<RunTime>PT5M</RunTime></JourneyPatternTimingLink>')
+
+  build <- function(comments) xml2::xml_child(xml2::read_xml(paste0(
+    '<TransXChange xmlns="http://www.transxchange.org.uk/">',
+    '<JourneyPatternSections><JourneyPatternSection id="JPS1">',
+    comments, jptl("L1", "S1", "S2"), comments, jptl("L2", "S2", "S3"),
+    '</JourneyPatternSection></JourneyPatternSections></TransXChange>')),
+    "d1:JourneyPatternSections")
+
+  res <- import_journeypatternsections(build("<!-- a comment -->"))
+  expect_equal(nrow(res), 2)
+  expect_equal(res$JPTL_ID, c("L1", "L2"))
+  expect_equal(res$JPS_id, c("JPS1", "JPS1"))
+  # commenting the file changes nothing
+  expect_equal(res, import_journeypatternsections(build("")))
+})
+
+
+# Some feeds publish a file with an empty <VehicleJourneys/> element. There is
+# nothing to convert, but assigning the operating-profile columns to the
+# resulting 0-row data frame aborted with "replacement has 1 row, data has 0".
+
+test_that("transxchange_import returns NULL for an empty VehicleJourneys", {
+  txc <- paste0(
+    '<TransXChange xmlns="http://www.transxchange.org.uk/" ',
+    'CreationDateTime="2026-01-01T00:00:00" ',
+    'ModificationDateTime="2026-01-01T00:00:00">',
+    '<StopPoints><AnnotatedStopPointRef>',
+    '<StopPointRef>S1</StopPointRef><CommonName>Stop 1</CommonName>',
+    '</AnnotatedStopPointRef></StopPoints>',
+    '<JourneyPatternSections><JourneyPatternSection id="JPS1">',
+    '<JourneyPatternTimingLink id="L1">',
+    '<From><StopPointRef>S1</StopPointRef><TimingStatus>PTP</TimingStatus></From>',
+    '<To><StopPointRef>S2</StopPointRef><TimingStatus>PTP</TimingStatus></To>',
+    '<RunTime>PT5M</RunTime></JourneyPatternTimingLink>',
+    '</JourneyPatternSection></JourneyPatternSections>',
+    '<Operators><Operator id="OP1">',
+    '<OperatorCode>OP1</OperatorCode><OperatorShortName>Op One</OperatorShortName>',
+    '</Operator></Operators>',
+    '<Services><Service>',
+    '<ServiceCode>SVC1</ServiceCode><Mode>bus</Mode>',
+    '<Description>Test</Description>',
+    '<RegisteredOperatorRef>OP1</RegisteredOperatorRef>',
+    '<OperatingPeriod><StartDate>2026-01-05</StartDate>',
+    '<EndDate>2026-03-01</EndDate></OperatingPeriod>',
+    '<OperatingProfile><RegularDayType><DaysOfWeek><Monday/>',
+    '</DaysOfWeek></RegularDayType></OperatingProfile>',
+    '<Lines><Line id="LN1"><LineName>1</LineName></Line></Lines>',
+    '<StandardService><Origin>A</Origin><Destination>B</Destination>',
+    '<JourneyPattern id="JP1"><Direction>outbound</Direction>',
+    '<JourneyPatternSectionRefs>JPS1</JourneyPatternSectionRefs>',
+    '</JourneyPattern></StandardService>',
+    '</Service></Services>',
+    '<VehicleJourneys/>',
+    '</TransXChange>')
+
+  f <- tempfile(fileext = ".xml")
+  on.exit(unlink(f))
+  writeLines(txc, f)
+
+  expect_warning(res <- transxchange_import(f), "No VehicleJourneys")
+  expect_null(res)
+})
