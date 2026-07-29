@@ -165,6 +165,7 @@ transxchange2gtfs <- function(path_in,
                            full_import = FALSE,
                            try_mode = try_mode,
                            .progress = TRUE)
+    res_all <- txc_flatten_multiservice(res_all)
     res_all_message <- res_all[sapply(res_all, class) == "character"]
     res_all <- res_all[sapply(res_all, class) == "list"]
     if(length(res_all_message) > 0){
@@ -194,6 +195,7 @@ transxchange2gtfs <- function(path_in,
                              .progress = TRUE)
     future::plan(future::sequential)
 
+    res_all <- txc_flatten_multiservice(res_all)
 
     # pb <- utils::txtProgressBar(max = length(files), style = 3)
     # progress <- function(n) utils::setTxtProgressBar(pb, n)
@@ -287,6 +289,30 @@ transxchange2gtfs <- function(path_in,
     return(gtfs_all)
   }
   return(gtfs_merged)
+}
+
+
+# Flatten the results of importing a list of TransXchange files.
+#
+# transxchange_import() returns a `txc_multi` list of objects for a file that
+# declares several services (see its Details). Everything downstream - the
+# error-message filter, the naptan trim, transxchange_export() - expects one
+# object per element, so splice those back in as ordinary elements. Files that
+# imported normally, and the character strings left by failures under
+# `try_mode`, pass through untouched.
+txc_flatten_multiservice <- function(res_all) {
+  if (!any(vapply(res_all, inherits, logical(1), what = "txc_multi"))) {
+    return(res_all)
+  }
+  out <- list()
+  for (r in res_all) {
+    if (inherits(r, "txc_multi")) {
+      out <- c(out, unclass(r))
+    } else {
+      out[[length(out) + 1L]] <- r
+    }
+  }
+  out
 }
 
 

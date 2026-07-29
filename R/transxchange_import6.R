@@ -6,12 +6,124 @@
 #'
 #' @details This function imports the raw transXchange XML files and converts
 #' them to a R readable format.
-#' @return named list of data frames, one per TransXchange section (or NULL if
-#'   the file contains no services)
+#'
+#' A single TransXchange file may declare several `<Service>` elements (a
+#' registration covering, say, the CB2 to CB6 school services as one document).
+#' The export path is written around one service per object - it reads
+#' `Services_main$...[1]` for the route id, name, agency and mode - so such a
+#' file is split into one import result per service and the result carries
+#' class `txc_multi`. [transxchange2gtfs()] flattens those back into the list
+#' of objects it converts, so each service becomes its own GTFS route.
+#'
+#' @return For a single-service file, a named list of data frames, one per
+#'   TransXchange section, or NULL if the file contains nothing to convert.
+#'   For a multi-service file, a `txc_multi` list of such objects.
 #' @export
 
 transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
   xml <- xml2::read_xml(file)
+
+  # Several services in one file cannot be represented by one import object,
+  # so recurse over per-service copies of the document instead of failing.
+  if (xml2::xml_length(xml2::xml_child(xml, "d1:Services")) > 1) {
+    return(txc_import_multiservice(file, xml,
+                                   run_debug = run_debug,
+                                   full_import = full_import))
+  }
+
+  txc_import_single(xml, file, run_debug = run_debug,
+                    full_import = full_import)
+}
+
+
+#' Import one service from a multi-service TransXchange file
+#'
+#' Re-reads `file` once per `<Service>`, prunes the copy down to that service
+#' and its vehicle journeys, and imports it as though it had been published on
+#' its own.
+#'
+#' @param file character, path to the XML file (used for re-reading and for the
+#'   `filename` field of each result)
+#' @param xml the already-parsed document, used only to count and name services
+#' @param run_debug,full_import passed to the single-service importer
+#' @noRd
+txc_import_multiservice <- function(file, xml, run_debug = TRUE,
+                                    full_import = FALSE) {
+  services <- xml2::xml_children(xml2::xml_child(xml, "d1:Services"))
+  codes <- xml2::xml_text(xml2::xml_find_first(services, "d1:ServiceCode"))
+
+  # Splitting is only safe if every journey says which service it belongs to.
+  # Without that the journeys cannot be divided up, and guessing would credit
+  # one service with another's trips - so fail loudly, as this function's
+  # predecessor did for every multi-service file.
+  vjs <- xml2::xml_children(xml2::xml_child(xml, "d1:VehicleJourneys"))
+  refs <- xml2::xml_text(xml2::xml_find_first(vjs, "d1:ServiceRef"))
+  if (length(vjs) > 0 && (anyNA(refs) || !all(refs %in% codes))) {
+    stop("More than one service, and VehicleJourneys cannot be attributed to ",
+         "them: ", sum(is.na(refs)), " with no ServiceRef, ",
+         sum(!is.na(refs) & !refs %in% codes), " referencing an absent service")
+  }
+  if (anyDuplicated(codes) > 0) {
+    stop("More than one service, and ServiceCodes are not unique: ",
+         paste(codes[duplicated(codes)], collapse = ", "))
+  }
+
+  res <- lapply(seq_along(codes), function(i) {
+    doc <- xml2::read_xml(file)
+    txc_prune_to_service(doc, i)
+    txc_import_single(doc, file, run_debug = run_debug,
+                      full_import = full_import)
+  })
+
+  # A service with no journeys of its own imports as NULL, exactly as a
+  # single-service file with an empty <VehicleJourneys/> would.
+  res <- res[!vapply(res, is.null, logical(1))]
+  if (length(res) == 0) {
+    return(NULL)
+  }
+  structure(res, class = "txc_multi")
+}
+
+
+#' Prune a TransXchange document to a single service, in place
+#'
+#' Drops every `<Service>` but the `i`th, and every `<VehicleJourney>` that
+#' does not reference it. Journey patterns live inside `<Service>` and so go
+#' with their service; the shared `<JourneyPatternSections>` and `<StopPoints>`
+#' are left alone, as sections no journey pattern references are dropped when
+#' stop times are built and unreferenced stops are removed on cleaning.
+#'
+#' @param xml a parsed TransXchange document, modified in place
+#' @param i integer, index of the service to keep
+#' @noRd
+txc_prune_to_service <- function(xml, i) {
+  services <- xml2::xml_children(xml2::xml_child(xml, "d1:Services"))
+  keep <- xml2::xml_text(xml2::xml_find_first(services[[i]], "d1:ServiceCode"))
+  xml2::xml_remove(services[-i])
+
+  vjs <- xml2::xml_children(xml2::xml_child(xml, "d1:VehicleJourneys"))
+  if (length(vjs) > 0) {
+    refs <- xml2::xml_text(xml2::xml_find_first(vjs, "d1:ServiceRef"))
+    drop <- is.na(refs) | refs != keep
+    if (any(drop)) {
+      xml2::xml_remove(vjs[drop])
+    }
+  }
+  invisible(xml)
+}
+
+
+#' Import a single-service TransXchange document
+#'
+#' The body of [transxchange_import()] for the one-service case.
+#'
+#' @param xml a parsed TransXchange document declaring at most one service
+#' @param file character, path the document was read from, recorded as
+#'   `filename` in the result
+#' @param run_debug,full_import as [transxchange_import()]
+#' @noRd
+txc_import_single <- function(xml, file, run_debug = TRUE,
+                             full_import = FALSE) {
 
   ## StopPoints ##########################################
   StopPoints <- xml2::xml_child(xml, "d1:StopPoints")
@@ -69,6 +181,9 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
   ## Services ##########################################
   Services <- xml2::xml_child(xml, "d1:Services")
   if (run_debug) {
+    # transxchange_import() splits multi-service documents before calling this,
+    # so more than one service here means the split did not happen and the
+    # export would silently collapse them into a single route.
     if (xml2::xml_length(Services) > 1) {
       stop("More than one service")
     }
