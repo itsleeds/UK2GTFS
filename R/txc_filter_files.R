@@ -23,14 +23,19 @@
 #' counting trips on a given date over-estimates service levels.
 #'
 #' This function reads only the header information of each file
-#' (`ServiceCode`, `OperatingPeriod` start date, `RevisionNumber`, and
-#' `ModificationDateTime`) and keeps, for each `ServiceCode`:
+#' (`ServiceCode`, `LineName`, `OperatingPeriod` start date, `RevisionNumber`,
+#' and `ModificationDateTime`) and keeps, for each `ServiceCode`:
 #'
 #' \enumerate{
-#'   \item For each distinct operating-period start date, only the file with
-#'     the highest `RevisionNumber` (ties broken by the most recent
+#'   \item For each distinct operating-period start date **and line**, only the
+#'     file with the highest `RevisionNumber` (ties broken by the most recent
 #'     `ModificationDateTime`) - repeated uploads of the same timetable
-#'     period are duplicates.
+#'     period are duplicates. A file is kept if it is the best available file
+#'     for at least one of the lines it publishes. The line matters because a
+#'     `ServiceCode` does not identify one timetable: operators such as
+#'     Nottingham City Transport split a single registration into one file per
+#'     line, all sharing the `ServiceCode` and operating period, and keying on
+#'     the `ServiceCode` alone would discard every line but one.
 #'   \item Of the start dates on or before `date`, only the most recent -
 #'     this is the version operative on `date`; earlier versions have been
 #'     superseded.
@@ -68,8 +73,13 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE)
       mod <- xml2::xml_attr(service, "ModificationDateTime")
       if (is.na(mod)) mod <- xml2::xml_attr(xml, "ModificationDateTime")
       if (is.na(mod)) mod <- xml2::xml_attr(xml, "CreationDateTime")
+      # Which lines this file publishes. Needed because a ServiceCode does not
+      # identify a timetable on its own - see the note on rule 1 below.
+      lns <- xml2::xml_text(xml2::xml_find_all(xml, "//d1:LineName"))
+      lns <- sort(unique(trimws(lns[!is.na(lns)])))
       data.frame(file = f, ServiceCode = sc, StartDate = sd,
                  RevisionNumber = rev, ModificationDateTime = mod,
+                 Lines = paste(lns, collapse = "\r"),
                  stringsAsFactors = FALSE)
     }, silent = TRUE)
 
@@ -78,6 +88,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE)
                          StartDate = NA_character_,
                          RevisionNumber = NA_character_,
                          ModificationDateTime = NA_character_,
+                         Lines = NA_character_,
                          stringsAsFactors = FALSE)
     }
     meta
@@ -113,7 +124,32 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE)
     meta <- meta[order(meta$ServiceCode, meta$StartDate,
                        -meta$RevisionNumber,
                        -as.numeric(meta$ModificationDateTime)), ]
-    meta <- meta[!duplicated(meta[, c("ServiceCode", "StartDate")]), ]
+
+    # Applied per line, not per file. A ServiceCode does not identify one
+    # timetable: some operators split a single registration into one file per
+    # line, all sharing the ServiceCode and the operating period. Nottingham
+    # City Transport files ServiceCode NCT49 as four files, for lines 49, 49A,
+    # 49B and 49X, and NCT40_41 as files for 40, 40A, 40B and 41. Deduplicating
+    # on ServiceCode + StartDate alone kept one of them and silently deleted the
+    # others - 114 live files in one TNDS region, including line 41 with 343
+    # journeys and line 27 with 296.
+    #
+    # A file is kept if it is the best available file for at least one of its
+    # lines. That still removes a repeated upload of the same period (identical
+    # lines, so a later revision wins them all) and still removes a superseded
+    # revision whose lines are all covered by a newer file, while keeping every
+    # line that is only published once.
+    lines_list <- strsplit(meta$Lines, "\r", fixed = TRUE)
+    # a file naming no line at all still has to be groupable
+    lines_list[lengths(lines_list) == 0] <- ""
+    idx <- rep(seq_len(nrow(meta)), lengths(lines_list))
+    ex <- data.frame(row = idx,
+                     ServiceCode = meta$ServiceCode[idx],
+                     StartDate = meta$StartDate[idx],
+                     Line = unlist(lines_list),
+                     stringsAsFactors = FALSE)
+    ex <- ex[!duplicated(ex[, c("ServiceCode", "StartDate", "Line")]), ]
+    meta <- meta[sort(unique(ex$row)), ]
 
     # rules 2 and 3: keep the version operative on `date` plus future versions
     meta_split <- split(meta, meta$ServiceCode)
