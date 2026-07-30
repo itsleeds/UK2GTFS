@@ -58,7 +58,27 @@ gtfs_write <- function(gtfs,
     }
   }
 
-  zip::zipr(paste0(folder, "/", name, ".zip"), list.files(paste0(tempdir(), "/gtfs_temp"), full.names = TRUE), recurse = FALSE)
+  # Build the archive under a temporary name and move it into place, so the
+  # destination is either the previous complete file or the new complete file
+  # and never a half-written one. zip::zipr() writes in place, so a run killed
+  # during the write used to leave a truncated archive where the next run
+  # expects a readable feed. The temporary sits in the destination folder, not
+  # tempdir(), because file.rename() cannot be relied on across filesystems.
+  dest <- paste0(folder, "/", name, ".zip")
+  part <- paste0(dest, ".part", Sys.getpid())
+  unlink(part)
+  on.exit(unlink(part), add = TRUE)
+
+  zip::zipr(part, list.files(paste0(tempdir(), "/gtfs_temp"), full.names = TRUE), recurse = FALSE)
+
+  # file.rename() does not overwrite an existing file on Windows, so clear the
+  # destination first
+  if (file.exists(dest) && unlink(dest) != 0) {
+    stop("Could not replace the existing GTFS file: ", dest)
+  }
+  if (!file.rename(part, dest)) {
+    stop("Could not move the new GTFS file into place: ", dest)
+  }
 
   unlink(paste0(tempdir(), "/gtfs_temp"), recursive = TRUE)
 }

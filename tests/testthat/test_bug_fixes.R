@@ -1046,3 +1046,31 @@ test_that("transxchange_import returns NULL for an empty VehicleJourneys", {
   expect_warning(res <- transxchange_import(f), "No VehicleJourneys")
   expect_null(res)
 })
+
+test_that("gtfs_write replaces a corrupt destination and leaves no part file", {
+  # zip::zipr() used to write the archive in place, so a run killed mid-write
+  # left a truncated zip that the next run would read - or trip over. The
+  # archive is now built alongside and moved into place.
+  gtfs <- mk_period_gtfs("w", c("08:00:00", "08:10:00"))
+  tmp <- file.path(tempdir(), "gtfs_write_atomic")
+  unlink(tmp, recursive = TRUE)
+  dir.create(tmp, showWarnings = FALSE)
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+
+  dest <- file.path(tmp, "feed.zip")
+
+  # a destination left truncated by an earlier interrupted write
+  writeBin(as.raw(rep(0L, 2048)), dest)
+  expect_error(zip::zip_list(dest))
+
+  gtfs_write(gtfs, folder = tmp, name = "feed")
+
+  # the corrupt file is gone, replaced by a readable archive
+  expect_silent(lst <- zip::zip_list(dest))
+  expect_true(all(c("agency.txt", "stops.txt", "routes.txt", "trips.txt",
+                    "stop_times.txt") %in% lst$filename))
+  expect_equal(nrow(gtfs_read(dest)$stop_times), 2)
+
+  # and nothing is left behind next to it
+  expect_equal(list.files(tmp), "feed.zip")
+})
