@@ -19,7 +19,11 @@ gtfs_interpolate_times(gtfs, ncores = 1)
 
 - ncores:
 
-  number of cores to use
+  unused, kept for backwards compatibility. The interpolation is fully
+  vectorised and runs single-threaded; the old per-trip parallel
+  implementation spent most of its time splitting millions of trips into
+  individual data frames and doing lubridate Period (S4) arithmetic on
+  each, which was slower on 10 cores than this version on one.
 
 ## Value
 

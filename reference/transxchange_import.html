@@ -67,13 +67,21 @@
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>named list of data frames, one per TransXchange section (or NULL if
-  the file contains no services)</p>
+    <p>For a single-service file, a named list of data frames, one per
+  TransXchange section, or NULL if the file contains nothing to convert.
+  For a multi-service file, a `txc_multi` list of such objects.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>This function imports the raw transXchange XML files and converts
 them to a R readable format.</p>
+<p>A single TransXchange file may declare several `&lt;Service&gt;` elements (a
+registration covering, say, the CB2 to CB6 school services as one document).
+The export path is written around one service per object - it reads
+`Services_main$...[1]` for the route id, name, agency and mode - so such a
+file is split into one import result per service and the result carries
+class `txc_multi`. [transxchange2gtfs()] flattens those back into the list
+of objects it converts, so each service becomes its own GTFS route.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

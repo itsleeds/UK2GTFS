@@ -46,13 +46,20 @@ version, so counting trips on a given date over-estimates service
 levels.
 
 This function reads only the header information of each file
-(\`ServiceCode\`, \`OperatingPeriod\` start date, \`RevisionNumber\`,
-and \`ModificationDateTime\`) and keeps, for each \`ServiceCode\`:
+(\`ServiceCode\`, \`LineName\`, \`OperatingPeriod\` start date,
+\`RevisionNumber\`, and \`ModificationDateTime\`) and keeps, for each
+\`ServiceCode\`:
 
-1.  For each distinct operating-period start date, only the file with
-    the highest \`RevisionNumber\` (ties broken by the most recent
-    \`ModificationDateTime\`) - repeated uploads of the same timetable
-    period are duplicates.
+1.  For each distinct operating-period start date \*\*and line\*\*, only
+    the file with the highest \`RevisionNumber\` (ties broken by the
+    most recent \`ModificationDateTime\`) - repeated uploads of the same
+    timetable period are duplicates. A file is kept if it is the best
+    available file for at least one of the lines it publishes. The line
+    matters because a \`ServiceCode\` does not identify one timetable:
+    operators such as Nottingham City Transport split a single
+    registration into one file per line, all sharing the \`ServiceCode\`
+    and operating period, and keying on the \`ServiceCode\` alone would
+    discard every line but one.
 
 2.  Of the start dates on or before \`date\`, only the most recent -
     this is the version operative on \`date\`; earlier versions have

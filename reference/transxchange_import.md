@@ -24,10 +24,20 @@ transxchange_import(file, run_debug = TRUE, full_import = FALSE)
 
 ## Value
 
-named list of data frames, one per TransXchange section (or NULL if the
-file contains no services)
+For a single-service file, a named list of data frames, one per
+TransXchange section, or NULL if the file contains nothing to convert.
+For a multi-service file, a \`txc_multi\` list of such objects.
 
 ## Details
 
 This function imports the raw transXchange XML files and converts them
 to a R readable format.
+
+A single TransXchange file may declare several \`\<Service\>\` elements
+(a registration covering, say, the CB2 to CB6 school services as one
+document). The export path is written around one service per object - it
+reads \`Services_main\$...\[1\]\` for the route id, name, agency and
+mode - so such a file is split into one import result per service and
+the result carries class \`txc_multi\`. \[transxchange2gtfs()\] flattens
+those back into the list of objects it converts, so each service becomes
+its own GTFS route.

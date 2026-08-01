@@ -42,6 +42,8 @@
   : Clip a GTFS object to a geographical area
 - [`gtfs_compress()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_compress.md)
   : Reduce file size of a GTFS object
+- [`gtfs_deduplicate()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.md)
+  : Remove duplicated trips from a GTFS object
 - [`gtfs_fast_stops()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_stops.md)
   : Find fast stops
 - [`gtfs_fast_trips()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_trips.md)

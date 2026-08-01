@@ -73,6 +73,16 @@
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>a gtfs object trimmed to services running between the two dates</p>
     </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>The GTFS specification allows a `service_id` to be defined in
+  `calendar_dates.txt` alone, with no row in `calendar.txt`; the service
+  then runs on exactly the dates listed with `exception_type = 1`. Such
+  services are kept if any of those dates falls inside the window. The
+  DfT's Bus Open Data Service GTFS uses them heavily (for example for
+  school-holiday timetables), so dropping them silently removes real
+  service.</p>
+    </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>

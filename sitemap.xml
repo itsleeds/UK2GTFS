@@ -31,6 +31,7 @@
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_clip.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_compress.html</loc></url>
+<url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_stops.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_trips.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_force_valid.html</loc></url>
