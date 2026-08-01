@@ -100,7 +100,12 @@ import_journeypatternsections <- function(journeypatternsections) {
   if (length(To.Activity) == 0) {
     To.Activity <- rep(NA, length(To.StopPointRef))
   }
-  To.TimingStatus <- import_simple(To, "d1:TimingStatus")
+  # xml_find_first, so an omitted <TimingStatus> yields NA and keeps this column
+  # the same length as the others. import_simple() returns nothing at all for the
+  # absent ones, which shortened the column and made the data.frame() below fail
+  # for the whole file. TimingStatus is optional in the TXC schema, unlike
+  # StopPointRef.
+  To.TimingStatus <- import_simple_xml(To, "d1:TimingStatus")
   # To.SequenceNumber <- import_FromTo(To, "@SequenceNumber")
   To.SequenceNumber <- xml2::xml_attr(To, "SequenceNumber")
 

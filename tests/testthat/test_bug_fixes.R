@@ -1001,6 +1001,61 @@ test_that("import_journeypatternsections ignores XML comments", {
 })
 
 
+# <TimingStatus> is optional in the TXC schema and real feeds omit it - the
+# Bullocks 758 files, for one. To.TimingStatus was read with import_simple(),
+# which returns only the values that exist, so a section mixing links that
+# declare it with links that do not produced a short column and data.frame()
+# aborted with "arguments imply differing number of rows", losing the file.
+
+test_that("import_journeypatternsections tolerates a missing To TimingStatus", {
+  jptl <- function(id, from, to, from_ts, to_ts) paste0(
+    '<JourneyPatternTimingLink id="', id, '">',
+    '<From><StopPointRef>', from, '</StopPointRef>', from_ts, '</From>',
+    '<To><StopPointRef>', to, '</StopPointRef>', to_ts, '</To>',
+    '<RunTime>PT5M</RunTime></JourneyPatternTimingLink>')
+  ts <- "<TimingStatus>PTP</TimingStatus>"
+
+  build <- function(links) xml2::xml_child(xml2::read_xml(paste0(
+    '<TransXChange xmlns="http://www.transxchange.org.uk/">',
+    '<JourneyPatternSections><JourneyPatternSection id="JPS1">',
+    paste(links, collapse = ""),
+    '</JourneyPatternSection></JourneyPatternSections></TransXChange>')),
+    "d1:JourneyPatternSections")
+
+  # mixed: one link declares the status, the next omits it on both ends
+  mixed <- import_journeypatternsections(build(c(
+    jptl("L1", "S1", "S2", ts, ts),
+    jptl("L2", "S2", "S3", "", ""))))
+  expect_equal(nrow(mixed), 2)
+  expect_equal(mixed$To.StopPointRef, c("S2", "S3"))
+  expect_equal(mixed$To.TimingStatus, c("PTP", NA))
+  expect_equal(mixed$From.TimingStatus, c("PTP", NA))
+
+  # absent throughout, which is how the Bullocks files are written
+  none <- import_journeypatternsections(build(
+    jptl("L1", "S1", "S2", "", "")))
+  expect_equal(nrow(none), 1)
+  expect_true(is.na(none$To.TimingStatus))
+})
+
+
+# The export end of the same path: once an absent TimingStatus imports as NA it
+# reaches clean_timepoints, which aborted the conversion with "Unknown timepoint
+# type: NA". The schema declares the element minOccurs="0" default="TIP", so the
+# absent case is TIP, which is already a timepoint of 1.
+
+test_that("clean_timepoints treats an absent TimingStatus as the schema default", {
+  expect_equal(clean_timepoints(NA_character_), 1L)
+  expect_equal(clean_timepoints(""), 1L)
+  expect_equal(clean_timepoints("TIP"), 1L)
+  expect_equal(clean_timepoints("PTP"), 1L)
+  expect_equal(clean_timepoints("OTH"), 0L)
+  expect_equal(clean_timepoints("otherPoint"), 0L)
+  # a value that is genuinely not in the enumeration must still be an error
+  expect_error(clean_timepoints("nonsense"), "Unknown timepoint type")
+})
+
+
 # Some feeds publish a file with an empty <VehicleJourneys/> element. There is
 # nothing to convert, but assigning the operating-profile columns to the
 # resulting 0-row data frame aborted with "replacement has 1 row, data has 0".

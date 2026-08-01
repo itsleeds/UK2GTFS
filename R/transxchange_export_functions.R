@@ -576,6 +576,13 @@ reorder_jps <- function(jps_sub, func = min){
 #' @noRd
 #'
 clean_timepoints <- function(tp) {
+  # <TimingStatus> is minOccurs="0" with default="TIP" in the TransXChange
+  # schema ("Default is Time Info Point (TIP)"), so an omitted element means TIP
+  # rather than an error. Feeds that never publish it - the Bullocks 758 files,
+  # for one - used to abort the whole conversion here.
+  if (is.na(tp) || !nzchar(tp)) {
+    return(1L)
+  }
   if (tp %in% c("OTH","otherPoint","timeInfoPoint")) {
     return(0L)
   } else if (tp %in% c("PTP", "TIP", "PPT",

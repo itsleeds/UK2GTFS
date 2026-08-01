@@ -43,7 +43,11 @@ utils::globalVariables(c(
   'agency_key', 'op_key', 'idx', 'line_public_code', 'route_short_name',
   'operator_noc', 'matched', 'i.route_id', 'x.route_id',
   # stops_per_week_functions.R
-  'day_flag', 'TMP_dep', 'n_departures'
+  'day_flag', 'TMP_dep', 'n_departures',
+  # gtfs_deduplicate.R
+  'TMP_pid', 'TMP_timed', 'TMP_arr', 'sig', 'sig_id', 'n_stops', 'n_timed', 'grp',
+  'n_grp', 'n_dates', 'rnk', 'min_rnk', 'redundant', 'date',
+  'TMP_svc', 'TMP_trip'
 ))
 
 
