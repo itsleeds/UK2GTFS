@@ -52,6 +52,7 @@ jobs:
           # tokenless upload") and only allows them for pull requests from
           # forks, where OIDC is unavailable — hence the condition below.
           use_oidc: true
+          verbose: true
           # Fail on anything that can authenticate; a fork PR cannot, so a
           # missing upload there is expected rather than a build failure.
           fail_ci_if_error: ${{ github.event.pull_request.head.repo.fork != true }}
