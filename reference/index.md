@@ -122,6 +122,8 @@
   : Download routing from National Rail Data Portal
 - [`nrdp_timetable()`](https://itsleeds.github.io/UK2GTFS/reference/nrdp_timetable.md)
   : Download Timetable from National Rail Data Portal
+- [`operator_mode_overrides()`](https://itsleeds.github.io/UK2GTFS/reference/operator_mode_overrides.md)
+  : Operators whose declared mode is known to be wrong
 - [`school_terms`](https://itsleeds.github.io/UK2GTFS/reference/school_terms.md)
   : Example School term and holiday dates
 - [`station2stops()`](https://itsleeds.github.io/UK2GTFS/reference/station2stops.md)
