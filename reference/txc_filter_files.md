@@ -2,12 +2,20 @@
 
 Given a set of TransXchange XML files, returns the subset that
 represents the operative timetable for each service, discarding
-superseded revisions of the same service.
+superseded revisions of the same service and closing the operating
+periods of registrations that a later registration has replaced.
 
 ## Usage
 
 ``` r
-txc_filter_files(files, date = Sys.Date(), ncores = 1, quiet = TRUE)
+txc_filter_files(
+  files,
+  date = Sys.Date(),
+  ncores = 1,
+  quiet = TRUE,
+  resolve_overlaps = TRUE,
+  out_dir = NULL
+)
 ```
 
 ## Arguments
@@ -30,9 +38,22 @@ txc_filter_files(files, date = Sys.Date(), ncores = 1, quiet = TRUE)
 
   logical, if FALSE a summary of removed files is printed
 
+- resolve_overlaps:
+
+  logical, if TRUE (default) registrations of the same service whose
+  operating periods overlap are reconciled - see Details.
+
+- out_dir:
+
+  character, directory in which to write the rewritten copies of files
+  whose operating period was truncated. Defaults to a new
+  session-temporary directory. The originals are never modified.
+
 ## Value
 
-a character vector, the subset of \`files\` to convert
+a character vector, the subset of \`files\` to convert. Where an
+operating period was truncated the returned path points at a rewritten
+copy in \`out_dir\` rather than at the original file.
 
 ## Details
 
@@ -45,9 +66,15 @@ are converted, the same physical bus journey appears once per file
 version, so counting trips on a given date over-estimates service
 levels.
 
-This function reads only the header information of each file
-(\`ServiceCode\`, \`LineName\`, \`OperatingPeriod\` start date,
-\`RevisionNumber\`, and \`ModificationDateTime\`) and keeps, for each
+Every field used here is read from the contents of each file. Nothing is
+inferred from file names: publishers prefix them inconsistently
+(\`tfl\_\`, \`cen\_\`, \`swe\_\`, \`cambs\_\`) and in some regions the
+name does not contain the \`ServiceCode\` at all.
+
+The function reads the header information of each file (\`ServiceCode\`,
+\`LineName\`, \`Description\`, \`NationalOperatorCode\`,
+\`OperatingPeriod\` start and end dates, \`RevisionNumber\`,
+\`CreationDateTime\` and \`ModificationDateTime\`) and keeps, for each
 \`ServiceCode\`:
 
 1.  For each distinct operating-period start date \*\*and line\*\*, only
@@ -68,15 +95,47 @@ This function reads only the header information of each file
 3.  All files whose operating period starts after \`date\` - these are
     future timetables that have not yet come into effect.
 
+## Overlapping registrations
+
+Rules 1 to 3 key on the \`ServiceCode\`, which catches a re-upload of
+one registration but not a re-registration: some publishers, Transport
+for London among them, mint a \*\*new\*\* \`ServiceCode\` every time a
+service is re-registered. Each code then appears exactly once and
+nothing above detects it, yet both files describe the same service over
+overlapping dates and both convert into the feed.
+
+With \`resolve_overlaps = TRUE\` files are additionally grouped by
+\`NationalOperatorCode\` + \`Description\` + the set of lines they
+publish - the same registered service by any reading - and overlapping
+operating periods within a group are reconciled:
+
+- \*\*Staggered starts.\*\* Where a later registration runs to at least
+  the end of an earlier one, the earlier one's \`EndDate\` is truncated
+  to the day before the later one starts. This is the common case: the
+  publisher issues the successor but leaves the predecessor open-ended.
+
+- \*\*Same start, different end.\*\* The longer registration's
+  \`StartDate\` is moved to the day after the shorter one ends, so the
+  shorter, more specific period governs while it runs.
+
+- \*\*Identical periods.\*\* Truncation cannot separate them, so the
+  most recently created file is kept (\`CreationDateTime\`, falling back
+  to \`ModificationDateTime\` then file mtime) and the others dropped.
+
+- \*\*One period wholly inside another.\*\* Both are kept and reported.
+  Closing the outer period would delete the service either side of the
+  inner one, which a single \`OperatingPeriod\` cannot express.
+
+Truncation is preferred to deletion throughout: a journey on a date the
+successor does not cover is never removed. A file whose period is
+emptied by truncation is dropped. Because this works from declared
+identity and declared validity rather than from journey times, it does
+not depend on two timetables resembling each other, and cannot merge two
+services that merely run at similar times.
+
+Resolving overlaps also removes the limitation that applied to rule 3 on
+its own: a future timetable kept under that rule now truncates the
+currently operative file at its start date, instead of both being
+counted once the future timetable begins.
+
 Files whose \`ServiceCode\` cannot be read are always kept.
-
-Note one limitation: when a future timetable (kept under rule 3)
-eventually starts, it supersedes the currently operative file, but both
-are retained here because the operative file usually declares an
-open-ended end date. Trip counts are therefore reliable around \`date\`
-but may double-count dates after the next timetable change. For analysis
-of a specific period, set \`date\` inside that period.
-
-This filtering is not needed when converting a normal single download of
-current data (where each service appears once), only when converting
-archives that accumulate every uploaded version.

@@ -21,6 +21,31 @@
 
 ### New features
 
+- [`txc_filter_files()`](https://itsleeds.github.io/UK2GTFS/reference/txc_filter_files.md)
+  now reconciles registrations of the same service whose operating
+  periods overlap, controlled by `resolve_overlaps` (default TRUE). Its
+  existing rules key on `ServiceCode`, which catches a re-upload of one
+  registration but not a re-registration: some publishers, Transport for
+  London among them, mint a new `ServiceCode` each time a service is
+  re-registered, so every code appears once and nothing is detected even
+  though both files describe the same service over overlapping dates.
+  Files are now additionally grouped by `NationalOperatorCode` +
+  `Description` + the lines they publish, and overlaps resolved by
+  truncating the operating period rather than deleting a file: where a
+  later registration replaces an earlier one the earlier `EndDate` is
+  closed the day before the successor starts, and where two share a
+  start date the longer one’s `StartDate` moves past the shorter. Only
+  where the periods are identical, and truncation cannot separate them,
+  is a file dropped (the most recently created is kept). A file whose
+  period is emptied is dropped; where one period lies wholly inside
+  another both are kept and reported, as a single `OperatingPeriod`
+  cannot express a gap. Because this works from declared identity and
+  declared validity rather than from journey times, it cannot merge two
+  services that merely run at similar times. Files whose period was
+  truncated are written as copies to `out_dir`; the originals are never
+  modified. This also removes the previous limitation that a future
+  timetable and the currently operative file were both counted once the
+  future timetable began.
 - [`gtfs_deduplicate()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.md)
   removes journeys a feed describes more than once. A copy is removed
   only when the whole itinerary matches - every stop, arrival, departure
