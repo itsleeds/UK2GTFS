@@ -367,6 +367,14 @@ transxchange_export <- function(obj,
     }
   }
 
+  # Correct operators known to declare the wrong Mode. This has to come after
+  # the block above, because that is where agency_id is resolved to a National
+  # Operator Code and the lookup is keyed on the NOC. See
+  # operator_mode_overrides() for what is in the table and why.
+  routes$route_type <- apply_mode_overrides(routes$route_type,
+                                            routes$agency_id,
+                                            routes$route_short_name)
+
 
 
 

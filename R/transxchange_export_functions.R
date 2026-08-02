@@ -209,12 +209,23 @@ clean_times <- function(x) {
 }
 
 #' clean route type
-#' Change rout types from charater to gtfs code
+#' Change route types from character to gtfs code
 #'
 #' Coaches are coded as 200 (GTFS extended route type "Coach Service"),
 #' distinguishing them from local bus (3). This matches the DfT's BODS GTFS
 #' feeds and lets analyses separate long-distance coach from local bus (the
-#' TNDS NCSD archive and NPTDR COACH records are the main sources).
+#' TNDS NCSD archive and NPTDR COACH records are the main sources). Air has no
+#' core GTFS type either, so it takes the extended 1100. Everything else uses a
+#' core type, including trolleybus (11).
+#'
+#' The comparison is case insensitive. TransXChange declares the enumeration in
+#' lower camel case ("trolleyBus"), NPTDR CIF uses upper case ("BUS"), and real
+#' files use title case too; matching each spelling separately meant an
+#' unremarkable "Tram" either stopped the conversion or, with `guess_bus`,
+#' silently became a bus.
+#'
+#' A missing Mode returns bus, which is the TransXChange schema default rather
+#' than a guess.
 #'
 #' @param rt character route type
 #' @param guess_bus if true guess bus otherwise fail
@@ -222,46 +233,19 @@ clean_times <- function(x) {
 clean_route_type <- function(rt, guess_bus = FALSE) {
   if (is.na(rt)) {
     return(3)
-  } else if (rt == "bus") {
-    return(3)
-  } else if (rt == "ferry") {
-    return(4)
-  } else if (rt == "coach") {
-    return(200)
-  } else if (rt == "rail") {
-    return(2)
-  } else if (rt == "underground") {
-    return(1)
-  } else if (rt == "tram") {
-    return(0)
-  } else if (rt == "metro") {
-    return(1)
-  } else if (rt == "TRAIN") {
-    return(2)
-  } else if (rt == "- B") {
-    return(2)
-  } else if (rt == "BUS") {
-    return(3)
-  } else if (rt == "COACH") {
-    return(200)
-  } else if (rt == "FERRY") {
-    return(4)
-  } else if (rt == "TRAM") {
-    return(0)
-  } else if (rt == "METRO") {
-    return(1)
-  } else if (rt == "air") {
-    return(1100)
-  } else if (rt == "AIR") {
-    return(1100)
-  }else {
-    if(guess_bus){
-      return(3)
-    } else {
-      stop(paste0("Unknown route_type ", rt))
-    }
-
   }
+  key <- tolower(trimws(as.character(rt)))
+  known <- c(
+    bus = 3, "- b" = 2, coach = 200, ferry = 4, rail = 2, train = 2,
+    underground = 1, metro = 1, tram = 0, trolleybus = 11, air = 1100
+  )
+  if (key %in% names(known)) {
+    return(unname(known[[key]]))
+  }
+  if (guess_bus) {
+    return(3)
+  }
+  stop(paste0("Unknown route_type ", rt))
 }
 
 #' Clean days

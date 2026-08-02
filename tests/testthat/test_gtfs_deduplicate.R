@@ -142,6 +142,42 @@ test_that("the same service published under two route_ids is removed", {
 })
 
 
+test_that("one operator filed under two agency_ids is still one operator", {
+  # The 279 case: the DfT's GTFS carries Arriva London North as both OP401
+  # (NOC ARVA) and OP16197 (NOC ALNO), so grouping on agency_id put the two
+  # copies of one journey in different groups and neither was ever removed.
+  gtfs <- dedup_gtfs()
+  gtfs$agency <- rbind(gtfs$agency,
+                       data.frame(agency_id = "A2", agency_name = "One",
+                                  agency_url = "http://example.com",
+                                  agency_timezone = "Europe/London",
+                                  stringsAsFactors = FALSE))
+  gtfs$routes <- rbind(gtfs$routes,
+                       data.frame(route_id = "R2", agency_id = "A2",
+                                  route_short_name = "1",
+                                  route_long_name = "one", route_type = 3L,
+                                  stringsAsFactors = FALSE))
+  gtfs <- add_trip(gtfs, "T1", "T2", route_id = "R2")
+
+  expect_equal(gtfs_deduplicate(gtfs, quiet = TRUE)$trips$trip_id, "T1")
+  # match_operator = "agency_id" is the stricter reading and keeps both
+  expect_equal(nrow(gtfs_deduplicate(gtfs, match_operator = "agency_id",
+                                     quiet = TRUE)$trips), 2)
+
+  # punctuation and case in the name are not a difference
+  gtfs$agency$agency_name <- c("Go-Ahead London", "go ahead london")
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 1)
+
+  # but two genuinely different operators are not merged
+  gtfs$agency$agency_name <- c("One", "Two")
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+
+  # an agency with no usable name falls back to its id, grouping as before
+  gtfs$agency$agency_name <- c(NA_character_, "")
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+})
+
+
 test_that("a differently numbered route is not a duplicate", {
   gtfs <- dedup_gtfs()
   gtfs$routes <- rbind(gtfs$routes,
@@ -234,10 +270,15 @@ test_that("trips that differ in any way are kept", {
   gtfs$trips$wheelchair_accessible <- c(1L, 0L)
   expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
 
-  # different block: the copy belongs to another vehicle's day
+  # A different block_id does NOT block removal by default. Feeds routinely
+  # generate it per dataset revision rather than per vehicle block, so two
+  # copies of one journey never agree on it; match_block = TRUE restores the
+  # stricter reading for a feed that means something by it.
   gtfs <- base
   gtfs$trips$block_id <- c("B1", "B2")
-  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 1)
+  expect_equal(nrow(gtfs_deduplicate(gtfs, match_block = TRUE,
+                                     quiet = TRUE)$trips), 2)
 
   # different boarding rules
   gtfs <- base

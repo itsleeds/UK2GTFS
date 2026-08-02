@@ -790,6 +790,69 @@ test_that("clean_route_type codes coach as extended type 200, not bus", {
   expect_equal(clean_route_type("UNKNOWN", guess_bus = TRUE), 3)
 })
 
+test_that("clean_route_type is case insensitive and knows trolleybus", {
+  # Title case is what a real file is most likely to use, and matching each
+  # spelling separately meant "Tram" either stopped the conversion or, with
+  # guess_bus, silently became a bus.
+  expect_equal(clean_route_type("Tram"), 0)
+  expect_equal(clean_route_type("Bus"), 3)
+  expect_equal(clean_route_type("Coach"), 200)
+  expect_equal(clean_route_type("Ferry"), 4)
+  expect_equal(clean_route_type("Metro"), 1)
+  expect_equal(clean_route_type(" tram "), 0)
+  expect_equal(clean_route_type("Tram", guess_bus = TRUE), 0)
+
+  # trolleyBus is in the TransXChange enumeration and used to abort a
+  # conversion; 11 is the core GTFS type
+  expect_equal(clean_route_type("trolleyBus"), 11)
+  expect_equal(clean_route_type("TROLLEYBUS"), 11)
+
+  # a missing Mode is the schema default, bus
+  expect_equal(clean_route_type(NA), 3)
+  # genuinely unknown values still fail loudly
+  expect_error(clean_route_type("hovercraft"), "Unknown route_type")
+})
+
+test_that("operator mode overrides correct a misdeclared mode", {
+  ov <- operator_mode_overrides()
+  expect_true(all(c("noc", "route_short_name", "mode", "note") %in% names(ov)))
+  # every mode named in the table must be one clean_route_type understands
+  expect_silent(invisible(vapply(ov$mode, clean_route_type, numeric(1))))
+
+  # Nottingham Express Transit's tramway, registered as Mode=bus
+  expect_equal(
+    apply_mode_overrides(route_type = c(3, 3), agency_id = c("NEXT", "NCTR"),
+                         route_short_name = c("TRAM", "35")),
+    c(0, 3))
+
+  # the NOC match is case insensitive, and untouched operators stay put
+  expect_equal(
+    apply_mode_overrides(3, "next", "tram"), 0)
+  expect_equal(
+    apply_mode_overrides(3, "FIRST", "TRAM"), 3)
+
+  # route_short_name = NA in the table means every route of that operator
+  allrows <- data.frame(noc = "ZZZ", route_short_name = NA_character_,
+                        mode = "ferry", note = "", stringsAsFactors = FALSE)
+  expect_equal(
+    apply_mode_overrides(c(3, 3), c("ZZZ", "ZZZ"), c("1", "2"),
+                         overrides = allrows),
+    c(4, 4))
+
+  # an operator running two modes is only corrected on the named line
+  oneline <- data.frame(noc = "BLAC", route_short_name = "T", mode = "tram",
+                        note = "", stringsAsFactors = FALSE)
+  expect_equal(
+    apply_mode_overrides(c(3, 3, 3), rep("BLAC", 3), c("T", "1", "2"),
+                         overrides = oneline),
+    c(0, 3, 3))
+
+  # nothing to do is not an error
+  expect_equal(apply_mode_overrides(integer(0), character(0), character(0)),
+               integer(0))
+  expect_equal(apply_mode_overrides(3, NA_character_, NA_character_), 3)
+})
+
 test_that("gtfs_read types frequencies.txt and id columns correctly", {
   gtfs <- mk_period_gtfs("x", c("08:00:00", "08:10:00"))
   gtfs$frequencies <- data.frame(

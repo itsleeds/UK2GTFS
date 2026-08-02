@@ -140,6 +140,52 @@ gtfs_time_secs_strict <- function(x) {
 }
 
 
+#' A grouping key for the operator of a route
+#'
+#' `agency_id` identifies an agency *record*, not an operator, and one operator
+#' is regularly filed under several records in the same feed. Grouping on the
+#' record therefore splits a service published twice by one operator into two
+#' groups, where it can never be recognised as duplicated. Comparing the
+#' operator's name instead re-joins them.
+#'
+#' The name is normalised to lower case with runs of non alphanumeric
+#' characters collapsed to a single space, so "Go-Ahead London" and "Go Ahead
+#' London" are one operator. An agency with no usable name falls back to its
+#' `agency_id`, which leaves it grouped exactly as it was before.
+#'
+#' @param gtfs a gtfs object
+#' @param agency_id character, the agency id of each route, already aligned to
+#'   the trips being grouped
+#' @param match_operator "name" or "agency_id"
+#' @return a character vector the same length as `agency_id`
+#' @noRd
+operator_key <- function(gtfs, agency_id, match_operator = "name") {
+  if (!identical(match_operator, "name")) {
+    return(agency_id)
+  }
+  ag <- gtfs$agency
+  if (is.null(ag) || nrow(ag) == 0 || !"agency_name" %in% names(ag)) {
+    return(agency_id)
+  }
+  ag <- as.data.frame(ag)
+  nm <- if ("agency_id" %in% names(ag)) {
+    as.character(ag$agency_name)[match(agency_id, as.character(ag$agency_id))]
+  } else if (nrow(ag) == 1L) {
+    # a single agency needs no id: every route belongs to it
+    rep(as.character(ag$agency_name)[1], length(agency_id))
+  } else {
+    return(agency_id)
+  }
+
+  nm <- tolower(gsub("[^[:alnum:]]+", " ", nm))
+  nm <- trimws(nm)
+  # an agency with no usable name keeps its id, so it groups as it did before
+  bad <- is.na(nm) | !nzchar(nm)
+  nm[bad] <- paste0("\ragency_id\r", agency_id[bad])
+  nm
+}
+
+
 #' Remove duplicated trips from a GTFS object
 #'
 #' @description Finds trips that describe the same vehicle journey twice and
@@ -151,10 +197,25 @@ gtfs_time_secs_strict <- function(x) {
 #' @param gtfs a gtfs object
 #' @param match_route how much the routes of two trips must agree before they
 #'   can be called duplicates. `"short_name"` (the default) requires the same
-#'   agency, `route_type` and `route_short_name`, so the same service published
-#'   twice under different `route_id`s is caught; `"route_id"` requires the
-#'   identical `route_id`, which is stricter; `"none"` compares itineraries
-#'   alone, which is the least cautious.
+#'   operator, `route_type` and `route_short_name`, so the same service
+#'   published twice under different `route_id`s is caught; `"route_id"`
+#'   requires the identical `route_id`, which is stricter; `"none"` compares
+#'   itineraries alone, which is the least cautious.
+#' @param match_operator how two routes must agree on their operator when
+#'   `match_route = "short_name"`. `"name"` (the default) compares the
+#'   operator's name from `agency.txt`, ignoring case and punctuation;
+#'   `"agency_id"` requires the identical `agency_id`, which is stricter. One
+#'   operator is quite often filed under two `agency_id`s in the same feed -
+#'   Arriva London North appears in the DfT's GTFS as both `OP401` (NOC `ARVA`)
+#'   and `OP16197` (NOC `ALNO`) - and with `"agency_id"` its duplicate journeys
+#'   land in different groups and survive.
+#' @param match_block logical, whether `block_id` must agree before two trips
+#'   can be called duplicates. `FALSE` by default, because feeds routinely fill
+#'   `block_id` with a value generated per dataset revision rather than a
+#'   stable reference to a vehicle's day: in the DfT's GTFS it is a 40
+#'   character hash, so two copies of one journey never agree on it and
+#'   requiring agreement would let every such duplicate through. Set `TRUE` for
+#'   a feed whose `block_id` really does identify a vehicle block.
 #' @param quiet logical, suppress the summary message
 #' @return the gtfs object with duplicate trips, and their `stop_times` and
 #'   `frequencies` rows, removed
@@ -171,17 +232,29 @@ gtfs_time_secs_strict <- function(x) {
 #'    Period, `ITime`, text) all compare correctly. Trips with fewer than two
 #'    stops, or with fewer than two stops that carry a time, are never removed,
 #'    because their signature is too weak to be sure.
-#' 2. **The same route**, to the degree set by `match_route`.
+#' 2. **The same route**, to the degree set by `match_route` and
+#'    `match_operator`.
 #' 3. **The same trip attributes.** Where the feed has them, `direction_id`,
-#'    `block_id`, `wheelchair_accessible` and `bikes_allowed` must agree.
-#'    Trips differing in any of these carry information that removal would
-#'    lose - an accessible journey is not interchangeable with one not marked
-#'    accessible, and a trip in another block belongs to another vehicle's day.
+#'    `wheelchair_accessible` and `bikes_allowed` must agree - and `block_id`
+#'    too when `match_block = TRUE`. Trips differing in any of these carry
+#'    information that removal would lose: an accessible journey is not
+#'    interchangeable with one not marked accessible.
 #' 4. **Redundant operating dates.** `calendar.txt` and `calendar_dates.txt`
 #'    are expanded to the actual dates each service runs, and a copy is removed
 #'    only when every date it runs is also run by a copy that is kept. Nothing
 #'    that would leave a date with less service than it started with is
 #'    touched.
+#'
+#' The defaults of `match_operator` and `match_block` are deliberately the
+#' looser of the two settings each offers, because the stricter reading turned
+#' out to key identity on fields that carry no information about the road. Both
+#' were measured against published timetables on the July 2026 DfT GTFS: with
+#' `match_block = TRUE` and `match_operator = "agency_id"` the feed's copy of
+#' First Bristol's 21 stayed at 5,816 journeys over a four week window against
+#' the 3,296 its operator prints, and with the defaults it lands on 3,296
+#' exactly - as does First Bristol's A1, at 6,916 against 6,916. Nationally the
+#' defaults raise the trips removed from that feed from 3.2% to 5.2%. Restore
+#' either setting for a feed that fills the field meaningfully.
 #'
 #' The fourth test is the one that matters most. GTFS models a school-term
 #' journey and its school-holiday twin as two trips with identical times and
@@ -213,8 +286,11 @@ gtfs_time_secs_strict <- function(x) {
 #' @export
 gtfs_deduplicate <- function(gtfs,
                              match_route = c("short_name", "route_id", "none"),
+                             match_operator = c("name", "agency_id"),
+                             match_block = FALSE,
                              quiet = FALSE) {
   match_route <- match.arg(match_route)
+  match_operator <- match.arg(match_operator)
 
   if (is.null(gtfs$trips) || nrow(gtfs$trips) == 0 ||
       is.null(gtfs$stop_times) || nrow(gtfs$stop_times) == 0) {
@@ -328,11 +404,14 @@ gtfs_deduplicate <- function(gtfs,
       # an unnamed route cannot be grouped by name, so it stands alone
       short[is.na(short) | !nzchar(short)] <-
         paste0("\rroute_id\r", cand$route_id[is.na(short) | !nzchar(short)])
-      paste(pick("agency_id"), pick("route_type"), short, sep = "\r")
+      paste(operator_key(gtfs, pick("agency_id"), match_operator),
+            pick("route_type"), short, sep = "\r")
     }))
 
-  attr_cols <- intersect(c("direction_id", "block_id", "wheelchair_accessible",
-                           "bikes_allowed"), names(trips))
+  attr_wanted <- c("direction_id", "block_id", "wheelchair_accessible",
+                   "bikes_allowed")
+  if (!isTRUE(match_block)) attr_wanted <- setdiff(attr_wanted, "block_id")
+  attr_cols <- intersect(attr_wanted, names(trips))
   data.table::set(cand, j = "TMP_tkey", value = if (length(attr_cols) > 0) {
     do.call(paste, c(lapply(attr_cols, function(nm) {
       v <- as.character(trips[[nm]])

@@ -7,6 +7,8 @@
 gtfs_deduplicate(
   gtfs,
   match_route = c("short_name", "route_id", "none"),
+  match_operator = c("name", "agency_id"),
+  match_block = FALSE,
   quiet = FALSE
 )
 }
@@ -15,10 +17,27 @@ gtfs_deduplicate(
 
 \item{match_route}{how much the routes of two trips must agree before they
 can be called duplicates. `"short_name"` (the default) requires the same
-agency, `route_type` and `route_short_name`, so the same service published
-twice under different `route_id`s is caught; `"route_id"` requires the
-identical `route_id`, which is stricter; `"none"` compares itineraries
-alone, which is the least cautious.}
+operator, `route_type` and `route_short_name`, so the same service
+published twice under different `route_id`s is caught; `"route_id"`
+requires the identical `route_id`, which is stricter; `"none"` compares
+itineraries alone, which is the least cautious.}
+
+\item{match_operator}{how two routes must agree on their operator when
+`match_route = "short_name"`. `"name"` (the default) compares the
+operator's name from `agency.txt`, ignoring case and punctuation;
+`"agency_id"` requires the identical `agency_id`, which is stricter. One
+operator is quite often filed under two `agency_id`s in the same feed -
+Arriva London North appears in the DfT's GTFS as both `OP401` (NOC `ARVA`)
+and `OP16197` (NOC `ALNO`) - and with `"agency_id"` its duplicate journeys
+land in different groups and survive.}
+
+\item{match_block}{logical, whether `block_id` must agree before two trips
+can be called duplicates. `FALSE` by default, because feeds routinely fill
+`block_id` with a value generated per dataset revision rather than a
+stable reference to a vehicle's day: in the DfT's GTFS it is a 40
+character hash, so two copies of one journey never agree on it and
+requiring agreement would let every such duplicate through. Set `TRUE` for
+a feed whose `block_id` really does identify a vehicle block.}
 
 \item{quiet}{logical, suppress the summary message}
 }
@@ -45,17 +64,29 @@ hold.
    Period, `ITime`, text) all compare correctly. Trips with fewer than two
    stops, or with fewer than two stops that carry a time, are never removed,
    because their signature is too weak to be sure.
-2. **The same route**, to the degree set by `match_route`.
+2. **The same route**, to the degree set by `match_route` and
+   `match_operator`.
 3. **The same trip attributes.** Where the feed has them, `direction_id`,
-   `block_id`, `wheelchair_accessible` and `bikes_allowed` must agree.
-   Trips differing in any of these carry information that removal would
-   lose - an accessible journey is not interchangeable with one not marked
-   accessible, and a trip in another block belongs to another vehicle's day.
+   `wheelchair_accessible` and `bikes_allowed` must agree - and `block_id`
+   too when `match_block = TRUE`. Trips differing in any of these carry
+   information that removal would lose: an accessible journey is not
+   interchangeable with one not marked accessible.
 4. **Redundant operating dates.** `calendar.txt` and `calendar_dates.txt`
    are expanded to the actual dates each service runs, and a copy is removed
    only when every date it runs is also run by a copy that is kept. Nothing
    that would leave a date with less service than it started with is
    touched.
+
+The defaults of `match_operator` and `match_block` are deliberately the
+looser of the two settings each offers, because the stricter reading turned
+out to key identity on fields that carry no information about the road. Both
+were measured against published timetables on the July 2026 DfT GTFS: with
+`match_block = TRUE` and `match_operator = "agency_id"` the feed's copy of
+First Bristol's 21 stayed at 5,816 journeys over a four week window against
+the 3,296 its operator prints, and with the defaults it lands on 3,296
+exactly - as does First Bristol's A1, at 6,916 against 6,916. Nationally the
+defaults raise the trips removed from that feed from 3.2% to 5.2%. Restore
+either setting for a feed that fills the field meaningfully.
 
 The fourth test is the one that matters most. GTFS models a school-term
 journey and its school-holiday twin as two trips with identical times and
