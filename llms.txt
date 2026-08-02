@@ -157,6 +157,8 @@ Please report failed conversions as GitHub
   : Get naptan
 - [`get_naptan_xml_doc()`](https://itsleeds.github.io/UK2GTFS/reference/get_naptan_xml_doc.md)
   : Get naptan xml doc
+- [`get_noc()`](https://itsleeds.github.io/UK2GTFS/reference/get_noc.md)
+  : Get the National Operator Codes database
 - [`gtfs_add_fares()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_fares.md)
   : Add fares to a GTFS object from NeTEx fare files
 - [`gtfs_add_fares_v1()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_fares_v1.md)
@@ -241,6 +243,8 @@ Please report failed conversions as GitHub
   : Extract NeTEx fare files from a BODS archive
 - [`ni2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/ni2gtfs.md)
   : NI to GTFS
+- [`noc_operator_key()`](https://itsleeds.github.io/UK2GTFS/reference/noc_operator_key.md)
+  : Which operator does each agency record belong to?
 - [`nptdr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nptdr2gtfs.md)
   : Import the .CIF file
 - [`nr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nr2gtfs.md)

@@ -24,6 +24,7 @@
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/get_bank_holidays.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/get_naptan.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/get_naptan_xml_doc.html</loc></url>
+<url><loc>https://itsleeds.github.io/UK2GTFS/reference/get_noc.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_fares.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_fares_v1.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_add_fares_v2.html</loc></url>
@@ -67,6 +68,7 @@
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/netex_read_fares_multiple.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/netex_unzip.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/ni2gtfs.html</loc></url>
+<url><loc>https://itsleeds.github.io/UK2GTFS/reference/noc_operator_key.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/nptdr2gtfs.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/nr2gtfs.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/nrdp_fares.html</loc></url>

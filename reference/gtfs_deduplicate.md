@@ -12,8 +12,9 @@ count made from the feed.
 gtfs_deduplicate(
   gtfs,
   match_route = c("short_name", "route_id", "none"),
-  match_operator = c("name", "agency_id"),
+  match_operator = c("name", "agency_id", "noc"),
   match_block = FALSE,
+  noc = NULL,
   quiet = FALSE
 )
 ```
@@ -38,9 +39,11 @@ gtfs_deduplicate(
   how two routes must agree on their operator when \`match_route =
   "short_name"\`. \`"name"\` (the default) compares the operator's name
   from \`agency.txt\`, ignoring case and punctuation; \`"agency_id"\`
-  requires the identical \`agency_id\`, which is stricter. One operator
-  is quite often filed under two \`agency_id\`s in the same feed -
-  Arriva London North appears in the DfT's GTFS as both \`OP401\` (NOC
+  requires the identical \`agency_id\`, which is stricter; and \`"noc"\`
+  asks Traveline's National Operator Codes register which company each
+  agency record belongs to, which is the most complete. One operator is
+  quite often filed under two \`agency_id\`s in the same feed - Arriva
+  London North appears in the DfT's GTFS as both \`OP401\` (NOC
   \`ARVA\`) and \`OP16197\` (NOC \`ALNO\`) - and with \`"agency_id"\`
   its duplicate journeys land in different groups and survive.
 
@@ -54,6 +57,13 @@ gtfs_deduplicate(
   requiring agreement would let every such duplicate through. Set
   \`TRUE\` for a feed whose \`block_id\` really does identify a vehicle
   block.
+
+- noc:
+
+  the NOC database, as returned by \[get_noc()\]. Required when
+  \`match_operator = "noc"\` and ignored otherwise. It is a parameter
+  rather than a download so that a caller deduplicating many feeds
+  fetches it once.
 
 - quiet:
 

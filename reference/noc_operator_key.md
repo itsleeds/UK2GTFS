@@ -1,0 +1,62 @@
+# Which operator does each agency record belong to?
+
+Resolves GTFS agency records to Traveline operator identities, so that
+the several records one operator is filed under can be recognised as
+one.
+
+## Usage
+
+``` r
+noc_operator_key(agency_id, agency_name, noc)
+```
+
+## Arguments
+
+- agency_id:
+
+  character vector of \`agency_id\`s
+
+- agency_name:
+
+  character vector of \`agency_name\`s, the same length
+
+- noc:
+
+  the NOC database, as returned by \[get_noc()\]
+
+## Value
+
+a character vector of operator keys, the same length as \`agency_id\`.
+Records that resolve to the same operator get the same key; records that
+do not resolve keep a key derived from their own \`agency_id\`, so they
+group exactly as they did before.
+
+## Details
+
+Two ways in, tried in that order.
+
+1\. \*\*By code.\*\* \`agency_id\` is matched against the register's
+NOCs. This is the reliable route for a feed converted from TransXChange,
+where \`agency_id\` is the \`NationalOperatorCode\`. 2. \*\*By name.\*\*
+\`agency_name\` is matched, after normalisation, against every name the
+register knows an operator by - trading name, PSV licence name and legal
+name. This is the only route for a feed whose \`agency_id\` is its own
+invention, as the DfT's GTFS is, with ids like \`OP401\`.
+
+A name that more than one operator answers to resolves nothing and is
+left alone. That matters: six separate companies in the DfT's July 2026
+GTFS are all named \`Bee Network\`, and treating a shared brand as a
+shared operator would merge journeys run by different companies.
+
+## Examples
+
+``` r
+if (FALSE) { # \dontrun{
+noc <- get_noc()
+# both of these are Stagecoach London, filed twice by TNDS - once under its
+# National Operator Code and once under an unresolved local reference
+noc_operator_key(c("ELBG", "IF"),
+                 c("Stagecoach London",
+                   "EAST LONDON BUS & COACH COMPANY LIMITED"), noc)
+} # }
+```
