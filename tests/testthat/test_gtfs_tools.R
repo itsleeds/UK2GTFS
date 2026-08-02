@@ -182,6 +182,23 @@ test_that("gtfs_validate_internal finds seeded problems", {
 })
 
 
+test_that("an unknown stop_id is blamed on the right lookup", {
+  # The hint used to say TIPLOC unconditionally, which is wrong for every
+  # TransXChange conversion: ATCO codes come from NaPTAN, and NaPTAN's gaps
+  # (platform level London Underground codes) are the usual cause
+  gtfs <- make_full_gtfs()
+  gtfs$stop_times$stop_id[1] <- "9400ZZLUAGL2"
+  res <- suppressMessages(gtfs_validate_internal(gtfs))
+  msg <- res$message[res$table == "stop_times" & grepl("stop_id", res$message)]
+  expect_match(msg, "NaPTAN")
+
+  gtfs$stop_times$stop_id[1] <- "KNGX"
+  res <- suppressMessages(gtfs_validate_internal(gtfs))
+  msg <- res$message[res$table == "stop_times" & grepl("stop_id", res$message)]
+  expect_match(msg, "TIPLOC")
+})
+
+
 test_that("gtfs_validate_internal handles Period times and IDate dates", {
   gtfs <- make_full_gtfs()
   gtfs$stop_times$arrival_time <- lubridate::hms(gtfs$stop_times$arrival_time)

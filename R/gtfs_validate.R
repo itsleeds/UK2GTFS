@@ -275,6 +275,8 @@ gtfs_validate_internal <- function(gtfs, good_news = FALSE) {
   }
 
   # ---- 5. Referential integrity ---------------------------------------------
+  # `hint` may be a function of the unknown values, for keys whose likely cause
+  # depends on which identifier scheme the feed uses
   check_fk <- function(child, col, parent, parent_col,
                        allow_blank = FALSE, severity = "Error", hint = "") {
     if (!has_rows(child) || !has(parent)) return(invisible(NULL))
@@ -287,6 +289,7 @@ gtfs_validate_internal <- function(gtfs, good_news = FALSE) {
     }
     if (!all(ok)) {
       unknown <- unique(vals[!ok])
+      if (is.function(hint)) hint <- hint(unknown)
       note(severity, child, length(unknown), " ", col,
            " value(s) not found in ", parent, "$", parent_col, hint, ": ",
            id_sample(unknown))
@@ -294,12 +297,26 @@ gtfs_validate_internal <- function(gtfs, good_news = FALSE) {
     invisible(NULL)
   }
 
+  # An unknown stop_id means different things in different feeds. ATCO codes
+  # (a three digit administrative area code then alphanumerics, e.g.
+  # 9400ZZLUAGL2) come from TransXChange and mean NaPTAN has no entry for the
+  # stop - platform level London Underground codes are a standing gap.
+  # Anything else comes from the rail timetable, where the TIPLOC lookup is
+  # the usual culprit.
+  stop_id_hint <- function(unknown) {
+    if (any(grepl("^[0-9]{3}", unknown))) {
+      " (NaPTAN has no entry for these stops)"
+    } else {
+      " (TIPLOC data may need refreshing)"
+    }
+  }
+
   check_fk("routes", "agency_id", "agency", "agency_id")
   check_fk("trips", "route_id", "routes", "route_id")
   check_fk("trips", "shape_id", "shapes", "shape_id", allow_blank = TRUE)
   check_fk("stop_times", "trip_id", "trips", "trip_id")
   check_fk("stop_times", "stop_id", "stops", "stop_id",
-           hint = " (TIPLOC data may need refreshing)")
+           hint = stop_id_hint)
   check_fk("stops", "parent_station", "stops", "stop_id", allow_blank = TRUE)
   check_fk("stops", "level_id", "levels", "level_id", allow_blank = TRUE)
   check_fk("frequencies", "trip_id", "trips", "trip_id")

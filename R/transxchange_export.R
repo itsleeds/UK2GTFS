@@ -660,6 +660,20 @@ transxchange_export <- function(obj,
   calendar_dates <- unique(calendar_dates)
   calendar_dates$date <- gsub("-", "", calendar_dates$date)
 
+  # A service can end up both added and cancelled on the same date. TNDS has
+  # vehicle journeys naming the same holiday in BankHolidayOperation's
+  # DaysOfOperation and DaysOfNonOperation (e.g. TfL's night buses on the late
+  # summer bank holiday), and the SpecialDaysOperation block above is applied
+  # to every service, so it can land on a date a bank holiday already removed.
+  # TransXChange gives non-operation precedence and GTFS allows only one row
+  # per service_id + date, so keep the cancellation and drop the addition.
+  if (nrow(calendar_dates) > 0) {
+    dup_key <- paste(calendar_dates$service_id, calendar_dates$date)
+    cancelled <- dup_key %in% dup_key[calendar_dates$exception_type == 2]
+    calendar_dates <- calendar_dates[
+      !(cancelled & calendar_dates$exception_type == 1), ]
+  }
+
   if (run_debug) {
     if (any(is.na(calendar_dates))) {
       stop("NA values in calendar_dates")
