@@ -7,7 +7,7 @@ problems it finds. It does not change the data (see
 ## Usage
 
 ``` r
-gtfs_validate_internal(gtfs)
+gtfs_validate_internal(gtfs, good_news = FALSE)
 ```
 
 ## Arguments
@@ -15,6 +15,11 @@ gtfs_validate_internal(gtfs)
 - gtfs:
 
   a gtfs object
+
+- good_news:
+
+  logical, should message be printed when no problems found, default
+  FALSE
 
 ## Value
 
