@@ -3,7 +3,8 @@ context("txc_filter_files removes superseded service versions")
 # helper to write a minimal TransXchange file with the header fields the
 # filter reads
 make_txc <- function(dir, name, service, startdate, rev, modtime,
-                     lines = character(0)) {
+                     lines = character(0), enddate = NULL, desc = NULL,
+                     noc = NULL, createtime = NULL) {
   lines_xml <- if (length(lines)) {
     paste0("<Lines>",
            paste0(sprintf("<Line id=\"L%s\"><LineName>%s</LineName></Line>",
@@ -12,21 +13,37 @@ make_txc <- function(dir, name, service, startdate, rev, modtime,
   } else {
     ""
   }
+  end_xml <- if (is.null(enddate)) "" else sprintf("<EndDate>%s</EndDate>", enddate)
+  desc_xml <- if (is.null(desc)) "" else sprintf("<Description>%s</Description>", desc)
+  noc_xml <- if (is.null(noc)) "" else sprintf(
+    "<Operators><Operator><NationalOperatorCode>%s</NationalOperatorCode></Operator></Operators>",
+    noc)
+  if (is.null(createtime)) createtime <- modtime
   xml <- sprintf(
 '<?xml version="1.0"?>
 <TransXChange xmlns="http://www.transxchange.org.uk/" CreationDateTime="%s" ModificationDateTime="%s" RevisionNumber="%s">
+  %s
   <Services>
     <Service RevisionNumber="%s" ModificationDateTime="%s">
       <ServiceCode>%s</ServiceCode>
       %s
-      <OperatingPeriod><StartDate>%s</StartDate></OperatingPeriod>
+      %s
+      <OperatingPeriod><StartDate>%s</StartDate>%s</OperatingPeriod>
     </Service>
   </Services>
-</TransXChange>', modtime, modtime, rev, rev, modtime, service, lines_xml,
-    startdate)
+</TransXChange>', createtime, modtime, rev, noc_xml, rev, modtime, service,
+    desc_xml, lines_xml, startdate, end_xml)
   f <- file.path(dir, name)
   writeLines(xml, f)
   f
+}
+
+# the operating period a file ends up declaring, after any rewrite
+period_of <- function(f) {
+  x <- xml2::read_xml(f)
+  svc <- xml2::xml_find_first(x, "d1:Services/d1:Service")
+  c(start = xml2::xml_text(xml2::xml_find_first(svc, "d1:OperatingPeriod/d1:StartDate")),
+    end = xml2::xml_text(xml2::xml_find_first(svc, "d1:OperatingPeriod/d1:EndDate")))
 }
 
 
@@ -155,6 +172,173 @@ test_that("a revision that adds a line does not double-count the shared one", {
 
   res <- basename(txc_filter_files(files, date = as.Date("2026-07-26")))
   expect_equal(res, "v2.xml")
+})
+
+
+test_that("a re-registration under a new ServiceCode truncates its predecessor", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # The Transport for London pattern that the ServiceCode rules cannot see:
+  # line 436 is re-registered under a brand new ServiceCode, so each code
+  # appears exactly once, yet both files run to 2026-12-23 and overlap from
+  # 25 July. The predecessor must be closed the day before the successor.
+  files <- c(
+    make_txc(dir, "old.xml", "45-436-_-y05-61477", "2026-07-11", "1",
+             "2026-07-17T08:38:06", lines = "436", enddate = "2026-12-23",
+             desc = "Lewisham - Battersea Park Station", noc = "GAHL"),
+    make_txc(dir, "new.xml", "45-436-_-y05-61478", "2026-07-25", "1",
+             "2026-07-17T08:38:08", lines = "436", enddate = "2026-12-23",
+             desc = "Lewisham - Battersea Park Station", noc = "GAHL")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(length(res), 2)
+
+  per <- do.call(rbind, lapply(res, period_of))
+  rownames(per) <- vapply(res, function(f) {
+    if (grepl("61477", paste(readLines(f), collapse = ""))) "old" else "new"
+  }, "")
+  expect_equal(unname(per["old", "end"]), "2026-07-24")
+  expect_equal(unname(per["old", "start"]), "2026-07-11")
+  expect_equal(unname(per["new", "start"]), "2026-07-25")
+  expect_equal(unname(per["new", "end"]), "2026-12-23")
+
+  # the originals must be untouched
+  expect_equal(unname(period_of(files[1])["end"]), "2026-12-23")
+})
+
+
+test_that("an open-ended predecessor gains an EndDate", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # The Stagecoach pattern: the superseded registration declares no EndDate at
+  # all, which is exactly what lets it go on being counted for ever.
+  files <- c(
+    make_txc(dir, "open.xml", "NW_02_SCME_PR3_1", "2026-01-04", "1",
+             "2026-01-04T00:00:00", lines = "PR3",
+             desc = "Preston - Lancaster", noc = "SCMY"),
+    make_txc(dir, "later.xml", "NW_SC_SCMY_PR3_1", "2026-07-19", "1",
+             "2026-07-19T00:00:00", lines = "PR3",
+             desc = "Preston - Lancaster", noc = "SCMY")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(length(res), 2)
+  ends <- vapply(res, function(f) period_of(f)[["end"]], "")
+  expect_true("2026-07-18" %in% ends)
+})
+
+
+test_that("identical periods keep the most recently created file", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # Truncation cannot separate two registrations that declare the same period,
+  # so the newer one wins outright.
+  files <- c(
+    make_txc(dir, "first.xml", "16-364-_-y05-61731", "2026-07-11", "1",
+             "2026-07-17T08:33:05", lines = "364", enddate = "2026-12-23",
+             desc = "Ilford - Dagenham East", noc = "GAHL",
+             createtime = "2026-07-17T08:33:05"),
+    make_txc(dir, "second.xml", "16-364-_-y05-61732", "2026-07-11", "1",
+             "2026-07-17T08:33:07", lines = "364", enddate = "2026-12-23",
+             desc = "Ilford - Dagenham East", noc = "GAHL",
+             createtime = "2026-07-17T08:33:07")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(basename(res), "second.xml")
+})
+
+
+test_that("same start and a different end moves the longer period's start", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  files <- c(
+    make_txc(dir, "short.xml", "SVC_A", "2026-07-11", "1",
+             "2026-07-01T00:00:00", lines = "9", enddate = "2026-08-31",
+             desc = "Town - Village", noc = "OPER"),
+    make_txc(dir, "long.xml", "SVC_B", "2026-07-11", "1",
+             "2026-07-01T00:00:00", lines = "9", enddate = "2026-12-23",
+             desc = "Town - Village", noc = "OPER")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(length(res), 2)
+  starts <- vapply(res, function(f) period_of(f)[["start"]], "")
+  expect_true("2026-09-01" %in% starts)
+  expect_true("2026-07-11" %in% starts)
+})
+
+
+test_that("correctly sequenced registrations are left alone", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # The H13 case: the publisher already closed the first period the day before
+  # the second begins. Nothing here is duplication and nothing may change.
+  files <- c(
+    make_txc(dir, "a.xml", "54-H13-_-y05-61367", "2026-07-11", "1",
+             "2026-07-17T08:47:23", lines = "H13", enddate = "2026-08-31",
+             desc = "Northwood Hills - Ruislip Lido", noc = "MTLN"),
+    make_txc(dir, "b.xml", "54-H13-_-y05-61364", "2026-09-01", "1",
+             "2026-07-17T08:47:26", lines = "H13", enddate = "2026-12-23",
+             desc = "Northwood Hills - Ruislip Lido", noc = "MTLN")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_setequal(basename(res), c("a.xml", "b.xml"))
+  # unchanged means the originals are returned, not rewritten copies
+  expect_setequal(res, files)
+})
+
+
+test_that("different services sharing a line number are not merged", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # Line 436 exists in London and in Hereford. Same number, same dates,
+  # different operator and description: these must both survive untouched.
+  files <- c(
+    make_txc(dir, "london.xml", "45-436-_-y05-61477", "2026-07-11", "1",
+             "2026-07-17T08:38:06", lines = "436", enddate = "2026-12-23",
+             desc = "Lewisham - Battersea Park Station", noc = "GAHL"),
+    make_txc(dir, "hereford.xml", "30-436-0-y11-2", "2026-07-11", "1",
+             "2026-06-01T00:00:00", lines = "436", enddate = "2026-12-23",
+             desc = "Breinton - Hereford", noc = "YEOC")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_setequal(res, files)
+})
+
+
+test_that("resolve_overlaps = FALSE restores the old behaviour", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  files <- c(
+    make_txc(dir, "old.xml", "CODE_A", "2026-07-11", "1",
+             "2026-07-17T08:38:06", lines = "436", enddate = "2026-12-23",
+             desc = "Lewisham - Battersea", noc = "GAHL"),
+    make_txc(dir, "new.xml", "CODE_B", "2026-07-25", "1",
+             "2026-07-17T08:38:08", lines = "436", enddate = "2026-12-23",
+             desc = "Lewisham - Battersea", noc = "GAHL")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"),
+                          resolve_overlaps = FALSE)
+  expect_setequal(res, files)
 })
 
 

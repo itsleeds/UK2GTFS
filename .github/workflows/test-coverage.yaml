@@ -1,24 +1,17 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+
 on:
   push:
     branches: [main, master]
   pull_request:
+    branches: [main, master]
 
-name: test-coverage.yaml
-
-permissions: read-all
+name: Test coverage
 
 jobs:
   test-coverage:
     runs-on: ubuntu-latest
-    # id-token: write lets the codecov step mint a GitHub OIDC token and
-    # authenticate with it instead of a stored upload token. The workflow-level
-    # `read-all` above does not include id-token, and a job-level block
-    # replaces it outright, so contents: read has to be restated here.
-    permissions:
-      contents: read
-      id-token: write
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
@@ -31,45 +24,23 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::covr, any::xml2
+          extra-packages: any::covr
           needs: coverage
 
       - name: Test coverage
         run: |
-          cov <- covr::package_coverage(
+          covr::codecov(
             quiet = FALSE,
             clean = FALSE,
             install_path = file.path(normalizePath(Sys.getenv("RUNNER_TEMP"), winslash = "/"), "package")
           )
-          print(cov)
-          covr::to_cobertura(cov)
         shell: Rscript {0}
-
-      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
-        with:
-          # No upload token: authenticate with GitHub OIDC. Codecov rejects
-          # tokenless uploads from branch pushes ("Token required - not valid
-          # tokenless upload") and only allows them for pull requests from
-          # forks, where OIDC is unavailable — hence the condition below.
-          use_oidc: true
-          verbose: true
-          # Fail on anything that can authenticate; a fork PR cannot, so a
-          # missing upload there is expected rather than a build failure.
-          fail_ci_if_error: ${{ github.event.pull_request.head.repo.fork != true }}
-          files: ./cobertura.xml
-          plugins: noop
-          disable_search: true
-          # Upload to this repository, not whichever repository a credential
-          # happens to belong to. Without this, a token minted for another
-          # Codecov repo silently diverts the report there and the badge never
-          # updates — which is what went unnoticed from Feb 2025 to Jul 2026.
-          slug: ${{ github.repository }}
 
       - name: Show testthat output
         if: always()
         run: |
           ## --------------------------------------------------------------------
-          find '${{ runner.temp }}/package' -name 'testthat.Rout*' -exec cat '{}' \; || true
+          find ${{ runner.temp }}/package -name 'testthat.Rout*' -exec cat '{}' \; || true
         shell: bash
 
       - name: Upload test results
