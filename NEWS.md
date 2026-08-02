@@ -14,6 +14,28 @@
 
 ## New features
 
+* `gtfs_deduplicate()` removes journeys a feed describes more than once. A
+  copy is removed only when the whole itinerary matches - every stop, arrival,
+  departure and boarding code - and every date it runs is also run by a copy
+  that is kept, so no date loses service. `match_route`, `match_operator` and
+  `match_block` control how much of the route has to agree. The defaults
+  ignore `block_id` (feeds routinely fill it with a per-revision hash, so two
+  copies of one journey never agree on it) and group operators by name rather
+  than by `agency_id` (one operator is regularly filed under several agency
+  records).
+* `get_noc()` downloads Traveline's National Operator Codes register, and
+  `noc_operator_key()` uses it to resolve GTFS agency records to the company
+  they belong to - by operator code where the feed carries one, otherwise by
+  matching the trading, licence or legal name. `gtfs_deduplicate()` accepts it
+  as `match_operator = "noc"`, which joins records sharing neither an id nor a
+  name: TNDS files Stagecoach London both as `ELBG` and, where the operator
+  reference was never resolved to a code, as `IF` "EAST LONDON BUS & COACH
+  COMPANY LIMITED".
+* `operator_mode_overrides()` lists operators known to declare the wrong
+  `Mode` in their TransXChange registrations, and `transxchange2gtfs()` now
+  applies it. The first entry is Nottingham Express Transit, whose tramway is
+  registered as a bus. `clean_route_type()` is now case insensitive and
+  understands `trolleyBus` (GTFS route type 11).
 * Fares support. GTFS fare tables (both the original `fare_attributes`/
   `fare_rules` specification and GTFS Fares v2) can now be built from:
   * the National Rail fares feed (RSPS5045) via `atoc_fares_read()` and

@@ -153,14 +153,23 @@ gtfs_time_secs_strict <- function(x) {
 #' London" are one operator. An agency with no usable name falls back to its
 #' `agency_id`, which leaves it grouped exactly as it was before.
 #'
+#' `"noc"` goes further and asks Traveline's register which company each record
+#' belongs to, which catches the pairs no comparison of the feed's own text
+#' can: TNDS files Stagecoach London both as `ELBG` and, where the operator
+#' reference was never resolved to a code, as `IF` named "EAST LONDON BUS &
+#' COACH COMPANY LIMITED". The two share no name and no id, and the register
+#' says they are one operator.
+#'
 #' @param gtfs a gtfs object
 #' @param agency_id character, the agency id of each route, already aligned to
 #'   the trips being grouped
-#' @param match_operator "name" or "agency_id"
+#' @param match_operator "name", "agency_id" or "noc"
+#' @param noc the NOC database from [get_noc()], required for "noc"
 #' @return a character vector the same length as `agency_id`
 #' @noRd
-operator_key <- function(gtfs, agency_id, match_operator = "name") {
-  if (!identical(match_operator, "name")) {
+operator_key <- function(gtfs, agency_id, match_operator = "name",
+                         noc = NULL) {
+  if (identical(match_operator, "agency_id")) {
     return(agency_id)
   }
   ag <- gtfs$agency
@@ -175,6 +184,10 @@ operator_key <- function(gtfs, agency_id, match_operator = "name") {
     rep(as.character(ag$agency_name)[1], length(agency_id))
   } else {
     return(agency_id)
+  }
+
+  if (identical(match_operator, "noc")) {
+    return(noc_operator_key(agency_id, nm, noc))
   }
 
   nm <- tolower(gsub("[^[:alnum:]]+", " ", nm))
@@ -204,11 +217,16 @@ operator_key <- function(gtfs, agency_id, match_operator = "name") {
 #' @param match_operator how two routes must agree on their operator when
 #'   `match_route = "short_name"`. `"name"` (the default) compares the
 #'   operator's name from `agency.txt`, ignoring case and punctuation;
-#'   `"agency_id"` requires the identical `agency_id`, which is stricter. One
-#'   operator is quite often filed under two `agency_id`s in the same feed -
-#'   Arriva London North appears in the DfT's GTFS as both `OP401` (NOC `ARVA`)
-#'   and `OP16197` (NOC `ALNO`) - and with `"agency_id"` its duplicate journeys
-#'   land in different groups and survive.
+#'   `"agency_id"` requires the identical `agency_id`, which is stricter; and
+#'   `"noc"` asks Traveline's National Operator Codes register which company
+#'   each agency record belongs to, which is the most complete. One operator is
+#'   quite often filed under two `agency_id`s in the same feed - Arriva London
+#'   North appears in the DfT's GTFS as both `OP401` (NOC `ARVA`) and `OP16197`
+#'   (NOC `ALNO`) - and with `"agency_id"` its duplicate journeys land in
+#'   different groups and survive.
+#' @param noc the NOC database, as returned by [get_noc()]. Required when
+#'   `match_operator = "noc"` and ignored otherwise. It is a parameter rather
+#'   than a download so that a caller deduplicating many feeds fetches it once.
 #' @param match_block logical, whether `block_id` must agree before two trips
 #'   can be called duplicates. `FALSE` by default, because feeds routinely fill
 #'   `block_id` with a value generated per dataset revision rather than a
@@ -286,11 +304,15 @@ operator_key <- function(gtfs, agency_id, match_operator = "name") {
 #' @export
 gtfs_deduplicate <- function(gtfs,
                              match_route = c("short_name", "route_id", "none"),
-                             match_operator = c("name", "agency_id"),
+                             match_operator = c("name", "agency_id", "noc"),
                              match_block = FALSE,
+                             noc = NULL,
                              quiet = FALSE) {
   match_route <- match.arg(match_route)
   match_operator <- match.arg(match_operator)
+  if (identical(match_operator, "noc") && (is.null(noc) || nrow(noc) == 0)) {
+    stop("match_operator = \"noc\" needs the NOC database: pass noc = get_noc()")
+  }
 
   if (is.null(gtfs$trips) || nrow(gtfs$trips) == 0 ||
       is.null(gtfs$stop_times) || nrow(gtfs$stop_times) == 0) {
@@ -404,7 +426,7 @@ gtfs_deduplicate <- function(gtfs,
       # an unnamed route cannot be grouped by name, so it stands alone
       short[is.na(short) | !nzchar(short)] <-
         paste0("\rroute_id\r", cand$route_id[is.na(short) | !nzchar(short)])
-      paste(operator_key(gtfs, pick("agency_id"), match_operator),
+      paste(operator_key(gtfs, pick("agency_id"), match_operator, noc),
             pick("route_type"), short, sep = "\r")
     }))
 

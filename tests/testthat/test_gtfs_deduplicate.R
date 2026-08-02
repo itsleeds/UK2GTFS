@@ -178,6 +178,102 @@ test_that("one operator filed under two agency_ids is still one operator", {
 })
 
 
+# A cut-down NOC register standing in for get_noc(), which downloads.
+# ELBG and IF are the real London case: TNDS files Stagecoach London under its
+# National Operator Code and, in other files, under an unresolved local
+# reference carrying the PSV licence name instead. Nothing in a feed connects
+# them; the register does.
+test_noc <- function() {
+  data.frame(
+    noc = c("ELBG", "SCMN", "DIAE", "SCYO"),
+    public_name = c("Stagecoach London", "Bee Network", "Bee Network",
+                    "Stagecoach Yorkshire"),
+    licence_name = c("East London Bus & Coach Co Ltd",
+                     "Stagecoach Manchester Ltd", "Diamond Bus North West Ltd",
+                     "Yorkshire Traction Co Ltd"),
+    operator_id = c("136222", "136515", "137157", "137999"),
+    operator_name = c("East London Bus & Coach Co Ltd",
+                      "Stagecoach Manchester Ltd", "Diamond Bus North West Ltd",
+                      "Yorkshire Traction Co Ltd"),
+    division_id = c("1", "2", "3", "4"),
+    division = c("Stagecoach London", "Stagecoach Manchester",
+                 "Rotala", "Stagecoach Yorkshire"),
+    group_id = c("10", "10", "11", "10"),
+    group = c("Stagecoach", "Stagecoach", "Rotala", "Stagecoach"),
+    stringsAsFactors = FALSE)
+}
+
+
+test_that("noc_operator_key resolves by code and by any known name", {
+  noc <- test_noc()
+
+  # the London pair: no shared id and no shared name, one operator
+  k <- noc_operator_key(c("ELBG", "IF"),
+                        c("Stagecoach London",
+                          "EAST LONDON BUS & COACH COMPANY LIMITED"), noc)
+  expect_equal(k[1], k[2])
+
+  # "COMPANY LIMITED" against "Co Ltd" is the whole difficulty, so check the
+  # normalisation directly rather than only through the pair above
+  expect_equal(noc_normalise_name("EAST LONDON BUS & COACH COMPANY LIMITED"),
+               noc_normalise_name("East London Bus & Coach Co Ltd"))
+
+  # a brand two companies share identifies neither of them
+  k <- noc_operator_key(c("X1", "X2"), c("Bee Network", "Bee Network"), noc)
+  expect_false(k[1] == k[2])
+
+  # nothing recognised keeps the agency_id, so grouping is unchanged
+  k <- noc_operator_key(c("ZZ1", "ZZ2"), c("Unknown Buses", "Unknown Buses"),
+                        noc)
+  expect_false(k[1] == k[2])
+  expect_true(all(grepl("ZZ1|ZZ2", k)))
+
+  # sharing only a corporate group is not sharing an operator
+  k <- noc_operator_key(c("ELBG", "SCYO"),
+                        c("Stagecoach London", "Stagecoach Yorkshire"), noc)
+  expect_false(k[1] == k[2])
+})
+
+
+test_that("match_operator = 'noc' merges records the feed's own text cannot", {
+  gtfs <- dedup_gtfs()
+  gtfs$agency <- data.frame(
+    agency_id = c("ELBG", "IF"),
+    agency_name = c("Stagecoach London",
+                    "EAST LONDON BUS & COACH COMPANY LIMITED"),
+    agency_url = "http://example.com", agency_timezone = "Europe/London",
+    stringsAsFactors = FALSE)
+  gtfs$routes <- rbind(
+    data.frame(route_id = "R1", agency_id = "ELBG", route_short_name = "20",
+               route_long_name = "one", route_type = 3L,
+               stringsAsFactors = FALSE),
+    data.frame(route_id = "R2", agency_id = "IF", route_short_name = "20",
+               route_long_name = "one", route_type = 3L,
+               stringsAsFactors = FALSE))
+  gtfs$trips$route_id <- "R1"
+  gtfs <- add_trip(gtfs, "T1", "T2", route_id = "R2")
+
+  # neither existing setting can see this: the ids differ and so do the names
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+  expect_equal(nrow(gtfs_deduplicate(gtfs, match_operator = "agency_id",
+                                     quiet = TRUE)$trips), 2)
+  expect_equal(gtfs_deduplicate(gtfs, match_operator = "noc",
+                                noc = test_noc(), quiet = TRUE)$trips$trip_id,
+               "T1")
+
+  # and it still refuses two genuinely different operators
+  gtfs$agency$agency_id <- c("ELBG", "SCYO")
+  gtfs$agency$agency_name <- c("Stagecoach London", "Stagecoach Yorkshire")
+  gtfs$routes$agency_id <- c("ELBG", "SCYO")
+  expect_equal(nrow(gtfs_deduplicate(gtfs, match_operator = "noc",
+                                     noc = test_noc(), quiet = TRUE)$trips), 2)
+
+  # asking for it without the register is an error, not a silent fallback
+  expect_error(gtfs_deduplicate(gtfs, match_operator = "noc", quiet = TRUE),
+               "get_noc")
+})
+
+
 test_that("a differently numbered route is not a duplicate", {
   gtfs <- dedup_gtfs()
   gtfs$routes <- rbind(gtfs$routes,
