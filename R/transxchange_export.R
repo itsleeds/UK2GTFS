@@ -323,6 +323,20 @@ transxchange_export <- function(obj,
   # Remove Duplicated descriptions
   routes$route_desc <- ifelse(routes$route_desc == routes$route_long_name, "", routes$route_desc)
 
+  # Carry the ServiceCode through into the feed. It is the only thing that says
+  # which registration a route came from, and without it two files describing
+  # one line - which is how Transport for London publishes a re-registration,
+  # under a new code each time - are indistinguishable once converted. Written
+  # as a bracketed suffix, so it can be read back or stripped with a
+  # regexp without touching the publisher's own text.
+  service_code <- Services_main$ServiceCode[1]
+  if (!is.na(service_code) && nzchar(service_code)) {
+    tag <- paste0("[ServiceCode: ", service_code, "]")
+    routes$route_desc <- ifelse(nzchar(routes$route_desc),
+                                paste(routes$route_desc, tag),
+                                tag)
+  }
+
 
   # agency ------------------------------------------------------------------
   # agency_id, agency_name, agency_url, agency_timezone

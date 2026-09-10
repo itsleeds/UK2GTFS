@@ -31,6 +31,12 @@ test_that("test transxchange2gtfs singlecore", {
   gtfs_write(gtfs,folder = file_path, name = "txc_gtfs2")
   expect_true(file.exists(file.path(file_path,"txc_gtfs2.zip")))
 
+  # Every route carries the ServiceCode it was converted from, so two files
+  # describing one line can be told apart once in the feed
+  expect_true(all(grepl("[ServiceCode: ", gtfs$routes$route_desc, fixed = TRUE)))
+  codes <- sub("^.*[[]ServiceCode: ", "", gtfs$routes$route_desc)
+  codes <- sub("[]].*$", "", codes)
+  expect_true(all(nzchar(codes)))
 })
 
 # mulicore test failing on windows in GitHub Actions

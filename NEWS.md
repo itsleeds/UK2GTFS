@@ -104,6 +104,42 @@
 
 ## Bug fixes
 
+* `nptdr2gtfs()` now sorts the tramways from the metros. The ATCO-CIF vehicle
+  type is a coarse instrument and "METRO" is a catch-all: the archives use it
+  for the London Underground, the Glasgow Subway, every British tramway, the
+  airport people movers and a long tail of heritage railways alike, and file
+  the same system differently from one year to the next - Nottingham Express
+  Transit is a tram in 2006-2008 and a metro in 2009-2011, Sheffield Supertram
+  is a *bus* in most years, and the London Underground is a bus in 2004. The
+  operator code cannot fix it because it is not stable (Manchester Metrolink
+  appears as 1973, 1976, 2001, 2016 and 2024 in successive archives, and some
+  of those codes carry ordinary bus routes too). The NaPTAN stop names are
+  stable and name the system, so `nptdr_mode_overrides()` keys on those: a
+  route is reassigned only when at least 80% of the stops it calls at belong
+  to one system, which a bus passing a tram stop never reaches. The London
+  Underground is additionally matched on its operator code, because `LUL` runs
+  nothing else. NPTDR is a closed archive, so the table is a complete answer
+  rather than a stopgap.
+
+* `txc_filter_files(resolve_overlaps = TRUE)` now groups files on a normalised
+  `Description`, and leaves the description out of the key altogether for a
+  named line on fixed track. It grouped on the raw string, and publishers
+  retype the description with each re-registration: Transport for London's four
+  October 2021 Central line files say "Ealing Broadway", "Ealing Broaddway" and
+  list the same places in two different orders, so three of the four sat in
+  groups of their own with nothing to overlap with, and the line converted into
+  the feed twice over the same dates. Case, punctuation and word order are now
+  ignored, and where the `Mode` is not a bus, coach or trolleybus the operator
+  code and line name identify the service on their own - a named line on rails
+  is unique to its operator in a way a bus route number is not. Bus and coach
+  keep the description, because one operator really can run a route "1" in two
+  towns.
+
+* `transxchange2gtfs()` now writes the TransXChange `ServiceCode` into
+  `routes.route_desc`, as a `[ServiceCode: ...]` suffix. It is the only thing
+  that says which registration a route was converted from, and without it two
+  files describing one line are indistinguishable in the feed.
+
 * `gtfs_deduplicate()` gains `fixed_track`, the `route_type`s whose journeys
   are identified by their two termini and the times there rather than by every
   call in between - tram, metro and rail (`c(0, 1, 2)`) by default. Two trains
