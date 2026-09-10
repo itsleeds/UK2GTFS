@@ -200,8 +200,9 @@ nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NP
 
   # NPTDR files every tramway and every metro under one vehicle type, and not
   # consistently from one year to the next. Sort them out from the stops they
-  # serve; see nptdr_mode_overrides().
-  timetables <- apply_nptdr_modes(timetables, quiet = silent)
+  # serve, the same way every other source is sorted out; see
+  # standard_mode_overrides().
+  timetables <- apply_standard_modes(timetables, quiet = silent)
 
 
   return(timetables)

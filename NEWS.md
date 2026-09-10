@@ -104,29 +104,37 @@
 
 ## Bug fixes
 
-* `nptdr2gtfs()` now sorts the tramways from the metros. The ATCO-CIF vehicle
-  type is a coarse instrument and "METRO" is a catch-all: the archives use it
-  for the London Underground, the Glasgow Subway, every British tramway, the
-  airport people movers and a long tail of heritage railways alike, and file
-  the same system differently from one year to the next - Nottingham Express
-  Transit is a tram in 2006-2008 and a metro in 2009-2011, Sheffield Supertram
-  is a *bus* in most years, and the London Underground is a bus in 2004. The
-  operator code cannot fix it because it is not stable (Manchester Metrolink
-  appears as 1973, 1976, 2001, 2016 and 2024 in successive archives, and some
-  of those codes carry ordinary bus routes too). The NaPTAN stop names are
-  stable and name the system, so `nptdr_mode_overrides()` keys on those: a
-  route is reassigned only when at least 80% of the stops it calls at belong
-  to one system, which a bus passing a tram stop never reaches. The London
-  Underground and the Birmingham Air-Rail Link are matched on their operator
-  codes instead, because neither can be recognised from its stops - not all of
-  the Underground's are marked, and the Air-Rail Link has two stops one of
-  which is a mainline station. NPTDR is a closed archive, so the table is a
-  complete answer rather than a stopgap.
+* Every converter now applies one set of mode rules, so a `route_type` means
+  the same thing whichever source a feed came from. The sources disagree with
+  each other and with themselves: the Docklands Light Railway is metro in
+  NPTDR and heavy rail in TNDS, the Glasgow Subway is metro in NPTDR and a
+  tram in TNDS, the Gatwick inter-terminal shuttle is metro in five of eight
+  TNDS snapshots and a tram in the rest, and the Bluebell Railway is a tram in
+  the 2018 snapshot, heavy rail in 2021 and a bus in 2025. NPTDR is worse
+  still: its "METRO" vehicle type is a catch-all covering the Underground,
+  every British tramway, the airport people movers and a long tail of heritage
+  railways alike, and it files the London Underground as a bus in 2004 and
+  Sheffield Supertram as a bus in most years.
 
-  The modes chosen are the ones TNDS uses, so the two eras are comparable:
-  the Docklands Light Railway is heavy rail, the heritage and minor railways
-  are rail, and the airport people movers are trams. NPTDR files all of those
-  as metro.
+  `standard_mode_overrides()` settles it: heritage and minor railways are rail
+  (2); the London Underground, the Tyne and Wear Metro, the Glasgow Subway and
+  the Docklands Light Railway are metro (1); the airport people movers and the
+  street and segregated tramways are trams (0). It keys on the NaPTAN stop
+  names, which name the system and are spelt the same way in every source and
+  every year, where operator codes are not - Manchester Metrolink appears in
+  NPTDR as 1973, 1976, 2001, 2016 and 2024 in successive archives, and some of
+  those codes carry ordinary bus routes as well. A route is reassigned only
+  where at least 80% of the stops it calls at belong to one system, a
+  threshold a bus passing a tram stop never reaches; three systems whose stops
+  cannot identify them (the Underground, the Birmingham Air-Rail Link and the
+  Weardale Railway) are matched on their operator code instead.
+
+  Applied by `transxchange2gtfs()`, `nptdr2gtfs()` and `atoc2gtfs()`. On the
+  October 2025 TNDS snapshot it moves the DLR to metro (14,683 trips), the
+  Glasgow Subway to metro (870), the Gatwick shuttle to tram (492) and four
+  heritage railways to rail; on the 2004 NPTDR archive it moves 87 London
+  Underground routes out of the bus totals. No bus operator is touched by any
+  of it.
 
 * `txc_filter_files(resolve_overlaps = TRUE)` now groups files on a normalised
   `Description`, and leaves the description out of the key altogether for a

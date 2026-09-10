@@ -288,6 +288,15 @@ transxchange2gtfs <- function(path_in,
     message("Merging failed, returing unmerged GFTS object for analysis")
     return(gtfs_all)
   }
+
+  # TransXChange declares a Mode per service and publishers do not agree about
+  # the light railways: TNDS files the Docklands Light Railway as heavy rail,
+  # the Glasgow Subway as a tram, the Gatwick shuttle as metro, and the
+  # Bluebell Railway as a tram, as rail and as a bus in different snapshots.
+  # Settle them the same way every source is settled; see
+  # standard_mode_overrides().
+  gtfs_merged <- apply_standard_modes(gtfs_merged, quiet = !silent)
+
   return(gtfs_merged)
 }
 
