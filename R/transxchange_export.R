@@ -316,13 +316,9 @@ transxchange_export <- function(obj,
   routes$agency_id <- gsub("OId_", "", routes$agency_id)
   routes$route_type <- sapply(routes$route_type, clean_route_type)
 
-  # Shorten route_short_name
-  routes$route_short_name <- gsub("Park & Ride", "P&R", routes$route_short_name)
-  routes$route_short_name <- gsub("Road", "Rd", routes$route_short_name)
-  routes$route_short_name <- gsub("Connecting Communities ", "", routes$route_short_name)
-  routes$route_short_name <- gsub("the busway", "", routes$route_short_name, ignore.case = TRUE)
-  routes$route_short_name <- ifelse(nchar(routes$route_short_name) > 6, gsub(" ", "", routes$route_short_name), routes$route_short_name)
-  routes$route_short_name[nchar(routes$route_short_name) > 6] <- "" # Remove long names to pass validation check
+  # Tidy route_short_name. Long names are kept, not blanked; see
+  # clean_route_short_name() for why that matters to deduplication.
+  routes$route_short_name <- clean_route_short_name(routes$route_short_name)
 
   # Remove Duplicated descriptions
   routes$route_desc <- ifelse(routes$route_desc == routes$route_long_name, "", routes$route_desc)

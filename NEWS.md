@@ -104,6 +104,21 @@
 
 ## Bug fixes
 
+* `transxchange2gtfs()` no longer blanks a `route_short_name` longer than six
+  characters. The name was removed to satisfy a validator notice that
+  `route_short_name` should be short, but GTFS sets no length limit and the
+  notice is advisory, while the blanking silently exempted the route from
+  deduplication: `gtfs_deduplicate()` groups routes by operator, mode and
+  `route_short_name`, and an unnamed route has to stand alone, so two copies of
+  one line could never be compared. Bus route numbers are short and were
+  rarely affected, but line names are not - between 88% and 95% of London
+  Underground trips in every TNDS snapshot sat on a route blanked this way, and
+  every Underground line name over six characters was lost (Central,
+  Piccadilly, Metropolitan, Bakerloo, District, Northern, Victoria, Jubilee),
+  sparing only Circle. The abbreviations and the space removal that shorten a
+  name are unchanged, so no route that already had a name gets a different one;
+  routes that had none now carry the published line name.
+
 * `transxchange_import()` no longer rejects a `ServicedOrganisation` that
   carries descriptive elements alongside `WorkingDays`/`Holidays`. The
   structure check only allowed `OrganisationCode`, `Name`, `WorkingDays`,

@@ -1451,3 +1451,30 @@ test_that("11:test makeCalendarInner: overlay matching pattern of a base that is
 })
 
 
+
+
+test_that("clean_route_short_name keeps long line names", {
+  # The Underground lines that used to be blanked. Deduplication groups routes
+  # by operator, mode and route_short_name, and a blank name makes a route
+  # stand alone - so blanking these made a line published twice unrecognisable
+  # as one line.
+  expect_equal(clean_route_short_name("Central"), "Central")
+  expect_equal(clean_route_short_name("Piccadilly"), "Piccadilly")
+  expect_equal(clean_route_short_name("Metropolitan"), "Metropolitan")
+  expect_equal(clean_route_short_name("Northern"), "Northern")
+
+  # Names of six characters or fewer are untouched, spaces and all
+  expect_equal(clean_route_short_name("Circle"), "Circle")
+  expect_equal(clean_route_short_name("1"), "1")
+  expect_equal(clean_route_short_name("X1 2"), "X1 2")
+
+  # The existing abbreviations still apply, and a long name still loses its
+  # spaces so that a spaced number comes out as one token
+  expect_equal(clean_route_short_name("Park & Ride"), "P&R")
+  expect_equal(clean_route_short_name("Connecting Communities 44"), "44")
+  expect_equal(clean_route_short_name("X 1 2 3 4"), "X1234")
+
+  # Vectorised, and NA in is NA out rather than an error
+  expect_equal(clean_route_short_name(c("Central", "1")), c("Central", "1"))
+  expect_true(is.na(clean_route_short_name(NA_character_)))
+})
