@@ -7,7 +7,9 @@
 nptdr_mode_overrides()
 }
 \value{
-a data frame of `system`, `stop_pattern`, `route_type` and `note`
+a data frame of `system`, `operator`, `stop_pattern`, `route_type`
+  and `note`. `operator` is the NPTDR operator code where one identifies the
+  system on its own, and `NA` otherwise.
 }
 \description{
 The National Public Transport Data Repository files every

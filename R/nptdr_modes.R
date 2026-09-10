@@ -39,35 +39,56 @@
 #'   metro are deliberately absent: neither is a tram or a metro, and this
 #'   table only claims to sort out the two it names.
 #'
-#' @return a data frame of `system`, `stop_pattern`, `route_type` and `note`
+#' @return a data frame of `system`, `operator`, `stop_pattern`, `route_type`
+#'   and `note`. `operator` is the NPTDR operator code where one identifies the
+#'   system on its own, and `NA` otherwise.
 #' @export
 #' @examples
 #' nptdr_mode_overrides()
 nptdr_mode_overrides <- function() {
   data.frame(
-    system = c("London Underground", "Docklands Light Railway",
+    system = c("London Underground",
                "Tyne and Wear Metro", "Glasgow Subway",
+               "Docklands Light Railway",
                "Manchester Metrolink", "Midland Metro",
                "Sheffield Supertram", "Nottingham Express Transit",
-               "Croydon Tramlink", "Blackpool Tramway"),
+               "Croydon Tramlink", "Blackpool Tramway",
+               "Birmingham Airport people mover",
+               "Gatwick Airport people mover",
+               "Heritage railways", "Minor railways"),
+    operator = c("LUL", NA, NA, NA, NA, NA, NA, NA, NA, NA,
+                 "BHX", NA, NA, NA),
     stop_pattern = c("Underground Station",
-                     "DLR Station",
                      "Tyne and Wear Metro|Metro Station",
                      "SPT Subway",
+                     "DLR Station",
                      "Manchester Metrolink",
                      "Midland Metro",
                      "Sheffield Supertram",
                      "Tram Stop",
                      "Tramlink",
-                     "Blackpool Tramway"),
-    route_type = c(1, 1, 1, 1, 0, 0, 0, 0, 0, 0),
+                     "Blackpool Tramway",
+                     "Skytrain",
+                     "Terminal Shuttle",
+                     "Railway[)]|Rly[)]|[(]RHDR[)]|Mull Rail",
+                     "Rail Station"),
+    route_type = c(1, 1, 1,
+                   2,
+                   0, 0, 0, 0, 0, 0,
+                   0, 0,
+                   2, 2),
     note = c("filed as bus in the 2004 archive",
-             "", "", "",
+             "", "",
+             "rail in TNDS, metro in NPTDR",
              "operator code changes every year",
              "called Metro, runs on the street",
              "filed as bus in most years",
              "tram in 2006-2008, metro in 2009-2011",
-             "", ""),
+             "", "",
+             "two stops, one of them a mainline station, so matched on the operator code",
+             "TNDS calls the inter-terminal shuttle a tram",
+             "TNDS calls these rail",
+             "no marker in the stop name, e.g. the Weardale Railway"),
     stringsAsFactors = FALSE
   )
 }
@@ -147,13 +168,17 @@ apply_nptdr_modes <- function(gtfs, overrides = nptdr_mode_overrides(),
     route_type[pos[ok]] <- best$route_type[ok]
   }
 
-  # LUL runs the Underground and nothing else, whatever the archive says the
-  # vehicle is - in 2004 it says bus
-  if ("agency_id" %in% names(gtfs$routes)) {
-    lul <- !is.na(gtfs$routes$agency_id) &
-      toupper(trimws(as.character(gtfs$routes$agency_id))) == "LUL"
-    changed <- changed + sum(lul & route_type != 1)
-    route_type[lul] <- 1
+  # Some systems cannot be recognised from their stops. LUL's are not all
+  # marked ("Wembley Park" carries no suffix) and the Birmingham Air-Rail Link
+  # has two stops, one of which is a mainline station. Both operators run one
+  # thing and nothing else, so their code is the surer key.
+  if ("operator" %in% names(overrides) && "agency_id" %in% names(gtfs$routes)) {
+    ag <- toupper(trimws(as.character(gtfs$routes$agency_id)))
+    for (i in which(!is.na(overrides$operator))) {
+      hit <- !is.na(ag) & ag == toupper(trimws(overrides$operator[i]))
+      changed <- changed + sum(hit & route_type != overrides$route_type[i])
+      route_type[hit] <- overrides$route_type[i]
+    }
   }
 
   if (!quiet) {

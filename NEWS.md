@@ -117,9 +117,16 @@
   stable and name the system, so `nptdr_mode_overrides()` keys on those: a
   route is reassigned only when at least 80% of the stops it calls at belong
   to one system, which a bus passing a tram stop never reaches. The London
-  Underground is additionally matched on its operator code, because `LUL` runs
-  nothing else. NPTDR is a closed archive, so the table is a complete answer
-  rather than a stopgap.
+  Underground and the Birmingham Air-Rail Link are matched on their operator
+  codes instead, because neither can be recognised from its stops - not all of
+  the Underground's are marked, and the Air-Rail Link has two stops one of
+  which is a mainline station. NPTDR is a closed archive, so the table is a
+  complete answer rather than a stopgap.
+
+  The modes chosen are the ones TNDS uses, so the two eras are comparable:
+  the Docklands Light Railway is heavy rail, the heritage and minor railways
+  are rail, and the airport people movers are trams. NPTDR files all of those
+  as metro.
 
 * `txc_filter_files(resolve_overlaps = TRUE)` now groups files on a normalised
   `Description`, and leaves the description out of the key altogether for a
