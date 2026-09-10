@@ -104,6 +104,23 @@
 
 ## Bug fixes
 
+* `gtfs_deduplicate()` gains `fixed_track`, the `route_type`s whose journeys
+  are identified by their two termini and the times there rather than by every
+  call in between - tram, metro and rail (`c(0, 1, 2)`) by default. Two trains
+  of one line cannot leave the same terminus at the same minute of the same day
+  and arrive at the same terminus at the same minute and still be two trains,
+  so on fixed track the exact itinerary test asks for more than the railway
+  requires: an operator publishing one line twice writes the copies from
+  different working timetables, and they differ by a minute here and a call
+  there without being two journeys. Where Transport for London published the
+  Central line twice over the same dates, the exact test removed none of the
+  October 2025 duplication and this removes all of it. Buses are deliberately
+  not in the default, because a bus route's own vehicles do run a minute apart
+  and the same relaxation there would delete real service. Every other test is
+  unchanged, including the operating-date test, so nothing is removed that
+  would leave a date with less service. Pass `fixed_track = integer(0)` for the
+  previous behaviour.
+
 * `transxchange2gtfs()` no longer blanks a `route_short_name` longer than six
   characters. The name was removed to satisfy a validator notice that
   `route_short_name` should be short, but GTFS sets no length limit and the
