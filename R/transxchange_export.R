@@ -316,16 +316,26 @@ transxchange_export <- function(obj,
   routes$agency_id <- gsub("OId_", "", routes$agency_id)
   routes$route_type <- sapply(routes$route_type, clean_route_type)
 
-  # Shorten route_short_name
-  routes$route_short_name <- gsub("Park & Ride", "P&R", routes$route_short_name)
-  routes$route_short_name <- gsub("Road", "Rd", routes$route_short_name)
-  routes$route_short_name <- gsub("Connecting Communities ", "", routes$route_short_name)
-  routes$route_short_name <- gsub("the busway", "", routes$route_short_name, ignore.case = TRUE)
-  routes$route_short_name <- ifelse(nchar(routes$route_short_name) > 6, gsub(" ", "", routes$route_short_name), routes$route_short_name)
-  routes$route_short_name[nchar(routes$route_short_name) > 6] <- "" # Remove long names to pass validation check
+  # Tidy route_short_name. Long names are kept, not blanked; see
+  # clean_route_short_name() for why that matters to deduplication.
+  routes$route_short_name <- clean_route_short_name(routes$route_short_name)
 
   # Remove Duplicated descriptions
   routes$route_desc <- ifelse(routes$route_desc == routes$route_long_name, "", routes$route_desc)
+
+  # Carry the ServiceCode through into the feed. It is the only thing that says
+  # which registration a route came from, and without it two files describing
+  # one line - which is how Transport for London publishes a re-registration,
+  # under a new code each time - are indistinguishable once converted. Written
+  # as a bracketed suffix, so it can be read back or stripped with a
+  # regexp without touching the publisher's own text.
+  service_code <- Services_main$ServiceCode[1]
+  if (!is.na(service_code) && nzchar(service_code)) {
+    tag <- paste0("[ServiceCode: ", service_code, "]")
+    routes$route_desc <- ifelse(nzchar(routes$route_desc),
+                                paste(routes$route_desc, tag),
+                                tag)
+  }
 
 
   # agency ------------------------------------------------------------------

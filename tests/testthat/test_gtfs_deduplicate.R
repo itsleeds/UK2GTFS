@@ -455,3 +455,104 @@ test_that("gtfs_deduplicate handles awkward inputs", {
   expect_message(gtfs_deduplicate(add_trip(gtfs, "T1", "T2")),
                  "removed 1 duplicate trips")
 })
+
+
+# A three stop line, so two copies of one journey can differ in the middle
+# while agreeing at both ends - which is how an operator that publishes the
+# same line twice actually writes it.
+fixed_track_gtfs <- function(route_type = 1L) {
+  gtfs <- dedup_gtfs()
+  gtfs$stops <- rbind(gtfs$stops, data.frame(
+    stop_id = "S3", stop_name = "s3", stop_lat = 51.02, stop_lon = -1.02,
+    stringsAsFactors = FALSE))
+  gtfs$routes$route_type <- route_type
+  gtfs$routes$route_short_name <- "Central"
+  gtfs$stop_times <- data.frame(
+    trip_id = rep("T1", 3),
+    arrival_time = c("10:00:00", "10:05:00", "10:10:00"),
+    departure_time = c("10:00:00", "10:05:00", "10:10:00"),
+    stop_id = c("S1", "S2", "S3"), stop_sequence = 1:3,
+    stringsAsFactors = FALSE)
+  gtfs
+}
+
+# Copy T1 as T2 and move only the middle call, so the two agree at both ends
+# and disagree everywhere the exact test looks
+add_middle_variant <- function(gtfs, to = "T2", middle = "10:06:00") {
+  gtfs <- add_trip(gtfs, "T1", to)
+  i <- gtfs$stop_times$trip_id == to & gtfs$stop_times$stop_sequence == 2L
+  gtfs$stop_times$arrival_time[i] <- middle
+  gtfs$stop_times$departure_time[i] <- middle
+  gtfs
+}
+
+
+test_that("fixed track matches copies that agree at both ends", {
+  gtfs <- add_middle_variant(fixed_track_gtfs(route_type = 1L))
+
+  # The exact test cannot see this pair: every call but the two termini differs
+  expect_equal(nrow(gtfs_deduplicate(gtfs, fixed_track = integer(0),
+                                     quiet = TRUE)$trips), 2)
+
+  # Relaxed to the termini and their times, it is one train described twice
+  out <- gtfs_deduplicate(gtfs, quiet = TRUE)
+  expect_equal(nrow(out$trips), 1)
+  expect_equal(out$trips$trip_id, "T1")
+  expect_equal(nrow(out$stop_times), 3)
+
+  # Tram and rail are in the default too
+  for (rt in c(0L, 2L)) {
+    g <- add_middle_variant(fixed_track_gtfs(route_type = rt))
+    expect_equal(nrow(gtfs_deduplicate(g, quiet = TRUE)$trips), 1)
+  }
+})
+
+
+test_that("bus keeps the exact test", {
+  # Same shape, on the road. A bus route's own vehicles can run a minute apart,
+  # so this pair has to survive.
+  gtfs <- add_middle_variant(fixed_track_gtfs(route_type = 3L))
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+  # ...unless the caller asks for buses to be treated as fixed track
+  expect_equal(nrow(gtfs_deduplicate(gtfs, fixed_track = 3L,
+                                     quiet = TRUE)$trips), 1)
+})
+
+
+test_that("fixed track still keeps trips that differ at a terminus", {
+  gtfs <- fixed_track_gtfs(route_type = 1L)
+  # Same stops, ten minutes later: the next train, not a duplicate
+  gtfs <- add_trip(gtfs, "T1", "T2", shift_secs = 600)
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+})
+
+
+test_that("fixed track does not override the operating date test", {
+  # The two copies never run on the same day, so neither is redundant
+  gtfs <- add_middle_variant(fixed_track_gtfs(route_type = 1L))
+  gtfs <- add_service(gtfs, "SV2", days = c(0L, 0L, 0L, 1L, 1L))
+  gtfs$calendar$monday[gtfs$calendar$service_id == "SV1"] <- 1L
+  gtfs$calendar$thursday[gtfs$calendar$service_id == "SV1"] <- 0L
+  gtfs$calendar$friday[gtfs$calendar$service_id == "SV1"] <- 0L
+  gtfs$trips$service_id[gtfs$trips$trip_id == "T2"] <- "SV2"
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+})
+
+
+test_that("fixed track is not applied to a trip with an untimed terminus", {
+  gtfs <- add_middle_variant(fixed_track_gtfs(route_type = 1L))
+  # Blank the departure at the first stop of both copies. There is nothing
+  # left to relax to, so the exact test stands and both survive.
+  i <- gtfs$stop_times$stop_sequence == 1L
+  gtfs$stop_times$arrival_time[i] <- ""
+  gtfs$stop_times$departure_time[i] <- ""
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+})
+
+
+test_that("fixed track needs a routes table that names the mode", {
+  gtfs <- add_middle_variant(fixed_track_gtfs(route_type = 1L))
+  gtfs$routes$route_type <- NULL
+  # Without route_type nothing can be called fixed track, so nothing is relaxed
+  expect_equal(nrow(gtfs_deduplicate(gtfs, quiet = TRUE)$trips), 2)
+})

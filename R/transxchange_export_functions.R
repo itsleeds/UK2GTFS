@@ -227,6 +227,37 @@ clean_times <- function(x) {
 #' A missing Mode returns bus, which is the TransXChange schema default rather
 #' than a guess.
 #'
+#' Tidy a TransXChange LineName into a GTFS route_short_name
+#'
+#' Applies the abbreviations that keep a published line name compact, and
+#' removes spaces from a name longer than six characters so that a spaced
+#' number ("X 1 2 3") comes out as one token.
+#'
+#' A name that is still long is kept. It used to be blanked, to satisfy a
+#' validator notice that route_short_name should be short - but GTFS sets no
+#' length limit and the notice is advisory, while blanking cost far more than
+#' it saved. `gtfs_deduplicate()` groups routes by operator, mode and
+#' `route_short_name`, and an unnamed route has to stand alone, so a blank name
+#' is in effect an exemption from deduplication. Bus route numbers are short
+#' and were rarely blanked, but line names are not: between 88% and 95% of
+#' London Underground trips in every TNDS snapshot sat on a route blanked this
+#' way, so a line published twice over the same dates could never be recognised
+#' as one line. Every Underground name over six characters was lost - Central,
+#' Piccadilly, Metropolitan, Bakerloo, District, Northern, Victoria, Jubilee -
+#' sparing only Circle, which is exactly six.
+#'
+#' @param x character vector of LineName values
+#' @return a character vector of route_short_name values
+#' @noRd
+clean_route_short_name <- function(x) {
+  x <- gsub("Park & Ride", "P&R", x)
+  x <- gsub("Road", "Rd", x)
+  x <- gsub("Connecting Communities ", "", x)
+  x <- gsub("the busway", "", x, ignore.case = TRUE)
+  ifelse(nchar(x) > 6, gsub(" ", "", x), x)
+}
+
+
 #' @param rt character route type
 #' @param guess_bus if true guess bus otherwise fail
 #' @noRd

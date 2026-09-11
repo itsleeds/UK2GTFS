@@ -4,7 +4,7 @@ context("txc_filter_files removes superseded service versions")
 # filter reads
 make_txc <- function(dir, name, service, startdate, rev, modtime,
                      lines = character(0), enddate = NULL, desc = NULL,
-                     noc = NULL, createtime = NULL) {
+                     noc = NULL, createtime = NULL, mode = NULL) {
   lines_xml <- if (length(lines)) {
     paste0("<Lines>",
            paste0(sprintf("<Line id=\"L%s\"><LineName>%s</LineName></Line>",
@@ -15,6 +15,7 @@ make_txc <- function(dir, name, service, startdate, rev, modtime,
   }
   end_xml <- if (is.null(enddate)) "" else sprintf("<EndDate>%s</EndDate>", enddate)
   desc_xml <- if (is.null(desc)) "" else sprintf("<Description>%s</Description>", desc)
+  mode_xml <- if (is.null(mode)) "" else sprintf("<Mode>%s</Mode>", mode)
   noc_xml <- if (is.null(noc)) "" else sprintf(
     "<Operators><Operator><NationalOperatorCode>%s</NationalOperatorCode></Operator></Operators>",
     noc)
@@ -28,11 +29,12 @@ make_txc <- function(dir, name, service, startdate, rev, modtime,
       <ServiceCode>%s</ServiceCode>
       %s
       %s
+      %s
       <OperatingPeriod><StartDate>%s</StartDate>%s</OperatingPeriod>
     </Service>
   </Services>
 </TransXChange>', createtime, modtime, rev, noc_xml, rev, modtime, service,
-    desc_xml, lines_xml, startdate, end_xml)
+    mode_xml, desc_xml, lines_xml, startdate, end_xml)
   f <- file.path(dir, name)
   writeLines(xml, f)
   f
@@ -354,4 +356,101 @@ test_that("files with an unreadable ServiceCode are always kept", {
   res <- basename(txc_filter_files(c(good, bad), date = as.Date("2026-01-01")))
   expect_true("broken.xml" %in% res)
   expect_true("good.xml" %in% res)
+})
+
+
+test_that("normalise_description ignores case, punctuation and word order", {
+  a <- "Ealing Broadway/West Ruislip - Liverpool Street - Epping/Hainault/Woodford"
+  b <- "West Ruislip/Ealing Broadway - Liverpool Street - Hainault/Woodford/Epping"
+  expect_equal(normalise_description(a), normalise_description(b))
+  expect_equal(normalise_description("Lewisham - Battersea"),
+               normalise_description("lewisham, battersea"))
+  # It cannot repair a misspelling, which is why fixed track drops the
+  # description from the key entirely
+  expect_false(identical(normalise_description(a),
+                         normalise_description(sub("Broadway", "Broaddway", a))))
+  expect_equal(normalise_description(c(NA, "")), c("", ""))
+  # Different services stay different
+  expect_false(identical(normalise_description("Lewisham - Battersea"),
+                         normalise_description("Lewisham - Bromley")))
+})
+
+
+test_that("a named line on fixed track is grouped without its description", {
+  dir <- tempfile("txctest"); dir.create(dir)
+  out <- tempfile("txcout"); dir.create(out)
+  on.exit(unlink(c(dir, out), recursive = TRUE))
+
+  # Transport for London mints a new ServiceCode per re-registration and
+  # retypes the description each time. One transposed letter used to put the
+  # second file in a group of its own, where it had nothing to overlap with.
+  files <- c(
+    make_txc(dir, "cen_old.xml", "1-CEN-a", "2021-10-09", "3",
+             "2021-10-11T16:10:12", lines = "Central", enddate = "2021-12-23",
+             desc = "Ealing Broadway/West Ruislip - Epping", noc = "LUL",
+             mode = "underground"),
+    make_txc(dir, "cen_new.xml", "1-CEN-b", "2021-10-15", "3",
+             "2021-10-11T16:10:47", lines = "Central", enddate = "2021-12-23",
+             desc = "Ealing Broaddway/West Ruislip - Epping", noc = "LUL",
+             mode = "underground")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2021-10-12"), quiet = TRUE,
+                          resolve_overlaps = TRUE, out_dir = out)
+  expect_equal(length(res), 2)
+  periods <- do.call(rbind, lapply(res, period_of))
+  periods <- periods[order(periods[, "start"]), , drop = FALSE]
+  # The earlier registration is closed the day before its successor starts,
+  # so no date is served by both
+  expect_equal(unname(periods[1, "end"]), "2021-10-14")
+  expect_equal(unname(periods[2, "start"]), "2021-10-15")
+})
+
+
+test_that("a bus route keeps its description in the key", {
+  dir <- tempfile("txctest"); dir.create(dir)
+  out <- tempfile("txcout"); dir.create(out)
+  on.exit(unlink(c(dir, out), recursive = TRUE))
+
+  # One operator can run a route "1" in two towns, so on the road two
+  # different descriptions are two different services and both must survive
+  # untouched.
+  files <- c(
+    make_txc(dir, "bus_a.xml", "CODE_A", "2026-07-11", "1",
+             "2026-07-17T08:38:06", lines = "1", enddate = "2026-12-23",
+             desc = "Lewisham - Battersea", noc = "GAHL", mode = "bus"),
+    make_txc(dir, "bus_b.xml", "CODE_B", "2026-07-25", "1",
+             "2026-07-17T08:38:08", lines = "1", enddate = "2026-12-23",
+             desc = "Hereford - Leominster", noc = "GAHL", mode = "bus")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"), quiet = TRUE,
+                          resolve_overlaps = TRUE, out_dir = out)
+  expect_equal(length(res), 2)
+  periods <- do.call(rbind, lapply(res, period_of))
+  expect_true(all(periods[, "end"] == "2026-12-23"))
+})
+
+
+test_that("a retyped description still groups on the road", {
+  dir <- tempfile("txctest"); dir.create(dir)
+  out <- tempfile("txcout"); dir.create(out)
+  on.exit(unlink(c(dir, out), recursive = TRUE))
+
+  # Same service, same words, different order and punctuation - which used to
+  # be enough to stop it grouping
+  files <- c(
+    make_txc(dir, "a.xml", "CODE_A", "2026-07-11", "1",
+             "2026-07-17T08:38:06", lines = "436", enddate = "2026-12-23",
+             desc = "Lewisham - Battersea", noc = "GAHL", mode = "bus"),
+    make_txc(dir, "b.xml", "CODE_B", "2026-07-25", "1",
+             "2026-07-17T08:38:08", lines = "436", enddate = "2026-12-23",
+             desc = "Battersea, Lewisham", noc = "GAHL", mode = "bus")
+  )
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"), quiet = TRUE,
+                          resolve_overlaps = TRUE, out_dir = out)
+  periods <- do.call(rbind, lapply(res, period_of))
+  periods <- periods[order(periods[, "start"]), , drop = FALSE]
+  expect_equal(unname(periods[1, "end"]), "2026-07-24")
 })

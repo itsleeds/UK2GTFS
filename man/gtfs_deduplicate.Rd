@@ -9,6 +9,7 @@ gtfs_deduplicate(
   match_route = c("short_name", "route_id", "none"),
   match_operator = c("name", "agency_id", "noc"),
   match_block = FALSE,
+  fixed_track = c(0L, 1L, 2L),
   noc = NULL,
   quiet = FALSE
 )
@@ -42,6 +43,21 @@ character hash, so two copies of one journey never agree on it and
 requiring agreement would let every such duplicate through. Set `TRUE` for
 a feed whose `block_id` really does identify a vehicle block.}
 
+\item{fixed_track}{integer vector of `route_type`s whose journeys are
+identified by their two termini and the times there, rather than by every
+call in between. `c(0, 1, 2)` by default - tram, metro and rail. Two
+trains of one line cannot leave the same terminus at the same minute of
+the same day and arrive at the same terminus at the same minute and still
+be two trains, so on fixed track the exact test is stricter than the road
+requires: an operator that publishes one line twice writes the two copies
+from different working timetables, and they differ by a minute here and a
+call there without being two journeys. Buses are deliberately not in the
+default - a bus route's own vehicles can and do run a minute apart, so the
+same relaxation there would delete real service. Pass `integer(0)` to
+compare every mode on its whole itinerary, as before. The values are
+matched against `route_type` as the feed carries it, so a feed using the
+extended types (405 for a monorail, say) has to name those.}
+
 \item{noc}{the NOC database, as returned by [get_noc()]. Required when
 `match_operator = "noc"` and ignored otherwise. It is a parameter rather
 than a download so that a caller deduplicating many feeds fetches it once.}
@@ -71,6 +87,12 @@ hold.
    Period, `ITime`, text) all compare correctly. Trips with fewer than two
    stops, or with fewer than two stops that carry a time, are never removed,
    because their signature is too weak to be sure.
+
+   On the modes named by `fixed_track` this test is relaxed to the first
+   stop and its departure and the last stop and its arrival, for the reason
+   given there. A trip carrying no time at one of its ends is not relaxed,
+   because it has nothing to be relaxed to; it keeps the exact test rather
+   than matching every other untimed end.
 2. **The same route**, to the degree set by `match_route` and
    `match_operator`.
 3. **The same trip attributes.** Where the feed has them, `direction_id`,

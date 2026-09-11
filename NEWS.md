@@ -104,6 +104,89 @@
 
 ## Bug fixes
 
+* Every converter now applies one set of mode rules, so a `route_type` means
+  the same thing whichever source a feed came from. The sources disagree with
+  each other and with themselves: the Docklands Light Railway is metro in
+  NPTDR and heavy rail in TNDS, the Glasgow Subway is metro in NPTDR and a
+  tram in TNDS, the Gatwick inter-terminal shuttle is metro in five of eight
+  TNDS snapshots and a tram in the rest, and the Bluebell Railway is a tram in
+  the 2018 snapshot, heavy rail in 2021 and a bus in 2025. NPTDR is worse
+  still: its "METRO" vehicle type is a catch-all covering the Underground,
+  every British tramway, the airport people movers and a long tail of heritage
+  railways alike, and it files the London Underground as a bus in 2004 and
+  Sheffield Supertram as a bus in most years.
+
+  `standard_mode_overrides()` settles it: heritage and minor railways are rail
+  (2); the London Underground, the Tyne and Wear Metro, the Glasgow Subway and
+  the Docklands Light Railway are metro (1); the airport people movers and the
+  street and segregated tramways are trams (0). It keys on the NaPTAN stop
+  names, which name the system and are spelt the same way in every source and
+  every year, where operator codes are not - Manchester Metrolink appears in
+  NPTDR as 1973, 1976, 2001, 2016 and 2024 in successive archives, and some of
+  those codes carry ordinary bus routes as well. A route is reassigned only
+  where at least 80% of the stops it calls at belong to one system, a
+  threshold a bus passing a tram stop never reaches; three systems whose stops
+  cannot identify them (the Underground, the Birmingham Air-Rail Link and the
+  Weardale Railway) are matched on their operator code instead.
+
+  Applied by `transxchange2gtfs()`, `nptdr2gtfs()` and `atoc2gtfs()`. On the
+  October 2025 TNDS snapshot it moves the DLR to metro (14,683 trips), the
+  Glasgow Subway to metro (870), the Gatwick shuttle to tram (492) and four
+  heritage railways to rail; on the 2004 NPTDR archive it moves 87 London
+  Underground routes out of the bus totals. No bus operator is touched by any
+  of it.
+
+* `txc_filter_files(resolve_overlaps = TRUE)` now groups files on a normalised
+  `Description`, and leaves the description out of the key altogether for a
+  named line on fixed track. It grouped on the raw string, and publishers
+  retype the description with each re-registration: Transport for London's four
+  October 2021 Central line files say "Ealing Broadway", "Ealing Broaddway" and
+  list the same places in two different orders, so three of the four sat in
+  groups of their own with nothing to overlap with, and the line converted into
+  the feed twice over the same dates. Case, punctuation and word order are now
+  ignored, and where the `Mode` is not a bus, coach or trolleybus the operator
+  code and line name identify the service on their own - a named line on rails
+  is unique to its operator in a way a bus route number is not. Bus and coach
+  keep the description, because one operator really can run a route "1" in two
+  towns.
+
+* `transxchange2gtfs()` now writes the TransXChange `ServiceCode` into
+  `routes.route_desc`, as a `[ServiceCode: ...]` suffix. It is the only thing
+  that says which registration a route was converted from, and without it two
+  files describing one line are indistinguishable in the feed.
+
+* `gtfs_deduplicate()` gains `fixed_track`, the `route_type`s whose journeys
+  are identified by their two termini and the times there rather than by every
+  call in between - tram, metro and rail (`c(0, 1, 2)`) by default. Two trains
+  of one line cannot leave the same terminus at the same minute of the same day
+  and arrive at the same terminus at the same minute and still be two trains,
+  so on fixed track the exact itinerary test asks for more than the railway
+  requires: an operator publishing one line twice writes the copies from
+  different working timetables, and they differ by a minute here and a call
+  there without being two journeys. Where Transport for London published the
+  Central line twice over the same dates, the exact test removed none of the
+  October 2025 duplication and this removes all of it. Buses are deliberately
+  not in the default, because a bus route's own vehicles do run a minute apart
+  and the same relaxation there would delete real service. Every other test is
+  unchanged, including the operating-date test, so nothing is removed that
+  would leave a date with less service. Pass `fixed_track = integer(0)` for the
+  previous behaviour.
+
+* `transxchange2gtfs()` no longer blanks a `route_short_name` longer than six
+  characters. The name was removed to satisfy a validator notice that
+  `route_short_name` should be short, but GTFS sets no length limit and the
+  notice is advisory, while the blanking silently exempted the route from
+  deduplication: `gtfs_deduplicate()` groups routes by operator, mode and
+  `route_short_name`, and an unnamed route has to stand alone, so two copies of
+  one line could never be compared. Bus route numbers are short and were
+  rarely affected, but line names are not - between 88% and 95% of London
+  Underground trips in every TNDS snapshot sat on a route blanked this way, and
+  every Underground line name over six characters was lost (Central,
+  Piccadilly, Metropolitan, Bakerloo, District, Northern, Victoria, Jubilee),
+  sparing only Circle. The abbreviations and the space removal that shorten a
+  name are unchanged, so no route that already had a name gets a different one;
+  routes that had none now carry the published line name.
+
 * `transxchange_import()` no longer rejects a `ServicedOrganisation` that
   carries descriptive elements alongside `WorkingDays`/`Holidays`. The
   structure check only allowed `OrganisationCode`, `Name`, `WorkingDays`,
