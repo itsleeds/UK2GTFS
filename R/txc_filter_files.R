@@ -1,3 +1,51 @@
+#' Normalise a TransXChange Description for comparison
+#'
+#' A description is free text, retyped by the publisher with each
+#' re-registration, and it does not come back the same twice: case moves,
+#' punctuation moves, and the places are listed in a different order. Compared
+#' raw it splits one service into several groups, which is the opposite of what
+#' the key is for.
+#'
+#' Case is folded, every run of non alphanumeric characters becomes a single
+#' space, and the words are sorted, so "Ealing Broadway/West Ruislip -
+#' Liverpool Street - Epping/Hainault/Woodford" and "West Ruislip/Ealing
+#' Broadway - Liverpool Street - Hainault/Woodford/Epping" compare equal.
+#'
+#' Sorting the words cannot repair a misspelling - "Broaddway" is still not
+#' "Broadway" - which is why fixed track services are grouped without the
+#' description at all. See [txc_filter_files()].
+#'
+#' @param x character vector of descriptions
+#' @return a character vector, "" where there is no usable description
+#' @noRd
+normalise_description <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- tolower(gsub("[^[:alnum:]]+", " ", x))
+  x <- trimws(x)
+  vapply(strsplit(x, " ", fixed = TRUE), function(w) {
+    w <- w[nzchar(w)]
+    if (length(w) == 0) "" else paste(sort(w), collapse = " ")
+  }, character(1), USE.NAMES = FALSE)
+}
+
+
+#' Does this TransXChange Mode run on fixed track?
+#'
+#' Fixed track here means anything that is not a road vehicle: a named line on
+#' rails or water is unique to its operator in a way a bus route number is not.
+#' A missing Mode is bus, which is the TransXChange schema default.
+#'
+#' @param mode character vector of TransXChange Mode values
+#' @return a logical vector
+#' @noRd
+fixed_track_mode <- function(mode) {
+  rt <- vapply(mode, function(m) {
+    suppressWarnings(as.numeric(clean_route_type(m, guess_bus = TRUE)))
+  }, numeric(1), USE.NAMES = FALSE)
+  !is.na(rt) & !rt %in% c(3, 11, 200)
+}
+
+
 #' Filter superseded TransXchange file versions
 #'
 #' Given a set of TransXchange XML files, returns the subset that represents
@@ -113,54 +161,6 @@
 #' currently operative file at its start date, instead of both being counted
 #' once the future timetable begins.
 #'
-#' Normalise a TransXChange Description for comparison
-#'
-#' A description is free text, retyped by the publisher with each
-#' re-registration, and it does not come back the same twice: case moves,
-#' punctuation moves, and the places are listed in a different order. Compared
-#' raw it splits one service into several groups, which is the opposite of what
-#' the key is for.
-#'
-#' Case is folded, every run of non alphanumeric characters becomes a single
-#' space, and the words are sorted, so "Ealing Broadway/West Ruislip -
-#' Liverpool Street - Epping/Hainault/Woodford" and "West Ruislip/Ealing
-#' Broadway - Liverpool Street - Hainault/Woodford/Epping" compare equal.
-#'
-#' Sorting the words cannot repair a misspelling - "Broaddway" is still not
-#' "Broadway" - which is why fixed track services are grouped without the
-#' description at all. See [txc_filter_files()].
-#'
-#' @param x character vector of descriptions
-#' @return a character vector, "" where there is no usable description
-#' @noRd
-normalise_description <- function(x) {
-  x <- ifelse(is.na(x), "", as.character(x))
-  x <- tolower(gsub("[^[:alnum:]]+", " ", x))
-  x <- trimws(x)
-  vapply(strsplit(x, " ", fixed = TRUE), function(w) {
-    w <- w[nzchar(w)]
-    if (length(w) == 0) "" else paste(sort(w), collapse = " ")
-  }, character(1), USE.NAMES = FALSE)
-}
-
-
-#' Does this TransXChange Mode run on fixed track?
-#'
-#' Fixed track here means anything that is not a road vehicle: a named line on
-#' rails or water is unique to its operator in a way a bus route number is not.
-#' A missing Mode is bus, which is the TransXChange schema default.
-#'
-#' @param mode character vector of TransXChange Mode values
-#' @return a logical vector
-#' @noRd
-fixed_track_mode <- function(mode) {
-  rt <- vapply(mode, function(m) {
-    suppressWarnings(as.numeric(clean_route_type(m, guess_bus = TRUE)))
-  }, numeric(1), USE.NAMES = FALSE)
-  !is.na(rt) & !rt %in% c(3, 11, 200)
-}
-
-
 #' Files whose `ServiceCode` cannot be read are always kept.
 #'
 #' @export

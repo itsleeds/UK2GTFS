@@ -97,8 +97,43 @@ test_that("apply_standard_modes leaves a feed it cannot read alone", {
 test_that("standard_mode_overrides names every mode", {
   o <- standard_mode_overrides()
   expect_true(all(c("system", "stop_pattern", "route_type") %in% names(o)))
-  expect_setequal(unique(o$route_type), c(0, 1, 2))
+  expect_setequal(unique(o$route_type), c(0, 1, 2, 6))
   expect_true("London Underground" %in% o$system)
   expect_true("operator" %in% names(o))
   expect_equal(o$route_type[o$system == "Docklands Light Railway"], 1)
+  # every column is one vector of the same length, so a row added to one and
+  # not the others is caught here rather than by recycling into nonsense
+  expect_length(unique(lengths(o)), 1)
+  # the airport people movers are trams, whatever the source calls them
+  expect_equal(o$route_type[o$system == "Luton DART"], 0)
+  expect_equal(o$route_type[o$system == "Birmingham Air-Rail Link"], 0)
+  # the cable car is an aerial lift, and has carried two operator codes
+  expect_setequal(o$operator[o$system == "London Cable Car"], c("CAB", "EAL"))
+  expect_setequal(o$route_type[o$system == "London Cable Car"], 6)
+})
+
+
+test_that("the operator only rules reassign just that operator", {
+  g <- list(
+    routes = data.frame(
+      route_id = c("a", "b", "c", "d"),
+      agency_id = c("DART", "CAB", "DHF", "DT"),
+      route_type = c(2L, 2L, 4L, 3L),
+      stringsAsFactors = FALSE),
+    trips = data.frame(route_id = c("a", "b", "c", "d"),
+                       trip_id = c("t1", "t2", "t3", "t4"),
+                       stringsAsFactors = FALSE),
+    stop_times = data.frame(trip_id = c("t1", "t2", "t3", "t4"),
+                            stop_id = c("s1", "s2", "s3", "s4"),
+                            stringsAsFactors = FALSE),
+    stops = data.frame(stop_id = c("s1", "s2", "s3", "s4"),
+                       stop_name = c("Luton Airport DART Station",
+                                     "Greenwich Peninsula",
+                                     "Dartmouth Higher Ferry",
+                                     "Dartmouth Road"),
+                       stringsAsFactors = FALSE))
+  out <- UK2GTFS:::apply_standard_modes(g)$routes$route_type
+  # DART becomes a tram and CAB an aerial lift; DHF and DT merely look like
+  # them by name and must not move
+  expect_equal(out, c(0, 6, 4L, 3L))
 })

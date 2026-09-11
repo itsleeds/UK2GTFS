@@ -16,6 +16,7 @@
 #     Docklands Light Railway are metro
 #   * the airport people movers are trams
 #   * the street and segregated tramways are trams
+#   * the one aerial cable car is a gondola, which is its own GTFS mode
 #
 # The key is the NaPTAN stop name, because it is the one thing that is stable.
 # Operator codes are not: Manchester Metrolink appears in NPTDR as 1973, 1976,
@@ -45,7 +46,9 @@
 #'   The rules are: heritage and minor railways are rail (2); the London
 #'   Underground, the Tyne and Wear Metro, the Glasgow Subway and the Docklands
 #'   Light Railway are metro (1); the airport people movers are trams (0); and
-#'   the street and segregated tramways are trams (0).
+#'   the street and segregated tramways are trams (0). The London cable car is
+#'   the one system none of those describe, and it takes the GTFS mode that
+#'   does, aerial lift (6).
 #'
 #' @return a data frame of `system`, `operator`, `stop_pattern`, `route_type`
 #'   and `note`
@@ -63,13 +66,16 @@ standard_mode_overrides <- function() {
       "Nottingham Express Transit", "Croydon Tramlink", "Blackpool Tramway",
       "Edinburgh Trams",
       # airport people movers, which are trams
-      "Birmingham Air-Rail Link", "Gatwick Airport shuttle",
+      "Birmingham Air-Rail Link", "Gatwick Airport shuttle", "Luton DART",
       # heritage and minor railways, which are rail
-      "Heritage and minor railways", "Weardale Railway"),
+      "Heritage and minor railways", "Weardale Railway",
+      # the aerial cable car, under both the operator codes it has carried
+      "London Cable Car", "London Cable Car"),
     operator = c("LUL", NA, NA, NA,
                  NA, NA, NA, NA, NA, NA, NA,
-                 "BHX", NA,
-                 NA, "WRLY"),
+                 "BHX", NA, "DART",
+                 NA, "WRLY",
+                 "CAB", "EAL"),
     stop_pattern = c(
       "Underground Station",
       "Tyne and Wear Metro|Metro Station",
@@ -84,12 +90,16 @@ standard_mode_overrides <- function() {
       "Edinburgh Tram",
       "Air.?Rail Link|Skytrain",
       "Terminal Shuttle",
+      NA,
       "Railway[)]|Rly[)]|[(]RHDR[)]|Mull Rail",
+      NA,
+      NA,
       NA),
     route_type = c(1, 1, 1, 1,
                    0, 0, 0, 0, 0, 0, 0,
-                   0, 0,
-                   2, 2),
+                   0, 0, 0,
+                   2, 2,
+                   6, 6),
     note = c(
       "NPTDR files it as a bus in 2004; not all stop names are marked",
       "",
@@ -102,8 +112,11 @@ standard_mode_overrides <- function() {
       "", "", "",
       "two stops, one a mainline station, so matched on the operator",
       "TNDS files it as metro in five of eight snapshots",
+      "TNDS files it as heavy rail; two stops, one a mainline station",
       "TNDS files the Bluebell as tram, rail and bus in different years",
-      "stops are named as ordinary rail stations"),
+      "stops are named as ordinary rail stations",
+      "TNDS files it as heavy rail; stop names identify nothing",
+      "the same cable car before the sponsor changed"),
     stringsAsFactors = FALSE
   )
 }

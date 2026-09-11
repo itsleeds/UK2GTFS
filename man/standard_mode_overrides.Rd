@@ -29,7 +29,9 @@ Each row names a system, a regular expression matching the NaPTAN
   The rules are: heritage and minor railways are rail (2); the London
   Underground, the Tyne and Wear Metro, the Glasgow Subway and the Docklands
   Light Railway are metro (1); the airport people movers are trams (0); and
-  the street and segregated tramways are trams (0).
+  the street and segregated tramways are trams (0). The London cable car is
+  the one system none of those describe, and it takes the GTFS mode that
+  does, aerial lift (6).
 }
 \examples{
 standard_mode_overrides()

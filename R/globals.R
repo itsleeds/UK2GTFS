@@ -47,7 +47,11 @@ utils::globalVariables(c(
   # gtfs_deduplicate.R
   'TMP_pid', 'TMP_timed', 'TMP_arr', 'sig', 'sig_id', 'n_stops', 'n_timed', 'grp',
   'n_grp', 'n_dates', 'rnk', 'min_rnk', 'redundant', 'date',
-  'TMP_svc', 'TMP_trip'
+  'TMP_svc', 'TMP_trip', 'timed_ends',
+  # standard_modes.R
+  'TMP_sys', 'n_hit', 'share',
+  # gtfs_interpolate_times.R
+  'batch', 'tstart', 'tend', 'i.tend'
 ))
 
 
