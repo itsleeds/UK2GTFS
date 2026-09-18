@@ -6,6 +6,22 @@
 #'
 #' if duplicate IDs are detected then completely new IDs for all rows will be generated in the output.
 #'
+#' @details
+#' Feeds converted independently normally reuse the same ids - each regional
+#' TNDS conversion numbers its services from 1 - so the renumbering above is
+#' the usual path, not the exception. The renumbering keys on the input feed a
+#' row came from, tracked internally as `file_id`, which is therefore assigned
+#' from a feed's position in `gtfs_list` and means the same thing in every
+#' table.
+#'
+#' It is not assigned per table. Doing that numbers each table over only the
+#' feeds that contain it, so one feed missing one optional table shifts the
+#' numbering of every later feed in that table alone, and rows are then
+#' renumbered against another feed's ids. A TNDS snapshot is the case that
+#' bites: its NCSD coach archive has no `calendar_dates`, and eight of the
+#' twelve regions had their cancellations applied to the preceding region's
+#' services.
+#'
 #' @param gtfs_list a list of gtfs objects to be merged
 #' @param force logical, if TRUE duplicated values are merged taking the fist
 #'   instance to be the correct instance, in most cases this is ok, but may
@@ -39,6 +55,27 @@ gtfs_merge <- function(gtfs_list, force = FALSE, quiet = TRUE, condenseServicePa
     gtfs
   })
 
+  # Which input feed each table came from. This has to be worked out before
+  # flattening, because `file_id` must mean "the feed this row came from" and
+  # must mean the same thing in every table.
+  #
+  # It previously did not. Each table was numbered 1..n over only the feeds
+  # that contained THAT table, so a feed missing one table shifted the
+  # numbering of every feed after it, for that table alone. A TNDS snapshot
+  # is the case that bites: the NCSD coach archive has no calendar_dates, so
+  # calendar_dates was numbered over eleven feeds where calendar and trips
+  # were numbered over twelve, and the join on c("file_id", "service_id")
+  # then attached eight of the twelve regions' exceptions to the PREVIOUS
+  # region's services - cancelling journeys that should have run, and
+  # sparing journeys that should not have.
+  #
+  # Dropping the NULL entries first keeps `feed_of` aligned with `flattened`,
+  # which unlist() also drops them from.
+  gtfs_list <- lapply(gtfs_list, function(gtfs) {
+    gtfs[!vapply(gtfs, is.null, logical(1))]
+  })
+  feed_of <- rep(seq_along(gtfs_list),
+                 times = vapply(gtfs_list, length, integer(1)))
   flattened <- unlist(gtfs_list, recursive = FALSE)
   rm(gtfs_list)
 
@@ -60,21 +97,29 @@ gtfs_merge <- function(gtfs_list, force = FALSE, quiet = TRUE, condenseServicePa
   # Loop through table names names and group data frames
   for (tableName in tableNames) {
 
-    matched <- purrr::imap( flattened, function( item, name ) {
-      if (name == tableName) {
-        return(item)
-      }
-    })
+    idx <- which(names(flattened) == tableName)
+    matched <- flattened[idx]
 
-    #remove input tables not matching tableName
-    matched <- matched[lengths(matched) != 0]
+    #remove empty instances of this table, keeping track of which feed each
+    #surviving instance came from
+    keep <- lengths(matched) != 0
+    matched <- matched[keep]
+    source_feed <- feed_of[idx][keep]
 
-    #assign each instance of the input table a unique number
-    names(matched) <- seq(1, length(matched))
+    #number each instance by the FEED it came from, not by its position among
+    #the feeds that happen to contain this table - see the note above
+    names(matched) <- as.character(source_feed)
 
     #bind the instances of this table from every input GTFS together,
-    #with a column containing this unique number
+    #with a column identifying the feed
     matched <- data.table::rbindlist(matched, fill = TRUE, idcol = "file_id")
+    # coerce whenever the column exists, including on a zero-row table: the
+    # idcol arrives as character (it comes from the names), and leaving one
+    # table's file_id character while another's is integer makes the later
+    # dplyr::union() of the two reject them as incompatible
+    if ("file_id" %in% names(matched)) {
+      matched[, file_id := as.integer(file_id)]
+    }
 
 
     #if("calendar_dates"==tableName)
