@@ -295,7 +295,8 @@ transxchange2gtfs <- function(path_in,
   # Bluebell Railway as a tram, as rail and as a bus in different snapshots.
   # Settle them the same way every source is settled; see
   # standard_mode_overrides().
-  gtfs_merged <- apply_standard_modes(gtfs_merged, quiet = !silent)
+  gtfs_merged <- apply_standard_modes(gtfs_merged, source = "txc",
+                                      quiet = !silent)
 
   return(gtfs_merged)
 }

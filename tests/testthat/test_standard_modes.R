@@ -110,6 +110,42 @@ test_that("standard_mode_overrides names every mode", {
   # the cable car is an aerial lift, and has carried two operator codes
   expect_setequal(o$operator[o$system == "London Cable Car"], c("CAB", "EAL"))
   expect_setequal(o$route_type[o$system == "London Cable Car"], 6)
+  # systems that postdate NPTDR are limited to TransXChange
+  expect_true("sources" %in% names(o))
+  expect_setequal(o$sources[o$system == "London Cable Car"], "txc")
+  expect_equal(o$sources[o$system == "Luton DART"], "txc")
+  # the operator-matched rows that DO appear in NPTDR keep firing there
+  expect_equal(o$sources[o$system == "London Underground"], "any")
+  expect_equal(o$sources[o$system == "Weardale Railway"], "any")
+})
+
+
+test_that("a rule is skipped on a source its system cannot appear in", {
+  # NPTDR ends in 2011 and reuses operator codes: CAB in the 2010 archive is
+  # not the London cable car, which opened in 2012. Same feed, two sources.
+  g <- list(
+    routes = data.frame(route_id = c("a", "b"),
+                        agency_id = c("CAB", "LUL"),
+                        route_type = c(3L, 3L),
+                        stringsAsFactors = FALSE),
+    trips = data.frame(route_id = c("a", "b"), trip_id = c("t1", "t2"),
+                       stringsAsFactors = FALSE),
+    stop_times = data.frame(trip_id = c("t1", "t2"),
+                            stop_id = c("s1", "s2"),
+                            stringsAsFactors = FALSE),
+    stops = data.frame(stop_id = c("s1", "s2"),
+                       stop_name = c("Somewhere", "Somewhere Else"),
+                       stringsAsFactors = FALSE))
+
+  txc <- UK2GTFS:::apply_standard_modes(g, source = "txc")$routes$route_type
+  expect_equal(txc, c(6, 1))      # cable car and Underground both applied
+
+  np <- UK2GTFS:::apply_standard_modes(g, source = "nptdr")$routes$route_type
+  expect_equal(np, c(3L, 1))      # CAB left alone, Underground still applied
+
+  # no source given: every row applies, as before
+  allr <- UK2GTFS:::apply_standard_modes(g)$routes$route_type
+  expect_equal(allr, c(6, 1))
 })
 
 

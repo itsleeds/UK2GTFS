@@ -294,7 +294,8 @@ atoc2gtfs <- function(path_in,
   # The CIF train categories put the London Underground and the Tyne and Wear
   # Metro in the feed as metro; settle every light railway the same way every
   # source is settled. See standard_mode_overrides().
-  timetables <- apply_standard_modes(timetables, quiet = silent)
+  timetables <- apply_standard_modes(timetables, source = "atoc",
+                                     quiet = silent)
 
   return(timetables)
 

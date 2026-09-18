@@ -7,8 +7,8 @@
 standard_mode_overrides()
 }
 \value{
-a data frame of `system`, `operator`, `stop_pattern`, `route_type`
-  and `note`
+a data frame of `system`, `operator`, `stop_pattern`, `route_type`,
+  `sources` and `note`
 }
 \description{
 British timetable sources disagree with each other, and with
@@ -25,6 +25,18 @@ Each row names a system, a regular expression matching the NaPTAN
   marked ("Wembley Park" carries no suffix), the Birmingham Air-Rail Link
   because it has two stops one of which is a mainline station, and the
   Weardale Railway because its stops are named as ordinary rail stations.
+
+  `sources` limits a row to the converters whose data can contain that
+  system, and exists because an operator code is not a stable identifier.
+  NPTDR reuses codes freely between archives, so a rule keyed on one can
+  fire on an unrelated operator in an earlier year: `CAB` is the London
+  cable car in TransXChange from 2023, but in the 2010 and 2011 NPTDR
+  archives it is somebody else entirely, and without this column those
+  services were relabelled as an aerial lift two years before the cable car
+  was built. Rows matched on stop names need no such limit - a stop called
+  "Buchanan Street SPT Subway Station" is the Glasgow Subway in any year -
+  so `"any"` is the normal value and only the operator-matched rows for
+  systems that did not yet exist are restricted.
 
   The rules are: heritage and minor railways are rail (2); the London
   Underground, the Tyne and Wear Metro, the Glasgow Subway and the Docklands

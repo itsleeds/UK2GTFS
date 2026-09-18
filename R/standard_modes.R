@@ -43,6 +43,18 @@
 #'   because it has two stops one of which is a mainline station, and the
 #'   Weardale Railway because its stops are named as ordinary rail stations.
 #'
+#'   `sources` limits a row to the converters whose data can contain that
+#'   system, and exists because an operator code is not a stable identifier.
+#'   NPTDR reuses codes freely between archives, so a rule keyed on one can
+#'   fire on an unrelated operator in an earlier year: `CAB` is the London
+#'   cable car in TransXChange from 2023, but in the 2010 and 2011 NPTDR
+#'   archives it is somebody else entirely, and without this column those
+#'   services were relabelled as an aerial lift two years before the cable car
+#'   was built. Rows matched on stop names need no such limit - a stop called
+#'   "Buchanan Street SPT Subway Station" is the Glasgow Subway in any year -
+#'   so `"any"` is the normal value and only the operator-matched rows for
+#'   systems that did not yet exist are restricted.
+#'
 #'   The rules are: heritage and minor railways are rail (2); the London
 #'   Underground, the Tyne and Wear Metro, the Glasgow Subway and the Docklands
 #'   Light Railway are metro (1); the airport people movers are trams (0); and
@@ -50,8 +62,8 @@
 #'   the one system none of those describe, and it takes the GTFS mode that
 #'   does, aerial lift (6).
 #'
-#' @return a data frame of `system`, `operator`, `stop_pattern`, `route_type`
-#'   and `note`
+#' @return a data frame of `system`, `operator`, `stop_pattern`, `route_type`,
+#'   `sources` and `note`
 #' @export
 #' @examples
 #' standard_mode_overrides()
@@ -100,6 +112,16 @@ standard_mode_overrides <- function() {
                    0, 0, 0,
                    2, 2,
                    6, 6),
+    # "any" unless the system postdates a source: the Luton DART opened in
+    # 2023 and the cable car in 2012, so neither can appear in NPTDR, which
+    # ends in 2011. LUL, BHX and WRLY are matched on operator too but all
+    # three do appear in NPTDR and are correct there.
+    sources = c(
+      "any", "any", "any", "any",
+      "any", "any", "any", "any", "any", "any", "any",
+      "any", "any", "txc",
+      "any", "any",
+      "txc", "txc"),
     note = c(
       "NPTDR files it as a bus in 2004; not all stop names are marked",
       "",
@@ -136,13 +158,27 @@ standard_mode_overrides <- function() {
 #' @param overrides a table shaped like [standard_mode_overrides()]
 #' @param threshold proportion of a route's stops that must belong to one
 #'   system before the route is reassigned
+#' @param source which converter is calling: `"txc"`, `"nptdr"` or `"atoc"`.
+#'   Rows whose `sources` column does not name it are skipped, which is what
+#'   keeps an operator-code rule for a system built in 2023 from firing on a
+#'   2010 archive that happens to reuse the code. `NULL` applies every row.
 #' @param quiet suppress the summary message
 #' @return the gtfs object, with `routes$route_type` corrected
 #' @noRd
 apply_standard_modes <- function(gtfs, overrides = standard_mode_overrides(),
-                                 threshold = 0.8, quiet = TRUE) {
+                                 threshold = 0.8, source = NULL,
+                                 quiet = TRUE) {
   if (is.null(overrides) || nrow(overrides) == 0) {
     return(gtfs)
+  }
+  if (!is.null(source) && "sources" %in% names(overrides)) {
+    keep <- vapply(overrides$sources, function(x) {
+      if (is.na(x) || !nzchar(x)) return(TRUE)
+      parts <- trimws(strsplit(x, ",", fixed = TRUE)[[1]])
+      "any" %in% parts || source %in% parts
+    }, logical(1), USE.NAMES = FALSE)
+    overrides <- overrides[keep, , drop = FALSE]
+    if (nrow(overrides) == 0) return(gtfs)
   }
   needed <- c("routes", "trips", "stop_times", "stops")
   if (!all(needed %in% names(gtfs))) {
