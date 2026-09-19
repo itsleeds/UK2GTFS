@@ -224,6 +224,20 @@ operator_key <- function(gtfs, agency_id, match_operator = "name",
 #'   North appears in the DfT's GTFS as both `OP401` (NOC `ARVA`) and `OP16197`
 #'   (NOC `ALNO`) - and with `"agency_id"` its duplicate journeys land in
 #'   different groups and survive.
+#' @param fixed_track integer vector of `route_type`s whose journeys are
+#'   identified by their two termini and the times there, rather than by every
+#'   call in between. `c(0, 1, 2)` by default - tram, metro and rail. Two
+#'   trains of one line cannot leave the same terminus at the same minute of
+#'   the same day and arrive at the same terminus at the same minute and still
+#'   be two trains, so on fixed track the exact test is stricter than the road
+#'   requires: an operator that publishes one line twice writes the two copies
+#'   from different working timetables, and they differ by a minute here and a
+#'   call there without being two journeys. Buses are deliberately not in the
+#'   default - a bus route's own vehicles can and do run a minute apart, so the
+#'   same relaxation there would delete real service. Pass `integer(0)` to
+#'   compare every mode on its whole itinerary, as before. The values are
+#'   matched against `route_type` as the feed carries it, so a feed using the
+#'   extended types (405 for a monorail, say) has to name those.
 #' @param noc the NOC database, as returned by [get_noc()]. Required when
 #'   `match_operator = "noc"` and ignored otherwise. It is a parameter rather
 #'   than a download so that a caller deduplicating many feeds fetches it once.
@@ -250,6 +264,12 @@ operator_key <- function(gtfs, agency_id, match_operator = "name",
 #'    Period, `ITime`, text) all compare correctly. Trips with fewer than two
 #'    stops, or with fewer than two stops that carry a time, are never removed,
 #'    because their signature is too weak to be sure.
+#'
+#'    On the modes named by `fixed_track` this test is relaxed to the first
+#'    stop and its departure and the last stop and its arrival, for the reason
+#'    given there. A trip carrying no time at one of its ends is not relaxed,
+#'    because it has nothing to be relaxed to; it keeps the exact test rather
+#'    than matching every other untimed end.
 #' 2. **The same route**, to the degree set by `match_route` and
 #'    `match_operator`.
 #' 3. **The same trip attributes.** Where the feed has them, `direction_id`,
@@ -306,6 +326,7 @@ gtfs_deduplicate <- function(gtfs,
                              match_route = c("short_name", "route_id", "none"),
                              match_operator = c("name", "agency_id", "noc"),
                              match_block = FALSE,
+                             fixed_track = c(0L, 1L, 2L),
                              noc = NULL,
                              quiet = FALSE) {
   match_route <- match.arg(match_route)
@@ -313,6 +334,8 @@ gtfs_deduplicate <- function(gtfs,
   if (identical(match_operator, "noc") && (is.null(noc) || nrow(noc) == 0)) {
     stop("match_operator = \"noc\" needs the NOC database: pass noc = get_noc()")
   }
+  fixed_track <- suppressWarnings(as.integer(fixed_track))
+  fixed_track <- fixed_track[!is.na(fixed_track)]
 
   if (is.null(gtfs$trips) || nrow(gtfs$trips) == 0 ||
       is.null(gtfs$stop_times) || nrow(gtfs$stop_times) == 0) {
@@ -330,6 +353,21 @@ gtfs_deduplicate <- function(gtfs,
   if (length(time_cols) == 0) {
     warning("stop_times has no arrival_time or departure_time, cannot deduplicate safely")
     return(gtfs)
+  }
+
+  # Trips whose route runs on fixed track, and which therefore get the relaxed
+  # journey signature. A feed with no routes table, or one that does not say
+  # what mode a route is, gets no relaxation, which leaves it exactly as it was.
+  ft_trips <- character(0)
+  if (length(fixed_track) > 0 && !is.null(gtfs$routes) &&
+      nrow(gtfs$routes) > 0 &&
+      all(c("route_id", "route_type") %in% names(gtfs$routes))) {
+    routes_rt <- as.data.frame(gtfs$routes)
+    pos <- match(as.character(gtfs$trips$route_id),
+                 as.character(routes_rt$route_id))
+    trip_rt <- suppressWarnings(
+      as.integer(as.character(routes_rt$route_type))[pos])
+    ft_trips <- trip_id_all[!is.na(trip_rt) & trip_rt %in% fixed_track]
   }
 
   # ---- journey signatures ------------------------------------------------
@@ -385,11 +423,32 @@ gtfs_deduplicate <- function(gtfs,
   # of ATCO code and timestamps for every one of tens of millions of calls
   # costs far more memory than the answer is worth.
   st[, TMP_pid := .GRP, by = pair_cols]
+  data.table::setorderv(st, c("trip_id", "TMP_seq"))
+
+  # On fixed track a journey is identified by where and when it starts and
+  # ends, not by every call in between. Two trains of one line cannot leave the
+  # same terminus at the same minute of the same day and arrive at the same
+  # terminus at the same minute and still be two trains. Off the rails that
+  # does not hold, so the signature there stays the whole itinerary.
+  ends <- NULL
+  if (length(ft_trips) > 0) {
+    ends <- st[trip_id %in% ft_trips,
+               list(ends = paste("\rends", data.table::first(stop_id),
+                                 data.table::first(TMP_dep),
+                                 data.table::last(stop_id),
+                                 data.table::last(TMP_arr), sep = "\r"),
+                    timed_ends = !is.na(data.table::first(TMP_dep)) &
+                      !is.na(data.table::last(TMP_arr))),
+               by = "trip_id"]
+    # A trip with no time at one of its ends has nothing to relax to, so it
+    # keeps the exact test rather than matching every other untimed end
+    ends <- ends[timed_ends == TRUE]
+  }
+
   st[, (setdiff(pair_cols, "stop_id")) := NULL]
   st[, stop_id := NULL]
   rm(arr, dep)
 
-  data.table::setorderv(st, c("trip_id", "TMP_seq"))
   sig <- st[, list(sig = paste(TMP_pid, collapse = ","),
                    n_stops = .N,
                    n_timed = sum(TMP_timed)), by = "trip_id"]
@@ -401,6 +460,13 @@ gtfs_deduplicate <- function(gtfs,
   if (nrow(sig) < 2L) {
     if (!quiet) message("gtfs_deduplicate: removed 0 duplicate trips")
     return(gtfs)
+  }
+  if (!is.null(ends) && nrow(ends) > 0) {
+    # The "\rends" prefix keeps a relaxed signature from ever colliding with
+    # the comma separated list of pair ids an exact one produces
+    hit <- match(sig$trip_id, ends$trip_id)
+    sig[!is.na(hit), sig := ends$ends[hit[!is.na(hit)]]]
+    rm(ends, hit)
   }
   sig[, sig_id := match(sig, unique(sig))]
 

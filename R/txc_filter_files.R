@@ -1,3 +1,51 @@
+#' Normalise a TransXChange Description for comparison
+#'
+#' A description is free text, retyped by the publisher with each
+#' re-registration, and it does not come back the same twice: case moves,
+#' punctuation moves, and the places are listed in a different order. Compared
+#' raw it splits one service into several groups, which is the opposite of what
+#' the key is for.
+#'
+#' Case is folded, every run of non alphanumeric characters becomes a single
+#' space, and the words are sorted, so "Ealing Broadway/West Ruislip -
+#' Liverpool Street - Epping/Hainault/Woodford" and "West Ruislip/Ealing
+#' Broadway - Liverpool Street - Hainault/Woodford/Epping" compare equal.
+#'
+#' Sorting the words cannot repair a misspelling - "Broaddway" is still not
+#' "Broadway" - which is why fixed track services are grouped without the
+#' description at all. See [txc_filter_files()].
+#'
+#' @param x character vector of descriptions
+#' @return a character vector, "" where there is no usable description
+#' @noRd
+normalise_description <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- tolower(gsub("[^[:alnum:]]+", " ", x))
+  x <- trimws(x)
+  vapply(strsplit(x, " ", fixed = TRUE), function(w) {
+    w <- w[nzchar(w)]
+    if (length(w) == 0) "" else paste(sort(w), collapse = " ")
+  }, character(1), USE.NAMES = FALSE)
+}
+
+
+#' Does this TransXChange Mode run on fixed track?
+#'
+#' Fixed track here means anything that is not a road vehicle: a named line on
+#' rails or water is unique to its operator in a way a bus route number is not.
+#' A missing Mode is bus, which is the TransXChange schema default.
+#'
+#' @param mode character vector of TransXChange Mode values
+#' @return a logical vector
+#' @noRd
+fixed_track_mode <- function(mode) {
+  rt <- vapply(mode, function(m) {
+    suppressWarnings(as.numeric(clean_route_type(m, guess_bus = TRUE)))
+  }, numeric(1), USE.NAMES = FALSE)
+  !is.na(rt) & !rt %in% c(3, 11, 200)
+}
+
+
 #' Filter superseded TransXchange file versions
 #'
 #' Given a set of TransXchange XML files, returns the subset that represents
@@ -68,7 +116,22 @@
 #' With `resolve_overlaps = TRUE` files are additionally grouped by
 #' `NationalOperatorCode` + `Description` + the set of lines they publish -
 #' the same registered service by any reading - and overlapping operating
-#' periods within a group are reconciled:
+#' periods within a group are reconciled.
+#'
+#' The `Description` is compared normalised rather than raw: case folded,
+#' punctuation reduced to spaces and the words sorted, because publishers
+#' retype it with each re-registration and it does not come back the same. On
+#' fixed track - anything the `Mode` says is not a bus, coach or trolleybus -
+#' it is left out of the key altogether, and the operator code and line name
+#' identify the service on their own. Normalising cannot repair a misspelling,
+#' and Transport for London's Central line files differ by exactly that: one
+#' says "Ealing Broaddway" and another "West Ruilsip", which was enough to put
+#' each in a group of its own where it had nothing to overlap with. A named
+#' line on rails is unique to its operator in a way a bus route number is not,
+#' so the description is not needed there; on the road it is kept, because one
+#' operator really can run a route "1" in two towns.
+#'
+#' Within a group the overlaps are reconciled:
 #'
 #' \itemize{
 #'   \item **Staggered starts.** Where a later registration runs to at least
@@ -116,6 +179,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
       sd <- xml2::xml_text(xml2::xml_find_first(service, "d1:OperatingPeriod/d1:StartDate"))
       ed <- xml2::xml_text(xml2::xml_find_first(service, "d1:OperatingPeriod/d1:EndDate"))
       desc <- xml2::xml_text(xml2::xml_find_first(service, "d1:Description"))
+      mode <- xml2::xml_text(xml2::xml_find_first(service, "d1:Mode"))
       noc <- xml2::xml_text(xml2::xml_find_first(xml, "//d1:NationalOperatorCode"))
       rev <- xml2::xml_attr(service, "RevisionNumber")
       if (is.na(rev)) rev <- xml2::xml_attr(xml, "RevisionNumber")
@@ -129,7 +193,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
       lns <- xml2::xml_text(xml2::xml_find_all(xml, "//d1:LineName"))
       lns <- sort(unique(trimws(lns[!is.na(lns)])))
       data.frame(file = f, ServiceCode = sc, StartDate = sd, EndDate = ed,
-                 Description = desc, NOC = noc,
+                 Description = desc, Mode = mode, NOC = noc,
                  RevisionNumber = rev, ModificationDateTime = mod,
                  CreationDateTime = cre,
                  Lines = paste(lns, collapse = "\r"),
@@ -141,6 +205,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
                          StartDate = NA_character_,
                          EndDate = NA_character_,
                          Description = NA_character_,
+                         Mode = NA_character_,
                          NOC = NA_character_,
                          RevisionNumber = NA_character_,
                          ModificationDateTime = NA_character_,
@@ -306,14 +371,38 @@ txc_overlap_plan <- function(meta) {
   # The same registered service by any reading: one operator, one description,
   # one set of lines. Description is what separates line 436 in London from
   # line 436 in Hereford; without it this key would be far too coarse.
+  #
+  # It is compared normalised, not raw. Publishers retype the description with
+  # each re-registration and it does not come back the same: Transport for
+  # London's Central line is "Ealing Broadway/West Ruislip - Liverpool Street -
+  # Epping/Hainault/Woodford" in one file and lists the same places in another
+  # order in the next.
+  desc_key <- normalise_description(meta$Description)
+
+  # Off the road the description is not needed at all, and normalising it is
+  # not enough either - one transposed letter ("Broaddway", "Ruilsip") puts a
+  # file in a group of its own where it has nothing to overlap with. An
+  # operator running a named line on fixed track runs one of them: "Central"
+  # under Transport for London's operator code is the Central line and nothing
+  # else, however it is spelt that day. On the road the description is needed,
+  # because one operator really can run a route "1" in two towns, so bus and
+  # coach keep it.
+  named_line <- fixed_track_mode(meta$Mode) & !is.na(meta$Lines) &
+    nzchar(meta$Lines)
+  desc_key[named_line] <- ""
+
   key <- paste(ifelse(is.na(meta$NOC), "", meta$NOC),
-               ifelse(is.na(meta$Description), "", meta$Description),
+               desc_key,
                ifelse(is.na(meta$Lines), "", meta$Lines),
                sep = "\r")
   # A group needs something to identify it. Files that name neither a
-  # description nor an operator are left alone rather than pooled together.
-  usable <- (!is.na(meta$Description) & nzchar(meta$Description)) |
-    (!is.na(meta$NOC) & nzchar(meta$NOC))
+  # description nor an operator are left alone rather than pooled together,
+  # and a file grouped without its description needs the operator code to
+  # stand in for it.
+  usable <- ifelse(named_line,
+                   !is.na(meta$NOC) & nzchar(meta$NOC),
+                   (!is.na(meta$Description) & nzchar(meta$Description)) |
+                     (!is.na(meta$NOC) & nzchar(meta$NOC)))
   groups <- split(seq_len(nrow(meta))[usable], key[usable])
   groups <- groups[lengths(groups) > 1]
 

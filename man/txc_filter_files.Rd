@@ -91,7 +91,22 @@ dates and both convert into the feed.
 With `resolve_overlaps = TRUE` files are additionally grouped by
 `NationalOperatorCode` + `Description` + the set of lines they publish -
 the same registered service by any reading - and overlapping operating
-periods within a group are reconciled:
+periods within a group are reconciled.
+
+The `Description` is compared normalised rather than raw: case folded,
+punctuation reduced to spaces and the words sorted, because publishers
+retype it with each re-registration and it does not come back the same. On
+fixed track - anything the `Mode` says is not a bus, coach or trolleybus -
+it is left out of the key altogether, and the operator code and line name
+identify the service on their own. Normalising cannot repair a misspelling,
+and Transport for London's Central line files differ by exactly that: one
+says "Ealing Broaddway" and another "West Ruilsip", which was enough to put
+each in a group of its own where it had nothing to overlap with. A named
+line on rails is unique to its operator in a way a bus route number is not,
+so the description is not needed there; on the road it is kept, because one
+operator really can run a route "1" in two towns.
+
+Within a group the overlaps are reconciled:
 
 \itemize{
   \item **Staggered starts.** Where a later registration runs to at least
