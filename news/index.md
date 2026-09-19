@@ -141,6 +141,104 @@
 
 ### Bug fixes
 
+- Every converter now applies one set of mode rules, so a `route_type`
+  means the same thing whichever source a feed came from. The sources
+  disagree with each other and with themselves: the Docklands Light
+  Railway is metro in NPTDR and heavy rail in TNDS, the Glasgow Subway
+  is metro in NPTDR and a tram in TNDS, the Gatwick inter-terminal
+  shuttle is metro in five of eight TNDS snapshots and a tram in the
+  rest, and the Bluebell Railway is a tram in the 2018 snapshot, heavy
+  rail in 2021 and a bus in 2025. NPTDR is worse still: its “METRO”
+  vehicle type is a catch-all covering the Underground, every British
+  tramway, the airport people movers and a long tail of heritage
+  railways alike, and it files the London Underground as a bus in 2004
+  and Sheffield Supertram as a bus in most years.
+
+  [`standard_mode_overrides()`](https://itsleeds.github.io/UK2GTFS/reference/standard_mode_overrides.md)
+  settles it: heritage and minor railways are rail (2); the London
+  Underground, the Tyne and Wear Metro, the Glasgow Subway and the
+  Docklands Light Railway are metro (1); the airport people movers and
+  the street and segregated tramways are trams (0). It keys on the
+  NaPTAN stop names, which name the system and are spelt the same way in
+  every source and every year, where operator codes are not - Manchester
+  Metrolink appears in NPTDR as 1973, 1976, 2001, 2016 and 2024 in
+  successive archives, and some of those codes carry ordinary bus routes
+  as well. A route is reassigned only where at least 80% of the stops it
+  calls at belong to one system, a threshold a bus passing a tram stop
+  never reaches; three systems whose stops cannot identify them (the
+  Underground, the Birmingham Air-Rail Link and the Weardale Railway)
+  are matched on their operator code instead.
+
+  Applied by
+  [`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md),
+  [`nptdr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nptdr2gtfs.md)
+  and
+  [`atoc2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.md).
+  On the October 2025 TNDS snapshot it moves the DLR to metro (14,683
+  trips), the Glasgow Subway to metro (870), the Gatwick shuttle to
+  tram (492) and four heritage railways to rail; on the 2004 NPTDR
+  archive it moves 87 London Underground routes out of the bus totals.
+  No bus operator is touched by any of it.
+
+- `txc_filter_files(resolve_overlaps = TRUE)` now groups files on a
+  normalised `Description`, and leaves the description out of the key
+  altogether for a named line on fixed track. It grouped on the raw
+  string, and publishers retype the description with each
+  re-registration: Transport for London’s four October 2021 Central line
+  files say “Ealing Broadway”, “Ealing Broaddway” and list the same
+  places in two different orders, so three of the four sat in groups of
+  their own with nothing to overlap with, and the line converted into
+  the feed twice over the same dates. Case, punctuation and word order
+  are now ignored, and where the `Mode` is not a bus, coach or
+  trolleybus the operator code and line name identify the service on
+  their own - a named line on rails is unique to its operator in a way a
+  bus route number is not. Bus and coach keep the description, because
+  one operator really can run a route “1” in two towns.
+
+- [`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
+  now writes the TransXChange `ServiceCode` into `routes.route_desc`, as
+  a `[ServiceCode: ...]` suffix. It is the only thing that says which
+  registration a route was converted from, and without it two files
+  describing one line are indistinguishable in the feed.
+
+- [`gtfs_deduplicate()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.md)
+  gains `fixed_track`, the `route_type`s whose journeys are identified
+  by their two termini and the times there rather than by every call in
+  between - tram, metro and rail (`c(0, 1, 2)`) by default. Two trains
+  of one line cannot leave the same terminus at the same minute of the
+  same day and arrive at the same terminus at the same minute and still
+  be two trains, so on fixed track the exact itinerary test asks for
+  more than the railway requires: an operator publishing one line twice
+  writes the copies from different working timetables, and they differ
+  by a minute here and a call there without being two journeys. Where
+  Transport for London published the Central line twice over the same
+  dates, the exact test removed none of the October 2025 duplication and
+  this removes all of it. Buses are deliberately not in the default,
+  because a bus route’s own vehicles do run a minute apart and the same
+  relaxation there would delete real service. Every other test is
+  unchanged, including the operating-date test, so nothing is removed
+  that would leave a date with less service. Pass
+  `fixed_track = integer(0)` for the previous behaviour.
+
+- [`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
+  no longer blanks a `route_short_name` longer than six characters. The
+  name was removed to satisfy a validator notice that `route_short_name`
+  should be short, but GTFS sets no length limit and the notice is
+  advisory, while the blanking silently exempted the route from
+  deduplication:
+  [`gtfs_deduplicate()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.md)
+  groups routes by operator, mode and `route_short_name`, and an unnamed
+  route has to stand alone, so two copies of one line could never be
+  compared. Bus route numbers are short and were rarely affected, but
+  line names are not - between 88% and 95% of London Underground trips
+  in every TNDS snapshot sat on a route blanked this way, and every
+  Underground line name over six characters was lost (Central,
+  Piccadilly, Metropolitan, Bakerloo, District, Northern, Victoria,
+  Jubilee), sparing only Circle. The abbreviations and the space removal
+  that shorten a name are unchanged, so no route that already had a name
+  gets a different one; routes that had none now carry the published
+  line name.
+
 - [`transxchange_import()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange_import.md)
   no longer rejects a `ServicedOrganisation` that carries descriptive
   elements alongside `WorkingDays`/`Holidays`. The structure check only
@@ -153,16 +251,19 @@
   unless it contains dates, which would mean operating dates were being
   dropped silently. On the July 2026 BODS TransXChange archive this
   recovered 61 files, mostly school and coach services.
+
 - [`transxchange_import()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange_import.md)
   no longer fails on XML comments inside a `JourneyPatternSection`.
   Timing links were counted with `xml_length(only_elements = FALSE)`,
   which counts comment nodes too, so `JPS_id` came back longer than
   every other column and the file failed with “arguments imply differing
   number of rows”. Recovered 7 files in the same archive.
+
 - [`transxchange_import()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange_import.md)
   returns `NULL` with a warning for a file whose `<VehicleJourneys/>`
   element is empty, instead of failing with “replacement has 1 row, data
   has 0”. Such a file has no trips to convert.
+
 - [`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
   treats a `ServicedOrganisationDayType/DaysOfOperation` reference as
   restrictive. It means the journey runs *only* on that organisation’s
@@ -182,6 +283,7 @@
   the published 286, leaves half-term at 288 and Saturday and Sunday
   unchanged at 272 and 204, and reduces `calendar_dates.txt` because the
   redundant additions are gone.
+
 - [`gtfs_trim_dates()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_trim_dates.md)
   no longer discards services defined only in `calendar_dates.txt`. The
   GTFS specification allows a `service_id` with no `calendar.txt` row,
@@ -199,32 +301,39 @@
   removed 4.3% of counted bus journeys across 4,793 of 13,153 bus
   routes. Services whose added dates all fall outside the window are
   still dropped, as before.
+
 - [`importMCA()`](https://itsleeds.github.io/UK2GTFS/reference/importMCA.md)
   reads TIPLOC Delete (TD) records correctly and parses association
   dates as yymmdd per RSPS5046.
+
 - `station2transfers()` no longer emits transfers with missing stop ids,
   and writes integer `transfer_type`/`min_transfer_time`.
+
 - [`gtfs_clean()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.md),
   [`gtfs_force_valid()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_force_valid.md)
   and
   [`gtfs_compress()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_compress.md)
   now keep `transfers.txt` consistent with the stops table.
+
 - [`gtfs_interpolate_times()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_interpolate_times.md)
   only splits and processes the trips that actually contain duplicated
   stop times. It previously split every trip in the feed into its own
   data frame, which built lists of millions of small tibbles for
   national feeds and exhausted memory when dispatched to parallel
   workers.
+
 - [`nptdr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nptdr2gtfs.md)
   reads ATCO-CIF files as Latin-1: under a UTF-8 locale, accented
   characters in place names produced invalid UTF-8 strings that aborted
   the import.
+
 - ATOC calendar overlays that cross a Monday–Sunday week boundary no
   longer crash (`makeAllOneDay()`) or select operating dates outside the
   entry’s own date range (`makeAllOneDay()` and `expandAllWeeks()`
   counted weeks from the raw duration instead of the Monday-aligned
   weeks the entry touches). This also affected the splitting of
   multi-day cancellations.
+
 - [`gtfs_merge()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_merge.md)
   no longer corrupts lubridate Period time columns:
   [`data.table::rbindlist()`](https://rdrr.io/pkg/data.table/man/rbindlist.html)
@@ -233,29 +342,37 @@
   so merging feeds read from disk aborted with a vctrs size mismatch (or
   worse, mis-assigned times). Time-of-day columns are now normalised to
   seconds for the merge and restored to Periods afterwards.
+
 - [`gtfs_read()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_read.md)
   now reads `frequencies.txt` with proper types (character `trip_id`,
   Period `start_time`/`end_time`), and coerces `*_id` columns of
   non-core tables to character so numeric-looking ids still join against
   the core tables.
+
 - [`gtfs_merge()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_merge.md)
   no longer drops all but one `calendar_dates` exception per service
   when condensing service patterns.
+
 - [`gtfs_stop_frequency()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_stop_frequency.md)
   and
   [`gtfs_trips_per_zone()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_trips_per_zone.md)
   apply `calendar_dates` exceptions with correct GTFS semantics (no more
   negative trip counts).
+
 - [`gtfs_write()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_write.md)
   accepts plain data.frames as well as data.tables, and writes unknown
   stop times as empty fields instead of `"NA:NA:NA"`.
+
 - [`gtfs_interpolate_times()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_interpolate_times.md)
   no longer fails when some trips contain NA times, and returns
   `stop_times` as a data.frame (Period columns are not safe to
   row-subset in a data.table).
+
 - [`get_naptan()`](https://itsleeds.github.io/UK2GTFS/reference/get_naptan.md)
   returns numeric coordinates.
+
 - NPTDR conversion handles HHMM times and empty exception tables.
+
 - Package state is kept in an internal cache environment instead of
   modifying locked namespace bindings;
   [`load_data()`](https://itsleeds.github.io/UK2GTFS/reference/load_data.md)

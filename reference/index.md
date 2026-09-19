@@ -130,6 +130,9 @@
   : Operators whose declared mode is known to be wrong
 - [`school_terms`](https://itsleeds.github.io/UK2GTFS/reference/school_terms.md)
   : Example School term and holiday dates
+- [`standard_mode_overrides()`](https://itsleeds.github.io/UK2GTFS/reference/standard_mode_overrides.md)
+  : Systems whose declared mode is not to be trusted, and what they
+  really are
 - [`station2stops()`](https://itsleeds.github.io/UK2GTFS/reference/station2stops.md)
   : Export ATOC stations as GTFS stops.txt
 - [`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
