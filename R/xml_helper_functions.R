@@ -122,5 +122,45 @@ import_withmissing2 <- function(xml1, nm, layers, idvar) {
   return(res)
 }
 
+#' Pull several child elements from a nodeset in one pass
+#'
+#' For each node in `parents`, returns the text of its direct child named by
+#' each entry of `wanted`, NA where that child is absent, aligned to `parents`.
+#' This is what repeated `import_simple_xml()` calls produce, but without the
+#' per-node XPath.
+#'
+#' xml2 evaluates `xml_find_all()` / `xml_find_first()` on a nodeset by looping
+#' over it in R, one `.Call` per node, while `xml_children()`, `xml_name()`,
+#' `xml_text()` and `xml_length()` are vectorised at C level. On an 8MB
+#' TransXchange file with 11,000 journey pattern timing links that is the
+#' difference between about 0.19s and about 0.02s per column, and the importer
+#' pulls a dozen such columns. `import_OperatingProfile()` already works this
+#' way - see `paste_child_names()` there.
+#'
+#' Where a parent has more than one child of the same name the first wins, as
+#' `xml_find_first()` did.
+#'
+#' @param parents an xml_nodeset
+#' @param wanted character vector of child element names, without the `d1:`
+#'   namespace prefix
+#' @return a named list of character vectors, each `length(parents)` long
+#' @noRd
+kid_cols <- function(parents, wanted) {
+  n <- length(parents)
+  counts <- xml2::xml_length(parents)
+  kids <- xml2::xml_children(parents)
+  grp <- rep(seq_len(n), times = counts)
+  nm <- xml2::xml_name(kids)
+  tx <- xml2::xml_text(kids)
 
-
+  out <- lapply(wanted, function(w) {
+    v <- rep(NA_character_, n)
+    # reversed, so that if a parent repeats a child the earliest one is
+    # assigned last and therefore survives
+    sel <- rev(which(nm == w))
+    v[grp[sel]] <- tx[sel]
+    v
+  })
+  names(out) <- wanted
+  out
+}

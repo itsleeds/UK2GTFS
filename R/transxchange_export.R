@@ -3,7 +3,8 @@
 #' @param obj transxchange object
 #' @param run_debug logical, should debugs be done?
 #' @param cal calendar
-#' @param naptan naptan
+#' @param naptan naptan, or NULL to leave the stop columns to be joined on
+#'   later by transxchange2gtfs()
 #' @param quiet logical should messages be displayed
 #' @param scotland logical should Scottish bank holidays be used?
 #'
@@ -12,7 +13,7 @@
 transxchange_export <- function(obj,
                                 run_debug = TRUE,
                                 cal = get_bank_holidays(),
-                                naptan = get_naptan(),
+                                naptan = NULL,
                                 quiet = TRUE,
                                 scotland = FALSE) {
   JourneyPatternSections <- obj[["JourneyPatternSections"]]
@@ -276,13 +277,8 @@ transxchange_export <- function(obj,
   JourneyPatternSections$To.WaitTime <- clean_times(JourneyPatternSections$To.WaitTime)
   JourneyPatternSections$From.WaitTime <- clean_times(JourneyPatternSections$From.WaitTime)
 
-  # stops -------------------------------------------------------------------
-
-  stops <- StopPoints[, "StopPointRef", drop = FALSE]
-  names(stops) <- c("stop_id")
-  stops$stop_id <- as.character(stops$stop_id)
-  stops <- dplyr::left_join(stops, naptan, by = "stop_id")
-
+  # stops are built from stop_times at the end of this function, once the
+  # journey patterns have been expanded - see there for why
 
   # routes ------------------------------------------------------------------
   # route_id, agency_id, route_short_name, route_long_name, route_desc, route_type
@@ -722,21 +718,51 @@ transxchange_export <- function(obj,
 
   # Clean Up any flaws
 
-  # remove unused stops
-  stops <- stops[stops$stop_id %in% unique(stop_times$stop_id), ]
-
-
-  # Check for missing stops
-  stops_missing <- stop_times$stop_id[!stop_times$stop_id %in% stops$stop_id]
-  if(length(stops_missing) > 0){
-    stops_missing <- naptan[naptan$stop_id %in% stops_missing,]
-    stops <- rbind(stops, stops_missing)
+  # Every stop the timetable actually references, and only those. This used to
+  # be built by joining StopPoints to NAPTAN and then adding back any stop that
+  # stop_times referenced but StopPoints had missed - which comes to the same
+  # set, because a stop_id reaches stop_times only by way of a journey pattern.
+  # The declared stops keep their file order and the strays follow, as before.
+  #
+  # The NAPTAN columns are added once, to the merged feed, by
+  # transxchange2gtfs(). NAPTAN has around 476,000 rows, so joining it inside
+  # every file's conversion re-hashed the whole table once per file and was the
+  # most expensive single operation in the export. A caller using this function
+  # on its own can still pass `naptan` and get the columns here.
+  used <- unique(stop_times$stop_id)
+  declared <- as.character(StopPoints$StopPointRef)
+  stops <- data.frame(
+    stop_id = c(declared[declared %in% used], setdiff(used, declared)),
+    stringsAsFactors = FALSE)
+  if (!is.null(naptan)) {
+    stops <- txc_join_naptan(stops, naptan)
   }
 
   res_final <- list(agency, stops, routes, trips, stop_times, calendar, calendar_dates)
   names(res_final) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates")
 
-  gtfs_validate_internal(res_final)
+  # Validating a feed whose stops have no coordinates yet would report every
+  # stop as broken, so when the NAPTAN join is deferred transxchange2gtfs()
+  # validates the merged feed instead - once, on what it is actually going to
+  # return.
+  if (!is.null(naptan)) {
+    gtfs_validate_internal(res_final)
+  }
 
   return(res_final)
+}
+
+
+#' Attach the NAPTAN stop columns to a table of stop_ids
+#'
+#' Kept in one place because transxchange_export() uses it when a caller hands
+#' it a NAPTAN table directly, and transxchange2gtfs() uses it once on the
+#' merged feed.
+#'
+#' @param stops data frame with a stop_id column
+#' @param naptan stop locations from get_naptan()
+#' @noRd
+txc_join_naptan <- function(stops, naptan) {
+  stops$stop_id <- as.character(stops$stop_id)
+  dplyr::left_join(stops, naptan, by = "stop_id")
 }

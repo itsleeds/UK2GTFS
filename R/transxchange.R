@@ -155,7 +155,9 @@ transxchange2gtfs <- function(path_in,
   }
 
 
-  files <- files[order(file.size(files), decreasing = TRUE)] # Large to small give optimum performance
+  # Largest first, so the long jobs start early. On more than one core the
+  # order work is actually dispatched in is decided by txc_balance_order().
+  files <- files[order(file.size(files), decreasing = TRUE)]
 
   if (ncores == 1) {
     message(paste0(Sys.time(), " Importing TransXchange files, single core"))
@@ -179,21 +181,26 @@ transxchange2gtfs <- function(path_in,
                           transxchange_export_try,
                           run_debug = TRUE,
                           cal = cal,
-                          naptan = naptan,
                           scotland = scotland,
                           try_mode = try_mode,
                           .progress = TRUE)
   } else {
     message(paste0(Sys.time(), " Importing TransXchange files, multicore"))
 
+    # One worker pool for both passes. Starting it costs a second or two per
+    # call, and this used to shut it down between the import and the export
+    # and pay for it twice.
     future::plan(future::multisession, workers = ncores)
-    res_all <- furrr::future_map(.x = files,
+    on.exit(future::plan(future::sequential), add = TRUE)
+
+    import_order <- txc_balance_order(file.size(files), ncores)
+    res_all <- furrr::future_map(.x = files[import_order],
                              .f = transxchange_import_try,
                              run_debug = TRUE,
                              full_import = FALSE,
                              try_mode = try_mode,
                              .progress = TRUE)
-    future::plan(future::sequential)
+    res_all <- res_all[order(import_order)] # back into file order
 
     res_all <- txc_flatten_multiservice(res_all)
 
@@ -222,29 +229,21 @@ transxchange2gtfs <- function(path_in,
       message("All files imported")
     }
 
-    # trim naptan, move less data to each worker
-    sids <- purrr::map(res_all, function(x){
-      s1 <- unique(x$JourneyPatternSections$From.StopPointRef)
-      s2 <- unique(x$JourneyPatternSections$To.StopPointRef)
-      s1 <- unique(c(s1,s2))
-      s1
-    })
-    sids <- unique(unlist(sids, use.names = FALSE))
-    naptan_trim <- naptan[naptan$stop_id %in% sids,]
-
+    # NAPTAN is no longer needed in the workers at all: the export emits bare
+    # stop_ids and the stop columns are joined on once, below, after merging.
+    # That removes the trimming step this used to need.
     message(" ")
     message(paste0(Sys.time(), " Converting to GTFS, multicore"))
 
-    future::plan(future::multisession, workers = ncores)
-    gtfs_all <- furrr::future_map(.x = res_all,
+    export_order <- txc_balance_order(txc_export_weights(res_all), ncores)
+    gtfs_all <- furrr::future_map(.x = res_all[export_order],
                                  .f = transxchange_export_try,
                                  run_debug = TRUE,
                                  cal = cal,
-                                 naptan = naptan_trim,
                                  scotland = scotland,
                                  try_mode = try_mode,
                                  .progress = TRUE)
-    future::plan(future::sequential)
+    gtfs_all <- gtfs_all[order(export_order)] # back into file order
 
 
     # pb <- utils::txtProgressBar(min = 0, max = length(res_all), style = 3)
@@ -298,7 +297,63 @@ transxchange2gtfs <- function(path_in,
   gtfs_merged <- apply_standard_modes(gtfs_merged, source = "txc",
                                       quiet = !silent)
 
+  # Attach the NAPTAN stop columns. The per-file exports emitted bare stop_ids,
+  # so this runs once over the merged feed's distinct stops rather than once
+  # per file against the whole ~476,000 row table.
+  if(!silent){ message(paste0(Sys.time(), " Adding stop locations"))}
+  gtfs_merged$stops <- txc_join_naptan(gtfs_merged$stops, naptan)
+
+  # Validate the feed we are actually returning, once, now that it is complete.
+  gtfs_validate_internal(gtfs_merged)
+
   return(gtfs_merged)
+}
+
+
+# The order to hand work to the workers in, so that each of furrr's chunks
+# carries a fair share of it.
+#
+# furrr splits its input into one CONTIGUOUS chunk per worker, so the order the
+# items arrive in decides the split. TransXchange archives are very unevenly
+# sized - one file in the package's own example is bigger than the other twelve
+# together - and the work is sorted largest first, which is the worst case: it
+# hands the whole heavy end of the archive to the first worker. On that example
+# it put 11.4s of importing on one worker against a 3.7s even share.
+#
+# Sort by weight, then deal the sorted items round robin into `ncores` piles
+# and concatenate the piles. Every chunk then holds the same number of items,
+# which is what furrr's split expects, and each holds a mix of heavy and light:
+# 7.3s on the busiest worker for the same example.
+#
+# Handing furrr one item per chunk would balance better still, but a future
+# costs about 30ms to dispatch and resolve, which over an archive of tens of
+# thousands of files is a quarter of an hour of pure overhead.
+#
+# Returns a permutation, so the caller can put the results back in their
+# original order afterwards. That matters: gtfs_merge() numbers trips, routes
+# and services by position, so converting the same archive on four cores has
+# to hand it the same list, in the same order, that one core would.
+txc_balance_order <- function(weights, ncores) {
+  n <- length(weights)
+  if (ncores <= 1 || n <= ncores) {
+    return(seq_len(n))
+  }
+  by_weight <- order(weights, decreasing = TRUE)
+  pile <- rep(seq_len(ncores), length.out = n)
+  by_weight[order(pile)]
+}
+
+
+# How much work each imported object is likely to be to export. Stop times are
+# the bulk of it and there is one per journey per stop of its pattern, so the
+# two table sizes together track the cost closely enough to balance on.
+txc_export_weights <- function(res_all) {
+  vapply(res_all, function(x) {
+    if (!is.list(x)) {
+      return(0)
+    }
+    nrow(x$JourneyPatternSections) + nrow(x$VehicleJourneys)
+  }, numeric(1))
 }
 
 

@@ -45,7 +45,7 @@ transxchange_import_try <- function(file,
 transxchange_export_try <- function(obj,
                                     run_debug = TRUE,
                                     cal,
-                                    naptan,
+                                    naptan = NULL,
                                     quiet = TRUE,
                                     scotland = FALSE,
                                     try_mode = TRUE){
