@@ -65,56 +65,42 @@ import_stoppoints <- function(StopPoints, full_import = TRUE) {
 
 
 #' Import journeypatternsections
-#' ????
+#'
+#' Every column is pulled with one XPath evaluation against the containing
+#' `<JourneyPatternSections>` element and then segmented with kid_cols(), in
+#' place of the per-node `xml_find_all()` / `xml_find_first()` calls this used
+#' to make against an 11,000 element nodeset - see kid_cols() for why that
+#' matters. This is the single most expensive function in the importer.
+#'
 #' @param journeypatternsections journeypattern sections
 #' @noRd
 import_journeypatternsections <- function(journeypatternsections) {
-  JourneyPatternTimingLink <- xml2::xml_find_all(journeypatternsections, ".//d1:JourneyPatternTimingLink")
-  JPTL_ID <- import_simple(JourneyPatternTimingLink, "@id")
-  # JPTL_ID               <- rep(JPTL_ID, times = xml2::xml_length(JourneyPatternTimingLink, only_elements = FALSE))
+  link_path <- ".//d1:JourneyPatternTimingLink"
+  JourneyPatternTimingLink <- xml2::xml_find_all(journeypatternsections,
+                                                 link_path)
+  JPTL_ID <- xml2::xml_attr(JourneyPatternTimingLink, "id")
 
+  link <- kid_cols(JourneyPatternTimingLink, c("RunTime", "RouteLinkRef"))
+  RunTime <- link$RunTime
+  RouteLinkRef <- link$RouteLinkRef
 
-  RunTime <- import_simple(JourneyPatternTimingLink, "d1:RunTime")
-  From <- xml2::xml_find_all(JourneyPatternTimingLink, "d1:From")
-  From.StopPointRef <- import_simple(From, "d1:StopPointRef")
-  From.WaitTime <- import_simple_xml(From, "d1:WaitTime")
-  From.Activity <- import_simple_xml(From, "d1:Activity")
-  if (length(From.Activity) == 0) {
-    From.Activity <- rep(NA, length(From.StopPointRef))
-  }
-  RouteLinkRef <- import_simple_xml(JourneyPatternTimingLink, "d1:RouteLinkRef")
-  if (length(RouteLinkRef) == 0) {
-    RouteLinkRef <- rep(NA, length(From.StopPointRef))
-  }
-  From.TimingStatus <- import_simple_xml(From, "d1:TimingStatus")
-  # From.SequenceNumber <- import_FromTo(From, "@SequenceNumber")
+  From <- xml2::xml_find_all(journeypatternsections,
+                             paste0(link_path, "/d1:From"))
+  To <- xml2::xml_find_all(journeypatternsections,
+                           paste0(link_path, "/d1:To"))
+
+  # TimingStatus is optional in the TXC schema, unlike StopPointRef, so an
+  # omitted one has to come back as NA and keep the column the same length as
+  # the others - kid_cols() pads them all.
+  fields <- c("StopPointRef", "WaitTime", "Activity", "TimingStatus")
+  from_cols <- kid_cols(From, fields)
+  to_cols <- kid_cols(To, fields)
+
   From.SequenceNumber <- xml2::xml_attr(From, "SequenceNumber")
-
-  if (length(From.SequenceNumber) == 0) {
-    From.SequenceNumber <- rep(NA, length(From.StopPointRef))
-  }
-  To <- xml2::xml_find_all(JourneyPatternTimingLink, "d1:To")
-  To.StopPointRef <- import_simple(To, "d1:StopPointRef")
-  To.WaitTime <- xml2::xml_text(xml2::xml_find_first(To, "d1:WaitTime"))
-  To.Activity <- import_simple_xml(To, "d1:Activity")
-  if (length(To.Activity) == 0) {
-    To.Activity <- rep(NA, length(To.StopPointRef))
-  }
-  # xml_find_first, so an omitted <TimingStatus> yields NA and keeps this column
-  # the same length as the others. import_simple() returns nothing at all for the
-  # absent ones, which shortened the column and made the data.frame() below fail
-  # for the whole file. TimingStatus is optional in the TXC schema, unlike
-  # StopPointRef.
-  To.TimingStatus <- import_simple_xml(To, "d1:TimingStatus")
-  # To.SequenceNumber <- import_FromTo(To, "@SequenceNumber")
   To.SequenceNumber <- xml2::xml_attr(To, "SequenceNumber")
 
-  if (length(To.SequenceNumber) == 0) {
-    To.SequenceNumber <- rep(NA, length(From.StopPointRef))
-  }
-
   JPS <- xml2::xml_children(journeypatternsections)
-  JPS_id <- import_simple(JPS, "@id")
+  JPS_id <- xml2::xml_attr(JPS, "id")
   # Count only the timing links, matching how JourneyPatternTimingLink was
   # selected above. only_elements = FALSE counted XML comments too, so a
   # commented section inflated JPS_id past the other columns.
@@ -126,14 +112,14 @@ import_journeypatternsections <- function(journeypatternsections) {
 
   journeypatternsections <- data.frame(
     JPTL_ID = JPTL_ID,
-    From.Activity = From.Activity,
-    From.StopPointRef = From.StopPointRef,
-    From.WaitTime = From.WaitTime,
-    From.TimingStatus = From.TimingStatus,
-    To.WaitTime = To.WaitTime,
-    To.Activity = To.Activity,
-    To.StopPointRef = To.StopPointRef,
-    To.TimingStatus = To.TimingStatus,
+    From.Activity = from_cols$Activity,
+    From.StopPointRef = from_cols$StopPointRef,
+    From.WaitTime = from_cols$WaitTime,
+    From.TimingStatus = from_cols$TimingStatus,
+    To.WaitTime = to_cols$WaitTime,
+    To.Activity = to_cols$Activity,
+    To.StopPointRef = to_cols$StopPointRef,
+    To.TimingStatus = to_cols$TimingStatus,
     RouteLinkRef = RouteLinkRef,
     RunTime = RunTime,
     From.SequenceNumber = From.SequenceNumber,
@@ -366,34 +352,26 @@ import_services <- function(service, full_import = TRUE) {
 
 #' Imports when Multiple Values
 #' Returns a dataframe with appopiate lookup id
+#'
+#' One pass over the notes rather than a loop that ran two XPath searches and
+#' built a one row data frame for every vehicle journey in the file.
+#'
 #' @param vehiclejourneys desc
 #' @noRd
 import_notes2 <- function(vehiclejourneys) {
-  VehicleJourneyCode <- import_simple(vehiclejourneys, ".//d1:VehicleJourneyCode")
-  result <- list()
-  # materialise the child list once: xml_child(x, i) walks the sibling list
-  # from the start on every call, which is O(n^2) over a large file
-  children <- xml2::xml_children(vehiclejourneys)
-  for (i in seq(1, xml2::xml_length(vehiclejourneys))) {
-    # message(i)
-    chld <- children[[i]]
-    NoteCode <- import_simple(chld, ".//d1:NoteCode")
-    NoteText <- import_simple(chld, ".//d1:NoteText")
-    if (length(NoteCode) == 0) {
-      NoteCode <- NA
-    }
-    if (length(NoteText) == 0) {
-      NoteText <- NA
-    }
-    res <- data.frame(
-      VehicleJourneyCode = VehicleJourneyCode[i],
-      NoteCode = NoteCode,
-      NoteText = NoteText,
-      stringsAsFactors = FALSE
-    )
-    result[[i]] <- res
-  }
-  result <- dplyr::bind_rows(result)
+  journeys <- xml2::xml_children(vehiclejourneys)
+  VehicleJourneyCode <- kid_cols(journeys, "VehicleJourneyCode")[[1]]
+
+  notes <- xml2::xml_find_all(vehiclejourneys, ".//d1:Note")
+  per_journey <- as.integer(xml2::xml_find_num(journeys, "count(.//d1:Note)"))
+  note_cols <- kid_cols(notes, c("NoteCode", "NoteText"))
+
+  result <- data.frame(
+    VehicleJourneyCode = rep(VehicleJourneyCode, times = per_journey),
+    NoteCode = note_cols$NoteCode,
+    NoteText = note_cols$NoteText,
+    stringsAsFactors = FALSE
+  )
   result <- result[!is.na(result$NoteCode), ]
 
   return(result)

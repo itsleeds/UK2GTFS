@@ -162,50 +162,53 @@ classify_exclusions <- function(ExStartTime, ExEndTime, StartDate, EndDate) {
 }
 
 #' clean time
-#' ????
+#'
+#' Convert ISO 8601 durations ("PT1H30M", "PT45S") to seconds.
+#'
+#' Every distinct duration is parsed once and the answers are matched back.
+#' TransXchange run times and wait times repeat heavily - the largest file in
+#' the package's example archive has 11,009 of them and 16 distinct values -
+#' and this is called three times per file on the whole JourneyPatternSections
+#' table, so parsing per element was costing more than the rest of the export
+#' put together.
+#'
 #' @param x timepoints
 #' @noRd
 #'
 clean_times <- function(x) {
   x <- as.character(x)
-  x <- gsub("PT", "", x)
+  u <- unique(x)
+  v <- gsub("PT", "", u, fixed = TRUE)
 
-  help_times3 <- function(x_sub) {
-    if (is.na(x_sub)) {
-      return(0)
+  # Take the number in front of `unit`, for the values that carry that unit at
+  # all. Only those are coerced: running as.numeric() over the whole vector and
+  # picking with ifelse() gives the same answer but warns about the values it
+  # was never going to use, which on a normal conversion is pure noise.
+  leading <- function(txt, unit) {
+    out <- rep(0, length(txt))
+    has <- grepl(unit, txt, fixed = TRUE)
+    if (any(has)) {
+      out[has] <- as.numeric(sub(paste0(unit, ".*$"), "", txt[has]))
     }
-
-    if (grepl("H", x_sub)) {
-      hours <- gsub("H(.*)", "", x_sub)
-      hours <- as.integer(hours)
-    } else {
-      hours <- 0
-    }
-
-    time <- gsub("(.*)H", "", x_sub)
-
-    if (grepl("M", time)) {
-      mins <- gsub("M(.*)", "", time)
-      mins <- as.integer(mins)
-    } else {
-      mins <- 0
-    }
-
-    time <- gsub("(.*)M", "", time)
-
-    if (grepl("S", time)) {
-      secs <- gsub("S", "", time)
-      secs <- as.integer(secs)
-    } else {
-      secs <- 0
-    }
-
-    return(secs + (mins * 60) + (hours * 3600))
+    out
   }
 
+  # the same three peels the per-element parser did, vectorised: take the
+  # hours off the front, then the minutes off what is left, then the seconds
+  hours <- leading(v, "H")
+  rest <- sub("^.*H", "", v)
+  mins <- leading(rest, "M")
+  rest <- sub("^.*M", "", rest)
+  secs <- rep(0, length(rest))
+  has_secs <- grepl("S", rest, fixed = TRUE)
+  if (any(has_secs)) {
+    secs[has_secs] <- as.numeric(sub("S", "", rest[has_secs], fixed = TRUE))
+  }
 
-  times <- sapply(x, help_times3)
-  return(times)
+  res <- secs + (mins * 60) + (hours * 3600)
+  res[is.na(u)] <- 0 # a missing duration is no time at all, as before
+
+  unname(res[match(x, u)])
 }
 
 #' clean route type
@@ -389,36 +392,33 @@ break_up_holidays2 <- function(cal_dat, cl, cal) {
 
 # to do, need to repeat stops times for each departure time
 #' clean activities
-#' ????
+#'
+#' Map a TransXchange Activity to a GTFS pickup_type / drop_off_type.
+#'
+#' Vectorised: a character vector in, an integer vector out. Scalars still work
+#' and still raise the same error, but expand_stop_times2() applies this to a
+#' whole journey pattern at once rather than one stop at a time.
+#'
 #' @param x desc
 #' @param type desc
 #' @noRd
 clean_activity <- function(x, type) {
   if (type == "pickup") {
-    if (x == "pickUp") {
-      x <- 0L
-    } else if (x == "pickUpAndSetDown") {
-      x <- 0L
-    } else if (x == "setDown") {
-      x <- 1L
-    } else {
-      stop(paste0(x, " Invalid pickup type"))
-    }
+    known <- c(pickUp = 0L, pickUpAndSetDown = 0L, setDown = 1L)
+    label <- "Invalid pickup type"
+  } else if (type == "drop_off") {
+    known <- c(pickUp = 1L, pickUpAndSetDown = 0L, setDown = 0L)
+    label <- "Invalid drop off type"
+  } else {
+    return(x)
   }
-  if (type == "drop_off") {
-    if (x == "pickUp") {
-      x <- 1L
-    } else if (x == "pickUpAndSetDown") {
-      x <- 0L
-    } else if (x == "setDown") {
-      x <- 0L
-    } else {
-      stop(paste0(x, " Invalid drop off type"))
-    }
-  }
-  x
-}
 
+  res <- unname(known[match(x, names(known))])
+  if (anyNA(res)) {
+    stop(paste0(x[is.na(res)][1], " ", label))
+  }
+  res
+}
 
 
 #' Expand stop_times2
@@ -489,40 +489,57 @@ expand_stop_times2 <- function(i, jps, trips) {
   st_sub$departure_time <- cumsum(st_sub$RunTime + st_sub$total_wait_time)
   st_sub$arrival_time <- st_sub$departure_time - st_sub$total_wait_time
 
-  #st_sub$departure_time <- cumsum(st_sub$RunTime + st_sub$To.WaitTime)
-  #st_sub$arrival_time <- st_sub$departure_time - st_sub$To.WaitTime
-  st_sub$pickup_type <- sapply(st_sub$To.Activity, clean_activity,
-                               type = "pickup")
-  st_sub$drop_off_type <- sapply(st_sub$To.Activity, clean_activity,
-                                 type = "drop_off")
+  # Everything that depends only on the journey pattern is done here, while
+  # st_sub is one row per stop. It used to be done after the rep() below, which
+  # multiplied the work by the number of trips on the pattern: a file with 900
+  # journeys over a 40-stop pattern converted 36,000 timepoints instead of 40.
+  st_sub$pickup_type <- clean_activity(st_sub$To.Activity, type = "pickup")
+  st_sub$drop_off_type <- clean_activity(st_sub$To.Activity, type = "drop_off")
+  st_sub$timepoint <- clean_timepoints(st_sub$timepoint)
 
   n_stops <- nrow(st_sub)
   n_trips <- nrow(trips_sub)
+
+  # Seconds past midnight for each trip's departure. Parsed once per distinct
+  # departure time - a pattern's journeys share a handful of them - rather than
+  # once per stop_time row, and added with plain arithmetic. Building a
+  # lubridate Period for every row was the single most expensive thing the
+  # export did; the S4 constructor and validity check alone were about a fifth
+  # of its total run time.
+  dep_chr <- as.character(trips_sub$DepartureTime)
+  dep_unique <- unique(dep_chr)
+  offset_unique <- vapply(strsplit(dep_unique, ":", fixed = TRUE), function(p) {
+    p <- as.numeric(p)
+    sum(p * c(3600, 60, 1)[seq_along(p)])
+  }, numeric(1))
+  offset <- offset_unique[match(dep_chr, dep_unique)]
+
+  arrival <- rep(st_sub$arrival_time, times = n_trips) +
+    rep(offset, each = n_stops)
+  departure <- rep(st_sub$departure_time, times = n_trips) +
+    rep(offset, each = n_stops)
+
   st_sub <- st_sub[rep(1:n_stops, times = n_trips), ]
   st_sub$trip_id <- rep(trips_sub$trip_id, each = n_stops)
-  st_sub$DepartureTime <- lubridate::hms(rep(trips_sub$DepartureTime,
-                                             each = n_stops))
-
-  st_sub$arrival_time <- lubridate::seconds_to_period(lubridate::as.duration(
-    st_sub$arrival_time) + lubridate::as.duration(st_sub$DepartureTime))
-  st_sub$arrival_time <- sprintf("%02d:%02d:%02d", st_sub$arrival_time@day *
-                                   24 + st_sub$arrival_time@hour,
-                                 lubridate::minute(st_sub$arrival_time),
-                                 lubridate::second(st_sub$arrival_time))
-
-  st_sub$departure_time <- lubridate::seconds_to_period(lubridate::as.duration(
-    st_sub$departure_time) + lubridate::as.duration(st_sub$DepartureTime))
-  st_sub$departure_time <- sprintf("%02d:%02d:%02d", st_sub$departure_time@day *
-                                     24 + st_sub$departure_time@hour,
-                                   lubridate::minute(st_sub$departure_time),
-                                   lubridate::second(st_sub$departure_time))
-
-  st_sub$timepoint <- sapply(st_sub$timepoint, clean_timepoints)
+  st_sub$arrival_time <- seconds_to_gtfs_time(arrival)
+  st_sub$departure_time <- seconds_to_gtfs_time(departure)
 
   st_sub <- st_sub[, c("trip_id", "arrival_time", "departure_time", "stop_id",
                        "stop_sequence", "timepoint")]
   #st_sub = dplyr::left_join(st_sub, stops, by = "stop_id")
   return(st_sub)
+}
+
+#' Format seconds past midnight as a GTFS time string
+#'
+#' GTFS allows times past 24:00:00 for journeys that run into the next day, so
+#' hours are not wrapped.
+#'
+#' @param secs numeric seconds past midnight
+#' @noRd
+seconds_to_gtfs_time <- function(secs) {
+  secs <- as.integer(secs)
+  sprintf("%02d:%02d:%02d", secs %/% 3600L, (secs %% 3600L) %/% 60L, secs %% 60L)
 }
 
 #' reorder_jps
@@ -595,18 +612,21 @@ clean_timepoints <- function(tp) {
   # schema ("Default is Time Info Point (TIP)"), so an omitted element means TIP
   # rather than an error. Feeds that never publish it - the Bullocks 758 files,
   # for one - used to abort the whole conversion here.
-  if (is.na(tp) || !nzchar(tp)) {
-    return(1L)
+  #
+  # Vectorised: expand_stop_times2() has one of these per stop of a journey
+  # pattern, and used to convert them one row at a time across every expanded
+  # stop_time in the file.
+  res <- rep(NA_integer_, length(tp))
+  absent <- is.na(tp) | !nzchar(tp)
+  res[absent] <- 1L
+  res[!absent & tp %in% c("OTH", "otherPoint", "timeInfoPoint")] <- 0L
+  res[!absent & tp %in% c("PTP", "TIP", "PPT",
+                          "principleTimingPoint",
+                          "principalTimingPoint")] <- 1L
+  if (anyNA(res)) {
+    stop(paste0("Unknown timepoint type: ", tp[is.na(res)][1]))
   }
-  if (tp %in% c("OTH","otherPoint","timeInfoPoint")) {
-    return(0L)
-  } else if (tp %in% c("PTP", "TIP", "PPT",
-                       "principleTimingPoint",
-                       "principalTimingPoint")) {
-    return(1L)
-  } else {
-    stop(paste0("Unknown timepoint type: ", tp))
-  }
+  res
 }
 
 #' make stop times
