@@ -288,6 +288,21 @@ transxchange2gtfs <- function(path_in,
     return(gtfs_all)
   }
 
+  # Attach the NAPTAN stop columns. The per-file exports emitted bare stop_ids,
+  # so this runs once over the merged feed's distinct stops rather than once
+  # per file against the whole ~476,000 row table.
+  #
+  # This MUST stay ahead of apply_standard_modes(). Thirteen of the eighteen
+  # mode rules recognise a system by the NAPTAN names of the stops it calls
+  # at, so until this join has run every one of them matches nothing - and it
+  # does so silently, because a rule that matches no route is indistinguishable
+  # from a rule that had nothing to correct. Only the five operator-code rules
+  # survived the inversion, which is why the conversion still reported a
+  # handful of corrections while the Docklands Light Railway stayed heavy rail
+  # and the Glasgow Subway stayed a tram. See test_txc_mode_after_naptan.R.
+  if(!silent){ message(paste0(Sys.time(), " Adding stop locations"))}
+  gtfs_merged$stops <- txc_join_naptan(gtfs_merged$stops, naptan)
+
   # TransXChange declares a Mode per service and publishers do not agree about
   # the light railways: TNDS files the Docklands Light Railway as heavy rail,
   # the Glasgow Subway as a tram, the Gatwick shuttle as metro, and the
@@ -296,12 +311,6 @@ transxchange2gtfs <- function(path_in,
   # standard_mode_overrides().
   gtfs_merged <- apply_standard_modes(gtfs_merged, source = "txc",
                                       quiet = !silent)
-
-  # Attach the NAPTAN stop columns. The per-file exports emitted bare stop_ids,
-  # so this runs once over the merged feed's distinct stops rather than once
-  # per file against the whole ~476,000 row table.
-  if(!silent){ message(paste0(Sys.time(), " Adding stop locations"))}
-  gtfs_merged$stops <- txc_join_naptan(gtfs_merged$stops, naptan)
 
   # Validate the feed we are actually returning, once, now that it is complete.
   gtfs_validate_internal(gtfs_merged)

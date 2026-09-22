@@ -198,6 +198,20 @@ apply_standard_modes <- function(gtfs, overrides = standard_mode_overrides(),
     sp <- data.table::data.table(
       stop_id = as.character(gtfs$stops$stop_id),
       stop_name = as.character(gtfs$stops$stop_name))
+
+    # Most rules recognise a system by its stops' NAPTAN names, so a feed
+    # whose stops are not named yet cannot match any of them. That is a
+    # caller error - the names are attached by a join that has to happen
+    # first - and it is invisible from the result, because no route matching
+    # looks exactly like no route needing correction. transxchange2gtfs()
+    # once ran this before txc_join_naptan() and quietly produced a whole
+    # series of feeds with the Docklands Light Railway filed as heavy rail.
+    if (!any(!is.na(sp$stop_name) & nzchar(sp$stop_name))) {
+      warning("apply_standard_modes: no stop carries a name, so the ",
+              nrow(pats), " stop-pattern rules cannot match. Attach the ",
+              "stop names before calling this.", call. = FALSE)
+    }
+
     # Which system, if any, each stop belongs to. Done on the stops table
     # rather than on stop_times, which on a national feed is tens of millions
     # of rows against a few hundred thousand stops. useBytes because NaPTAN
