@@ -13,12 +13,30 @@
 #' @return A gtfs object: a named list of data frames representing the tables
 #'   of a GTFS file
 #'
+#' Which NPTDR archive a path names
+#'
+#' The archives are distributed as "October-2006.zip" and similar, so the year
+#' is in the file name. A few of the mode rules are gated on it, because NPTDR
+#' reassigns its numeric operator codes between archives. Returns NA when the
+#' name carries no year, which leaves those rules switched off rather than
+#' applied to an archive they were not measured against.
+#'
+#' @param path path to an NPTDR archive zip
+#' @return the year as a character scalar, or NA
+#' @noRd
+nptdr_archive_year <- function(path) {
+  m <- regmatches(basename(path), regexpr("(19|20)[0-9]{2}", basename(path)))
+  if (length(m) == 0) NA_character_ else m[[1]]
+}
+
+
 #' @export
 nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NPTDR/October-2006.zip",
                        silent = FALSE,
                        n_files = NULL,
                        enhance_stops = TRUE,
-                       naptan = get_naptan()){
+                       naptan = get_naptan(),
+                       year = nptdr_archive_year(path)){
 
   checkmate::assert_file_exists(path, extension = "zip")
   dir.create(file.path(tempdir(),"nptdr_temp"))
@@ -202,8 +220,14 @@ nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NP
   # consistently from one year to the next. Sort them out from the stops they
   # serve, the same way every other source is sorted out; see
   # standard_mode_overrides().
+  #
+  # The archive year is passed because a few of those rules have to be gated on
+  # it. NPTDR reassigns its numeric operator codes every year, so a rule keyed
+  # on one is only safe for the archive it was measured against - `1129` is the
+  # Blackpool tramway plus a bus fleet in 2005, and a different bus operator
+  # entirely in 2004.
   timetables <- apply_standard_modes(timetables, source = "nptdr",
-                                     quiet = silent)
+                                     year = year, quiet = silent)
 
 
   return(timetables)

@@ -1,9 +1,11 @@
 # The mode rules have to run AFTER the stop names are attached.
 #
-# Thirteen of the eighteen rows in standard_mode_overrides() recognise a
-# system by the NAPTAN names of the stops its routes call at. Only five match
-# on an operator code. So a feed whose stops are not named yet can still be
-# "corrected" - by the five - while the thirteen match nothing.
+# Most rows in standard_mode_overrides() recognise a system by the NAPTAN names
+# of the stops its routes call at; a minority match on an operator code
+# instead. So a feed whose stops are not named yet can still be "corrected" -
+# by the operator rows - while every stop-name row matches nothing. The counts
+# are not written down here on purpose: rows have been added since this was
+# first written, and a stale number in a comment is worse than no number.
 #
 # transxchange2gtfs() moved the NAPTAN join out of the per-file loop for
 # speed and, in doing so, moved it AFTER apply_standard_modes(). Nothing

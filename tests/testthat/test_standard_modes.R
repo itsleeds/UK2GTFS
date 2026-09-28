@@ -6,6 +6,7 @@
 standard_mode_gtfs <- function() {
   stops <- data.frame(
     stop_id = c("T1", "T2", "T3", "M1", "M2", "B1", "B2",
+                "U1", "U2",
                 "D1", "D2", "H1", "H2", "A1", "A2"),
     stop_name = c("Bilston Central (Midland Metro Stop)",
                   "Black Lake (Midland Metro Stop)",
@@ -13,6 +14,14 @@ standard_mode_gtfs <- function() {
                   "Bank Foot (Tyne and Wear Metro Station)",
                   "Byker (Tyne and Wear Metro Station)",
                   "High Street", "Market Square",
+                  # The Underground as the 2004 archive names it: one stop
+                  # marked, one not. Half the calls is well under the pattern
+                  # threshold, which is why the rule matches LUL on its
+                  # operator code as well - but a marked stop has to be
+                  # present, or the code is the only evidence, and an
+                  # operator code is not a unique identifier: `LUL` is
+                  # Lancashire United Ltd in the 2016 Bus Archive.
+                  "Underground Station", "Northwood",
                   "Bank DLR Station", "Beckton DLR Station",
                   "Horsted Keynes (Bluebell Railway)",
                   "Sheffield Park (Bluebell Railway)",
@@ -44,7 +53,7 @@ standard_mode_gtfs <- function() {
                 "t_bhx", "t_bhx"),
     stop_id = c("T1", "T2", "T3", "M1", "M2",
                 "B1", "B2", "T1", "M1",
-                "B1", "B2",
+                "U1", "U2",
                 "D1", "D2", "H1", "H2",
                 "A1", "A2"),
     stringsAsFactors = FALSE)
@@ -133,8 +142,11 @@ test_that("a rule is skipped on a source its system cannot appear in", {
     stop_times = data.frame(trip_id = c("t1", "t2"),
                             stop_id = c("s1", "s2"),
                             stringsAsFactors = FALSE),
+    # s2 is named so the Underground rule has something in the feed to
+    # confirm the LUL code against; this test is about `sources`, not about
+    # that guard, so it must not depend on it
     stops = data.frame(stop_id = c("s1", "s2"),
-                       stop_name = c("Somewhere", "Somewhere Else"),
+                       stop_name = c("Somewhere", "Wembley Park Underground Station"),
                        stringsAsFactors = FALSE))
 
   txc <- UK2GTFS:::apply_standard_modes(g, source = "txc")$routes$route_type

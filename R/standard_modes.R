@@ -68,7 +68,7 @@
 #' @examples
 #' standard_mode_overrides()
 standard_mode_overrides <- function() {
-  data.frame(
+  base <- data.frame(
     system = c(
       # metro
       "London Underground", "Tyne and Wear Metro", "Glasgow Subway",
@@ -93,7 +93,12 @@ standard_mode_overrides <- function() {
       "Tyne and Wear Metro|Metro Station",
       "SPT Subway",
       "DLR Station",
-      "Manchester Metrolink",
+      # NPTDR 2004 and 2005 suffix the stops "(Metrolink)" and the later
+      # archives "(Manchester Metrolink)", so a pattern taken from either one
+      # alone misses the other. Matching the shorter form as well is what
+      # moves the Manchester trams out of the metro totals in those two
+      # years; see test_modes_early_nptdr.R.
+      "Manchester Metrolink|[(]Metrolink[)]",
       "Midland Metro|West Midlands Metro",
       "Sheffield Supertram",
       "Tram Stop",
@@ -139,8 +144,77 @@ standard_mode_overrides <- function() {
       "stops are named as ordinary rail stations",
       "TNDS files it as heavy rail; stop names identify nothing",
       "the same cable car before the sponsor changed"),
+    # `years` and `from_route_type` are only used by the NPTDR block below
+    years = NA_character_,
+    from_route_type = NA_integer_,
     stringsAsFactors = FALSE
   )
+
+  # ---- the NPTDR archives, 2004-2006 --------------------------------------
+  #
+  # These five rows are deliberately hardcoded to the archives we hold. NPTDR
+  # ended in 2011 and will not be republished, so a rule that is right about
+  # these specific files is right permanently; the usual objection to keying on
+  # an operator code - that the code may mean someone else next year - cannot
+  # apply to a dataset with no next year.
+  #
+  # They exist because the stop-name patterns above were written from the 2006
+  # and later archives. 2004 and 2005 name the same stops differently, and for
+  # these four systems they carry no marker at all - the Supertram calls at
+  # "Meadowhall Interchange" and "Carbrook", the Blackpool tramway at
+  # "FLEETWOOD Rossall Lane" - so no pattern can find them and they kept
+  # whatever mode the converter guessed, which was metro. Measured: Sheffield
+  # 27 routes in 2004, 15+23 in 2005 and 43 in 2006; Nottingham 29+20 in 2004;
+  # the Midland Metro 13 in 2004; Blackpool 20 in 2005 and 20 in 2006.
+  #
+  # Note the 2005 Sheffield and 2004 Nottingham splits. Part of each system is
+  # filed as metro and part as bus in the same archive, and both parts call at
+  # the same tram stops, so the rule has to take the operator whole rather than
+  # correct one mode and leave the other. Hence no `from_route_type` on those.
+  #
+  # `STM`, `NET` and `TMM` need no year gate: each means the same system in
+  # every NPTDR archive, and in 2007-2011 all three are already trams, so the
+  # rule is a no-op there. They appear under no other converter.
+  #
+  # The four numeric codes are the opposite case and are gated hard, on the
+  # archive year AND on the mode they start from. NPTDR renumbers operators
+  # every year and these codes carry a bus fleet as well as the tramway:
+  # `1129` is Blackpool's 20 tram routes plus 192 bus routes in 2005, and 132
+  # bus routes and no tramway at all in 2004; `1001` is the same arrangement in
+  # 2006; `1973` is Manchester Metrolink in 2004 and an ordinary bus operator
+  # from 2006. Ungated, any of them would relabel several hundred bus routes.
+  #
+  # Manchester needs the operator code as well as the "(Metrolink)" stop
+  # pattern above, because the pattern reaches only part of the network. The
+  # Eccles line, opened in 2000, was never given the suffix - its stops are
+  # "EXCHANGE QUAY", "SALFORD QUAYS", "HARBOUR CITY", "ECCLES" - so routes over
+  # it sit at 0.15-0.25 marked stops, and the city-centre routes that touch
+  # Piccadilly or Victoria sit at 0.67-0.79, just under the 0.8 threshold. The
+  # pattern alone moved 8 of 18 routes in 2004 and 7 of 34 in 2005. All of them
+  # are Metrolink: every route under the code is filed as metro, and their
+  # short names are MET1, MET2, MET3.
+  nptdr <- data.frame(
+    system = c("Sheffield Supertram", "Nottingham Express Transit",
+               "Midland Metro", "Blackpool Tramway", "Blackpool Tramway",
+               "Manchester Metrolink", "Manchester Metrolink"),
+    operator = c("STM", "NET", "TMM", "1129", "1001", "1973", "1976"),
+    stop_pattern = NA_character_,
+    route_type = 0,
+    sources = "nptdr",
+    note = c(
+      "stops carry no marker before 2007; metro in 2004 and 2006, split between metro and bus in 2005",
+      "stops carry no marker in 2004, where the system is split between metro and bus",
+      "13 routes filed as metro in 2004, and their stop ids resolve to nothing",
+      "20 tram routes under a code that also carries 192 bus routes",
+      "the same arrangement one year later under a renumbered code",
+      "18 routes; the Eccles line carries no suffix so the stop pattern reaches only 8",
+      "34 routes under a renumbered code; the stop pattern reaches only 7"),
+    years = c(NA, NA, NA, "2005", "2006", "2004", "2005"),
+    from_route_type = c(NA, NA, NA, 1L, 1L, 1L, 1L),
+    stringsAsFactors = FALSE
+  )
+
+  rbind(base, nptdr[, names(base), drop = FALSE])
 }
 
 
@@ -167,9 +241,32 @@ standard_mode_overrides <- function() {
 #' @noRd
 apply_standard_modes <- function(gtfs, overrides = standard_mode_overrides(),
                                  threshold = 0.8, source = NULL,
-                                 quiet = TRUE) {
+                                 year = NULL, quiet = TRUE) {
   if (is.null(overrides) || nrow(overrides) == 0) {
     return(gtfs)
+  }
+
+  # A rule naming particular years applies to those only. Two of the NPTDR
+  # rules key on a numeric operator code, which that dataset reassigns every
+  # year, so the gate is what keeps them off the wrong archive. A rule that
+  # names years is dropped when the caller has not said which year this is,
+  # rather than applied blind: no year means no evidence that it is the right
+  # one, and these rules exist precisely because the code is ambiguous.
+  if ("years" %in% names(overrides)) {
+    named <- !is.na(overrides$years) & nzchar(overrides$years)
+    if (any(named)) {
+      ok <- rep(TRUE, nrow(overrides))
+      if (is.null(year)) {
+        ok[named] <- FALSE
+      } else {
+        yr <- as.character(year)
+        ok[named] <- vapply(overrides$years[named], function(x) {
+          yr %in% trimws(strsplit(x, ",", fixed = TRUE)[[1]])
+        }, logical(1), USE.NAMES = FALSE)
+      }
+      overrides <- overrides[ok, , drop = FALSE]
+      if (nrow(overrides) == 0) return(gtfs)
+    }
   }
   if (!is.null(source) && "sources" %in% names(overrides)) {
     keep <- vapply(overrides$sources, function(x) {
@@ -194,6 +291,16 @@ apply_standard_modes <- function(gtfs, overrides = standard_mode_overrides(),
   changed <- 0L
 
   pats <- overrides[!is.na(overrides$stop_pattern), , drop = FALSE]
+
+  # Which routes touch a stop belonging to each stop-pattern system, kept
+  # whatever the threshold decided. The operator block below uses it to check
+  # that a code means in this feed what the rule says it means; see the
+  # comment there. Row numbers index `pats`, so `pats_row` maps an
+  # `overrides` row onto its `pats` row.
+  sys_routes <- NULL
+  pats_row <- rep(NA_integer_, nrow(overrides))
+  pats_row[which(!is.na(overrides$stop_pattern))] <- seq_len(nrow(pats))
+
   if (nrow(pats) > 0) {
     sp <- data.table::data.table(
       stop_id = as.character(gtfs$stops$stop_id),
@@ -252,6 +359,7 @@ apply_standard_modes <- function(gtfs, overrides = standard_mode_overrides(),
       # the bare name would resolve to the column, not the table
       hits <- rs[!is.na(TMP_sys),
                  list(n_hit = .N), by = c("route_id", "TMP_sys")]
+      sys_routes <- unique(hits[, list(route_id, TMP_sys)])
       hits <- merge(hits, n_stops, by = "route_id")
       hits <- hits[n_hit / n >= threshold]
 
@@ -274,6 +382,51 @@ apply_standard_modes <- function(gtfs, overrides = standard_mode_overrides(),
     ag <- toupper(trimws(as.character(gtfs$routes$agency_id)))
     for (i in which(!is.na(overrides$operator))) {
       hit <- !is.na(ag) & ag == toupper(trimws(overrides$operator[i]))
+
+      # Some codes cover a tramway and a bus fleet at once. Where the rule says
+      # which mode it is correcting, only routes already on that mode move, so
+      # the operator's buses are left as buses. Where it does not, the operator
+      # is taken whole - which is what the 2005 Sheffield and 2004 Nottingham
+      # archives need, both filing one tram system partly as metro and partly
+      # as bus, with both parts calling at the same tram stops.
+      if ("from_route_type" %in% names(overrides) &&
+            !is.na(overrides$from_route_type[i])) {
+        hit <- hit & !is.na(route_type) &
+          route_type == overrides$from_route_type[i]
+      }
+      if (!any(hit)) next
+
+      # An operator code is not a unique identifier, and `sources` only keeps
+      # a rule away from a converter that cannot contain the system at all.
+      # Within one converter the same code still means different operators in
+      # different archives: `LUL` is London Underground in TNDS and in NPTDR,
+      # but in the 2016 and 2017 Bus Archive it is Lancashire United Ltd, and
+      # firing the rule there moved 66 Lancashire bus routes into the metro
+      # totals. Both are TransXChange, so no `sources` value separates them.
+      #
+      # Where a rule carries a stop pattern as well, the feed can settle it:
+      # require at least one of the operator's own routes to call at a stop
+      # this system's pattern matches. Lancashire United calls at no stop
+      # named "Underground Station" and the rule stands down; every real
+      # Underground feed has such stops on 93.6-100% of the routes, so
+      # nothing that should fire stops firing. Rules with no stop pattern -
+      # the Weardale Railway, the Luton DART, the cable car - have only the
+      # code to go on and keep the old behaviour, guarded by `sources`.
+      if (!is.na(pats_row[i])) {
+        ok <- !is.null(sys_routes) &&
+          any(sys_routes$TMP_sys == pats_row[i] &
+                sys_routes$route_id %in% route_id[hit])
+        if (!ok) {
+          if (!quiet) {
+            message("apply_standard_modes: operator ",
+                    overrides$operator[i], " matches ", sum(hit),
+                    " routes but none call at a stop named like ",
+                    overrides$system[i], "; leaving them alone")
+          }
+          next
+        }
+      }
+
       changed <- changed + sum(hit & route_type != overrides$route_type[i])
       route_type[hit] <- overrides$route_type[i]
     }
