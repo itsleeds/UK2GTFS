@@ -377,6 +377,48 @@ gtfs_deduplicate <- function(gtfs,
     trip_id = as.character(gtfs$stop_times$trip_id),
     stop_id = as.character(gtfs$stop_times$stop_id))
 
+  # Two granularities of the same station.
+  #
+  # NaPTAN gives a metro station a station-level code and a code per platform
+  # - 9400ZZGLBUC, 9400ZZGLBUC1, 9400ZZGLBUC2 - and TNDS carries some systems
+  # twice over, once against each. The copies are the same trains at the same
+  # minutes: trips 740135 and 740136 of tnds_20231101 both leave Ibrox at
+  # 06:27 and call at the same fifteen stations, and differ only in whether
+  # the ids carry the platform suffix. Nothing else separates them, so the
+  # itinerary test below reads them as different journeys and keeps both.
+  #
+  # In that snapshot it doubled the Glasgow Subway - 748 weekday trips for a
+  # timetable of 374, and 720 tph at a Glasgow zone against a true 360 - and
+  # did the same to the Docklands Light Railway and Sheffield Supertram. It is
+  # invisible to a duplicate test keyed on stop_id, and invisible to a check
+  # that counts trips, because the trips really are distinct rows.
+  #
+  # Only the signature is canonicalised, never the feed: a platform code
+  # stands in as its station code where the feed holds both AND the two carry
+  # the same name. Requiring the name keeps a stop whose id merely happens to
+  # be a prefix of another's from being folded into it. 17 stations qualified
+  # in tnds_20231101; Leytonstone, whose platforms have no station-level code
+  # of their own, is untouched.
+  if (!is.null(gtfs$stops) &&
+        all(c("stop_id", "stop_name") %in% names(gtfs$stops))) {
+    sid <- as.character(gtfs$stops$stop_id)
+    snm <- as.character(gtfs$stops$stop_name)
+    parent <- substr(sid, 1L, nchar(sid) - 1L)
+    pos <- match(parent, sid)
+    ok <- grepl("^9400", sid) & grepl("[0-9]$", sid) & nchar(sid) > 1L & !is.na(pos)
+    idx <- which(ok)
+    keep <- !is.na(snm[idx]) & !is.na(snm[pos[idx]]) & snm[idx] == snm[pos[idx]]
+    idx <- idx[keep]
+    if (length(idx) > 0) {
+      hit <- match(st$stop_id, sid[idx])
+      rows <- which(!is.na(hit))
+      if (length(rows) > 0) {
+        data.table::set(st, i = rows, j = "stop_id",
+                        value = parent[idx][hit[rows]])
+      }
+    }
+  }
+
   data.table::set(st, j = "TMP_seq",
                   value = if ("stop_sequence" %in% st_names) {
                     suppressWarnings(as.numeric(gtfs$stop_times$stop_sequence))
