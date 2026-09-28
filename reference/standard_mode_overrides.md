@@ -56,7 +56,7 @@ standard_mode_overrides()
 #> 2          Tyne and Wear Metro     <NA>      Tyne and Wear Metro|Metro Station
 #> 3               Glasgow Subway     <NA>                             SPT Subway
 #> 4      Docklands Light Railway     <NA>                            DLR Station
-#> 5         Manchester Metrolink     <NA>                   Manchester Metrolink
+#> 5         Manchester Metrolink     <NA>   Manchester Metrolink|[(]Metrolink[)]
 #> 6                Midland Metro     <NA>      Midland Metro|West Midlands Metro
 #> 7          Sheffield Supertram     <NA>                    Sheffield Supertram
 #> 8   Nottingham Express Transit     <NA>                              Tram Stop
@@ -70,6 +70,13 @@ standard_mode_overrides()
 #> 16            Weardale Railway     WRLY                                   <NA>
 #> 17            London Cable Car      CAB                                   <NA>
 #> 18            London Cable Car      EAL                                   <NA>
+#> 19         Sheffield Supertram      STM                                   <NA>
+#> 20  Nottingham Express Transit      NET                                   <NA>
+#> 21               Midland Metro      TMM                                   <NA>
+#> 22           Blackpool Tramway     1129                                   <NA>
+#> 23           Blackpool Tramway     1001                                   <NA>
+#> 24        Manchester Metrolink     1973                                   <NA>
+#> 25        Manchester Metrolink     1976                                   <NA>
 #>    route_type sources
 #> 1           1     any
 #> 2           1     any
@@ -89,23 +96,63 @@ standard_mode_overrides()
 #> 16          2     any
 #> 17          6     txc
 #> 18          6     txc
-#>                                                                note
-#> 1    NPTDR files it as a bus in 2004; not all stop names are marked
-#> 2                                                                  
-#> 3                                           TNDS files it as a tram
-#> 4                                       TNDS files it as heavy rail
-#> 5                            NPTDR operator code changes every year
-#> 6                                  called Metro, runs on the street
-#> 7                             NPTDR files it as a bus in most years
-#> 8                      NPTDR: tram in 2006-2008, metro in 2009-2011
-#> 9                                                                  
-#> 10                                                                 
-#> 11                                                                 
-#> 12    two stops, one a mainline station, so matched on the operator
-#> 13                TNDS files it as metro in five of eight snapshots
-#> 14   TNDS files it as heavy rail; two stops, one a mainline station
-#> 15 TNDS files the Bluebell as tram, rail and bus in different years
-#> 16                        stops are named as ordinary rail stations
-#> 17         TNDS files it as heavy rail; stop names identify nothing
-#> 18                    the same cable car before the sponsor changed
+#> 19          0   nptdr
+#> 20          0   nptdr
+#> 21          0   nptdr
+#> 22          0   nptdr
+#> 23          0   nptdr
+#> 24          0   nptdr
+#> 25          0   nptdr
+#>                                                                                              note
+#> 1                                  NPTDR files it as a bus in 2004; not all stop names are marked
+#> 2                                                                                                
+#> 3                                                                         TNDS files it as a tram
+#> 4                                                                     TNDS files it as heavy rail
+#> 5                                                          NPTDR operator code changes every year
+#> 6                                                                called Metro, runs on the street
+#> 7                                                           NPTDR files it as a bus in most years
+#> 8                                                    NPTDR: tram in 2006-2008, metro in 2009-2011
+#> 9                                                                                                
+#> 10                                                                                               
+#> 11                                                                                               
+#> 12                                  two stops, one a mainline station, so matched on the operator
+#> 13                                              TNDS files it as metro in five of eight snapshots
+#> 14                                 TNDS files it as heavy rail; two stops, one a mainline station
+#> 15                               TNDS files the Bluebell as tram, rail and bus in different years
+#> 16                                                      stops are named as ordinary rail stations
+#> 17                                       TNDS files it as heavy rail; stop names identify nothing
+#> 18                                                  the same cable car before the sponsor changed
+#> 19 stops carry no marker before 2007; metro in 2004 and 2006, split between metro and bus in 2005
+#> 20                 stops carry no marker in 2004, where the system is split between metro and bus
+#> 21                        13 routes filed as metro in 2004, and their stop ids resolve to nothing
+#> 22                                   20 tram routes under a code that also carries 192 bus routes
+#> 23                                    the same arrangement one year later under a renumbered code
+#> 24                18 routes; the Eccles line carries no suffix so the stop pattern reaches only 8
+#> 25                             34 routes under a renumbered code; the stop pattern reaches only 7
+#>    years from_route_type
+#> 1   <NA>              NA
+#> 2   <NA>              NA
+#> 3   <NA>              NA
+#> 4   <NA>              NA
+#> 5   <NA>              NA
+#> 6   <NA>              NA
+#> 7   <NA>              NA
+#> 8   <NA>              NA
+#> 9   <NA>              NA
+#> 10  <NA>              NA
+#> 11  <NA>              NA
+#> 12  <NA>              NA
+#> 13  <NA>              NA
+#> 14  <NA>              NA
+#> 15  <NA>              NA
+#> 16  <NA>              NA
+#> 17  <NA>              NA
+#> 18  <NA>              NA
+#> 19  <NA>              NA
+#> 20  <NA>              NA
+#> 21  <NA>              NA
+#> 22  2005               1
+#> 23  2006               1
+#> 24  2004               1
+#> 25  2005               1
 ```

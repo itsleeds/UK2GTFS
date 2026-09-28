@@ -102,7 +102,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2          Tyne and Wear Metro     &lt;NA&gt;      Tyne and Wear Metro|Metro Station</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3               Glasgow Subway     &lt;NA&gt;                             SPT Subway</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4      Docklands Light Railway     &lt;NA&gt;                            DLR Station</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5         Manchester Metrolink     &lt;NA&gt;                   Manchester Metrolink</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5         Manchester Metrolink     &lt;NA&gt;   Manchester Metrolink|[(]Metrolink[)]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6                Midland Metro     &lt;NA&gt;      Midland Metro|West Midlands Metro</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 7          Sheffield Supertram     &lt;NA&gt;                    Sheffield Supertram</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 8   Nottingham Express Transit     &lt;NA&gt;                              Tram Stop</span>
@@ -116,6 +116,13 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> 16            Weardale Railway     WRLY                                   &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 17            London Cable Car      CAB                                   &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 18            London Cable Car      EAL                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19         Sheffield Supertram      STM                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20  Nottingham Express Transit      NET                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 21               Midland Metro      TMM                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 22           Blackpool Tramway     1129                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 23           Blackpool Tramway     1001                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 24        Manchester Metrolink     1973                                   &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 25        Manchester Metrolink     1976                                   &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    route_type sources</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1           1     any</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2           1     any</span>
@@ -135,25 +142,65 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> 16          2     any</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 17          6     txc</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 18          6     txc</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                note</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1    NPTDR files it as a bus in 2004; not all stop names are marked</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                                                                  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                           TNDS files it as a tram</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                                       TNDS files it as heavy rail</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                            NPTDR operator code changes every year</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                                  called Metro, runs on the street</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7                             NPTDR files it as a bus in most years</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                      NPTDR: tram in 2006-2008, metro in 2009-2011</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9                                                                  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10                                                                 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 11                                                                 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 12    two stops, one a mainline station, so matched on the operator</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 13                TNDS files it as metro in five of eight snapshots</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 14   TNDS files it as heavy rail; two stops, one a mainline station</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 15 TNDS files the Bluebell as tram, rail and bus in different years</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 16                        stops are named as ordinary rail stations</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 17         TNDS files it as heavy rail; stop names identify nothing</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 18                    the same cable car before the sponsor changed</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19          0   nptdr</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20          0   nptdr</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 21          0   nptdr</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 22          0   nptdr</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 23          0   nptdr</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 24          0   nptdr</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 25          0   nptdr</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                              note</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                  NPTDR files it as a bus in 2004; not all stop names are marked</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                                                                                                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                                                         TNDS files it as a tram</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                                                                     TNDS files it as heavy rail</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                                                          NPTDR operator code changes every year</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                                                                called Metro, runs on the street</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                                                           NPTDR files it as a bus in most years</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                                                    NPTDR: tram in 2006-2008, metro in 2009-2011</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                                                                                                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                                                                                               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11                                                                                               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12                                  two stops, one a mainline station, so matched on the operator</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13                                              TNDS files it as metro in five of eight snapshots</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14                                 TNDS files it as heavy rail; two stops, one a mainline station</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15                               TNDS files the Bluebell as tram, rail and bus in different years</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16                                                      stops are named as ordinary rail stations</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17                                       TNDS files it as heavy rail; stop names identify nothing</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18                                                  the same cable car before the sponsor changed</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19 stops carry no marker before 2007; metro in 2004 and 2006, split between metro and bus in 2005</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20                 stops carry no marker in 2004, where the system is split between metro and bus</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 21                        13 routes filed as metro in 2004, and their stop ids resolve to nothing</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 22                                   20 tram routes under a code that also carries 192 bus routes</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 23                                    the same arrangement one year later under a renumbered code</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 24                18 routes; the Eccles line carries no suffix so the stop pattern reaches only 8</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 25                             34 routes under a renumbered code; the stop pattern reaches only 7</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    years from_route_type</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9   &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 21  &lt;NA&gt;              NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 22  2005               1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 23  2006               1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 24  2004               1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 25  2005               1</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
