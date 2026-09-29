@@ -380,6 +380,21 @@ apply_standard_modes <- function(gtfs, overrides = standard_mode_overrides(),
   # the systems whose stops cannot identify them
   if ("operator" %in% names(overrides) && "agency_id" %in% names(gtfs$routes)) {
     ag <- toupper(trimws(as.character(gtfs$routes$agency_id)))
+
+    # What the feed itself calls each operator, for the guard below. Compared
+    # on letters and digits alone, so "Air-Rail Link" and "Air Rail Link" are
+    # the same name.
+    flatten <- function(x) {
+      trimws(gsub("[^a-z0-9]+", " ", tolower(as.character(x))))
+    }
+    ag_name <- NULL
+    if (!is.null(gtfs$agency) &&
+          all(c("agency_id", "agency_name") %in% names(gtfs$agency))) {
+      ag_name <- stats::setNames(
+        flatten(gtfs$agency$agency_name),
+        toupper(trimws(as.character(gtfs$agency$agency_id))))
+    }
+
     for (i in which(!is.na(overrides$operator))) {
       hit <- !is.na(ag) & ag == toupper(trimws(overrides$operator[i]))
 
@@ -404,24 +419,49 @@ apply_standard_modes <- function(gtfs, overrides = standard_mode_overrides(),
       # firing the rule there moved 66 Lancashire bus routes into the metro
       # totals. Both are TransXChange, so no `sources` value separates them.
       #
-      # Where a rule carries a stop pattern as well, the feed can settle it:
-      # require at least one of the operator's own routes to call at a stop
+      # Where a rule carries a stop pattern as well, the feed can settle it,
+      # on either of two kinds of evidence.
+      #
+      # The stops: at least one of the operator's own routes calls at a stop
       # this system's pattern matches. Lancashire United calls at no stop
       # named "Underground Station" and the rule stands down; every real
-      # Underground feed has such stops on 93.6-100% of the routes, so
-      # nothing that should fire stops firing. Rules with no stop pattern -
-      # the Weardale Railway, the Luton DART, the cable car - have only the
-      # code to go on and keep the old behaviour, guarded by `sources`.
+      # Underground feed has such stops on 93.6-100% of the routes.
+      #
+      # Or the name the feed gives the operator, which is the evidence that
+      # actually separates the two meanings of a shared code: "Lancashire
+      # United Ltd" is nothing like "London Underground". The stops alone are
+      # not enough, because an archive can hold a system whose stops it never
+      # names - the 2014 and 2015 Bus Archive carry the Birmingham Air-Rail
+      # Link as agency BHX with no stop named "Air-Rail Link" or "Skytrain"
+      # anywhere in the feed, and on the stop test alone that correct rule
+      # would stand down. One name has to contain the other, so a short or
+      # generic agency_name cannot let a wrong rule through.
+      #
+      # Rules with no stop pattern - the Weardale Railway, the Luton DART,
+      # the cable car - have only the code to go on and keep the old
+      # behaviour, guarded by `sources`.
       if (!is.na(pats_row[i])) {
-        ok <- !is.null(sys_routes) &&
+        by_stops <- !is.null(sys_routes) &&
           any(sys_routes$TMP_sys == pats_row[i] &
                 sys_routes$route_id %in% route_id[hit])
-        if (!ok) {
+
+        by_name <- FALSE
+        if (!by_stops && !is.null(ag_name)) {
+          nm <- ag_name[[toupper(trimws(overrides$operator[i]))]]
+          sys <- flatten(overrides$system[i])
+          by_name <- !is.null(nm) && !is.na(nm) && nchar(nm) >= 5L &&
+            nzchar(sys) &&
+            (grepl(nm, sys, fixed = TRUE) || grepl(sys, nm, fixed = TRUE))
+        }
+
+        if (!by_stops && !by_name) {
           if (!quiet) {
             message("apply_standard_modes: operator ",
                     overrides$operator[i], " matches ", sum(hit),
                     " routes but none call at a stop named like ",
-                    overrides$system[i], "; leaving them alone")
+                    overrides$system[i],
+                    " and the feed does not name it that either;",
+                    " leaving them alone")
           }
           next
         }
