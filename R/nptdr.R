@@ -1,5 +1,6 @@
 #' Which NPTDR archive a path names
 #'
+#' @details
 #' The archives are distributed as "October-2006.zip" and similar, so the year
 #' is in the file name. A few of the mode rules are gated on it, because NPTDR
 #' reassigns its numeric operator codes between archives. Returns NA when the
@@ -8,7 +9,6 @@
 #'
 #' @param path path to an NPTDR archive zip
 #' @return the year as a character scalar, or NA
-#' @noRd
 #' @export
 nptdr_archive_year <- function(path) {
   m <- regmatches(basename(path), regexpr("(19|20)[0-9]{2}", basename(path)))
