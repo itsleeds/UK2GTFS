@@ -2,14 +2,15 @@
 % Please edit documentation in R/nptdr.R
 \name{nptdr2gtfs}
 \alias{nptdr2gtfs}
-\title{Import the .CIF file}
+\title{Import Nataional Public Transport Data Repository (NPTDR) data as GTFS}
 \usage{
 nptdr2gtfs(
   path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NPTDR/October-2006.zip",
   silent = FALSE,
   n_files = NULL,
   enhance_stops = TRUE,
-  naptan = get_naptan()
+  naptan = get_naptan(),
+  year = nptdr_archive_year(path)
 )
 }
 \arguments{
@@ -22,14 +23,19 @@ nptdr2gtfs(
 \item{enhance_stops}{Logical, if TRUE will download current NaPTAN to add in any missing stops}
 
 \item{naptan}{Naptan Locations from get_naptan()}
+
+\item{year}{Year of the NPTDR archive, used to apply standard_mode_overrides() rules}
 }
 \value{
 A gtfs object: a named list of data frames representing the tables
   of a GTFS file
 }
 \description{
-Import the .CIF file
+Import Nataional Public Transport Data Repository (NPTDR) data as GTFS
 }
 \details{
-Imports the CIF file and returns data.frame
+NPTDR is a UK-wide dataset of timetables, 
+and is available from data.gov.uk. The data is distributed as a zip file 
+containing a number of CIF files, one for each local authority area. 
+The function imports the CIF files and returns a GTFS object.
 }

@@ -86,7 +86,17 @@ fixed_track_mode <- function(mode) {
 #' The function reads the header information of each file (`ServiceCode`,
 #' `LineName`, `Description`, `NationalOperatorCode`, `OperatingPeriod` start
 #' and end dates, `RevisionNumber`, `CreationDateTime` and
-#' `ModificationDateTime`) and keeps, for each `ServiceCode`:
+#' `ModificationDateTime`) and keeps, for each `ServiceCode` **published by one
+#' operator**:
+#'
+#' A `ServiceCode` is unique within an operator, not nationally, so the
+#' operator is part of the key. Five South East operators publish
+#' `ServiceCode` \code{1}; keyed on the code alone they look like one service
+#' with five competing revisions, and all but the most recently started are
+#' discarded as superseded. The operator is taken as the whole set of
+#' `NationalOperatorCode` values the file declares, sorted, so that a jointly
+#' registered service is not split by the order its file happens to list them
+#' in. Where no operator code can be read the code alone is used.
 #'
 #' \enumerate{
 #'   \item For each distinct operating-period start date **and line**, only the
@@ -106,10 +116,10 @@ fixed_track_mode <- function(mode) {
 #' }
 #'
 #' @section Overlapping registrations:
-#' Rules 1 to 3 key on the `ServiceCode`, which catches a re-upload of one
-#' registration but not a re-registration: some publishers, Transport for
-#' London among them, mint a **new** `ServiceCode` every time a service is
-#' re-registered. Each code then appears exactly once and nothing above
+#' Rules 1 to 3 key on the operator and `ServiceCode`, which catches a
+#' re-upload of one registration but not a re-registration: some publishers,
+#' Transport for London among them, mint a **new** `ServiceCode` every time a
+#' service is re-registered. Each code then appears exactly once and nothing above
 #' detects it, yet both files describe the same service over overlapping
 #' dates and both convert into the feed.
 #'
@@ -180,7 +190,9 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
       ed <- xml2::xml_text(xml2::xml_find_first(service, "d1:OperatingPeriod/d1:EndDate"))
       desc <- xml2::xml_text(xml2::xml_find_first(service, "d1:Description"))
       mode <- xml2::xml_text(xml2::xml_find_first(service, "d1:Mode"))
-      noc <- xml2::xml_text(xml2::xml_find_first(xml, "//d1:NationalOperatorCode"))
+      nocs <- trimws(xml2::xml_text(xml2::xml_find_all(xml, "//d1:NationalOperatorCode")))
+      nocs <- sort(unique(nocs[!is.na(nocs) & nzchar(nocs)]))
+      noc <- if (length(nocs)) nocs[1] else NA_character_
       rev <- xml2::xml_attr(service, "RevisionNumber")
       if (is.na(rev)) rev <- xml2::xml_attr(xml, "RevisionNumber")
       mod <- xml2::xml_attr(service, "ModificationDateTime")
@@ -194,6 +206,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
       lns <- sort(unique(trimws(lns[!is.na(lns)])))
       data.frame(file = f, ServiceCode = sc, StartDate = sd, EndDate = ed,
                  Description = desc, Mode = mode, NOC = noc,
+                 NOCs = paste(nocs, collapse = "\r"),
                  RevisionNumber = rev, ModificationDateTime = mod,
                  CreationDateTime = cre,
                  Lines = paste(lns, collapse = "\r"),
@@ -207,6 +220,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
                          Description = NA_character_,
                          Mode = NA_character_,
                          NOC = NA_character_,
+                         NOCs = NA_character_,
                          RevisionNumber = NA_character_,
                          ModificationDateTime = NA_character_,
                          CreationDateTime = NA_character_,
@@ -249,11 +263,39 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
   unknown <- meta$file[is.na(meta$ServiceCode)]
   meta <- meta[!is.na(meta$ServiceCode), ]
 
+  # A ServiceCode is unique within an operator, not nationally, so rules 1 to 3
+  # key on the operator as well. Five South East operators publish ServiceCode
+  # "1" (RRTR, GOCH, HAMS, HDBC, METR); keyed on the code alone they looked like
+  # one service with five competing revisions, and the most recent start date
+  # deleted the other four. Metrobus lost lines 1, 2, 10, 21 and 100 that way -
+  # 876 of 2,892 journeys, five whole Crawley town routes. Measured over the
+  # 2026-07-26 TNDS archive, keying on the operator recovers 6,958 journeys in
+  # 195 files - 0.45% of the 1,532,854 kept nationally, 3.3% of the South East,
+  # where the publisher uses bare route numbers as codes, and nothing at all in
+  # the seven regions that publish codes like 33-74-S-y11-46. Nothing that the
+  # ServiceCode key kept is dropped: a finer key can only split a group.
+  #
+  # The key is the whole set of operator codes, sorted, not the first one
+  # listed: a jointly registered service names its operators in whatever order
+  # the file happens to use, and a revision that reorders them is still the
+  # same registration. Where a revision instead adds or drops an operator the
+  # set does change and the two files group apart, which leaves a superseded
+  # file in place rather than deleting a live one - the safe direction, and
+  # rule 4 catches it on description and lines. Rule 4 deliberately keeps using
+  # the first code alone, because there being lenient costs a surviving
+  # duplicate while here it would cost real service.
+  #
+  # A file whose operator cannot be read keys on the ServiceCode alone, which
+  # is the behaviour this replaces.
+  meta$svc_key <- paste(ifelse(is.na(meta$NOCs), "", meta$NOCs),
+                        meta$ServiceCode, sep = "\r")
+
   keep <- character()
   if (nrow(meta) > 0) {
-    # rule 1: within each ServiceCode + StartDate keep the highest revision,
-    # breaking ties on the most recent ModificationDateTime (both descending)
-    meta <- meta[order(meta$ServiceCode, meta$StartDate,
+    # rule 1: within each operator + ServiceCode + StartDate keep the highest
+    # revision, breaking ties on the most recent ModificationDateTime (both
+    # descending)
+    meta <- meta[order(meta$svc_key, meta$StartDate,
                        -meta$RevisionNumber,
                        -as.numeric(meta$ModificationDateTime)), ]
 
@@ -276,15 +318,15 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
     lines_list[lengths(lines_list) == 0] <- ""
     idx <- rep(seq_len(nrow(meta)), lengths(lines_list))
     ex <- data.frame(row = idx,
-                     ServiceCode = meta$ServiceCode[idx],
+                     svc_key = meta$svc_key[idx],
                      StartDate = meta$StartDate[idx],
                      Line = unlist(lines_list),
                      stringsAsFactors = FALSE)
-    ex <- ex[!duplicated(ex[, c("ServiceCode", "StartDate", "Line")]), ]
+    ex <- ex[!duplicated(ex[, c("svc_key", "StartDate", "Line")]), ]
     meta <- meta[sort(unique(ex$row)), ]
 
     # rules 2 and 3: keep the version operative on `date` plus future versions
-    meta_split <- split(meta, meta$ServiceCode)
+    meta_split <- split(meta, meta$svc_key)
     keep <- lapply(meta_split, function(x) {
       past <- x$StartDate <= date
       operative <- character()

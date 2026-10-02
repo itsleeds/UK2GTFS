@@ -60,7 +60,17 @@ contain the `ServiceCode` at all.
 The function reads the header information of each file (`ServiceCode`,
 `LineName`, `Description`, `NationalOperatorCode`, `OperatingPeriod` start
 and end dates, `RevisionNumber`, `CreationDateTime` and
-`ModificationDateTime`) and keeps, for each `ServiceCode`:
+`ModificationDateTime`) and keeps, for each `ServiceCode` **published by one
+operator**:
+
+A `ServiceCode` is unique within an operator, not nationally, so the
+operator is part of the key. Five South East operators publish
+`ServiceCode` \code{1}; keyed on the code alone they look like one service
+with five competing revisions, and all but the most recently started are
+discarded as superseded. The operator is taken as the whole set of
+`NationalOperatorCode` values the file declares, sorted, so that a jointly
+registered service is not split by the order its file happens to list them
+in. Where no operator code can be read the code alone is used.
 
 \enumerate{
   \item For each distinct operating-period start date **and line**, only the
@@ -81,10 +91,10 @@ and end dates, `RevisionNumber`, `CreationDateTime` and
 }
 \section{Overlapping registrations}{
 
-Rules 1 to 3 key on the `ServiceCode`, which catches a re-upload of one
-registration but not a re-registration: some publishers, Transport for
-London among them, mint a **new** `ServiceCode` every time a service is
-re-registered. Each code then appears exactly once and nothing above
+Rules 1 to 3 key on the operator and `ServiceCode`, which catches a
+re-upload of one registration but not a re-registration: some publishers,
+Transport for London among them, mint a **new** `ServiceCode` every time a
+service is re-registered. Each code then appears exactly once and nothing above
 detects it, yet both files describe the same service over overlapping
 dates and both convert into the feed.
 

@@ -16,9 +16,14 @@ make_txc <- function(dir, name, service, startdate, rev, modtime,
   end_xml <- if (is.null(enddate)) "" else sprintf("<EndDate>%s</EndDate>", enddate)
   desc_xml <- if (is.null(desc)) "" else sprintf("<Description>%s</Description>", desc)
   mode_xml <- if (is.null(mode)) "" else sprintf("<Mode>%s</Mode>", mode)
-  noc_xml <- if (is.null(noc)) "" else sprintf(
-    "<Operators><Operator><NationalOperatorCode>%s</NationalOperatorCode></Operator></Operators>",
-    noc)
+  # `noc` may name more than one operator, in document order, for a jointly
+  # registered service
+  noc_xml <- if (is.null(noc)) "" else paste0(
+    "<Operators>",
+    paste0(sprintf(
+      "<Operator><NationalOperatorCode>%s</NationalOperatorCode></Operator>",
+      noc), collapse = ""),
+    "</Operators>")
   if (is.null(createtime)) createtime <- modtime
   xml <- sprintf(
 '<?xml version="1.0"?>
@@ -453,4 +458,70 @@ test_that("a retyped description still groups on the road", {
   periods <- do.call(rbind, lapply(res, period_of))
   periods <- periods[order(periods[, "start"]), , drop = FALSE]
   expect_equal(unname(periods[1, "end"]), "2026-07-24")
+})
+
+
+test_that("two operators sharing a ServiceCode keep their own services", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # A ServiceCode is unique within an operator, not nationally. Five South East
+  # operators publish ServiceCode "1", and keyed on the code alone they look
+  # like one service with five competing revisions: the most recent start date
+  # wins and the rest are dropped as superseded. Metrobus's Crawley town
+  # network went that way - lines 1, 2, 10, 21 and 100, 876 of 2,892 journeys.
+  files <- c(
+    make_txc(dir, "metrobus.xml", "1", "2026-06-01", "1",
+             "2026-06-01T00:00:00", lines = "1",
+             desc = "Crawley - Gatwick", noc = "METR"),
+    make_txc(dir, "gocoaches.xml", "1", "2026-07-01", "1",
+             "2026-07-01T00:00:00", lines = "100",
+             desc = "Chichester - Midhurst", noc = "GOCH")
+  )
+
+  res <- basename(txc_filter_files(files, date = as.Date("2026-07-26")))
+  expect_setequal(res, c("metrobus.xml", "gocoaches.xml"))
+})
+
+
+test_that("a joint registration listing its operators in a different order is still deduplicated", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # The operator code has to identify the operator, not the order the file
+  # happens to list them in. Two revisions of one jointly registered service,
+  # the second naming the same two operators the other way round, are still one
+  # service and the superseded revision must go.
+  files <- c(
+    make_txc(dir, "v1.xml", "SVJ", "2026-06-01", "1", "2026-06-01T00:00:00",
+             lines = "5", desc = "Town - City", noc = c("OPA", "OPB")),
+    make_txc(dir, "v2.xml", "SVJ", "2026-06-01", "2", "2026-07-01T00:00:00",
+             lines = "5", desc = "Town - City", noc = c("OPB", "OPA"))
+  )
+
+  res <- basename(txc_filter_files(files, date = as.Date("2026-07-26")))
+  expect_equal(res, "v2.xml")
+})
+
+
+test_that("a joint registration that gains an operator is still deduplicated", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # The harder half of the same case: the revision does not reorder the
+  # operators, it adds one, so no key built from the operator codes can group
+  # the two files. The overlap rule is what has to catch this - same
+  # description, same line, same period - and it keeps the newer file.
+  files <- c(
+    make_txc(dir, "v1.xml", "SVK", "2026-06-01", "1", "2026-06-01T00:00:00",
+             lines = "5", desc = "Town - City", noc = "OPA"),
+    make_txc(dir, "v2.xml", "SVK", "2026-06-01", "2", "2026-07-01T00:00:00",
+             lines = "5", desc = "Town - City", noc = c("OPA", "OPB"))
+  )
+
+  res <- basename(txc_filter_files(files, date = as.Date("2026-07-26")))
+  expect_equal(res, "v2.xml")
 })

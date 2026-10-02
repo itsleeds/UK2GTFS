@@ -1,20 +1,6 @@
-# fls <- list.files("R", full.names = TRUE)
-# for(fl in fls){source(fl)}
-#' Import the .CIF file
-#'
-#' @details
-#' Imports the CIF file and returns data.frame
-#'
-#' @param path Path to zipped folder for NPTDR data
-#' @param silent Logical, should messages be returned
-#' @param n_files debug option numerical vector for files to be passed e.g. 1:10
-#' @param enhance_stops Logical, if TRUE will download current NaPTAN to add in any missing stops
-#' @param naptan Naptan Locations from get_naptan()
-#' @return A gtfs object: a named list of data frames representing the tables
-#'   of a GTFS file
-#'
 #' Which NPTDR archive a path names
 #'
+#' @details
 #' The archives are distributed as "October-2006.zip" and similar, so the year
 #' is in the file name. A few of the mode rules are gated on it, because NPTDR
 #' reassigns its numeric operator codes between archives. Returns NA when the
@@ -23,13 +9,30 @@
 #'
 #' @param path path to an NPTDR archive zip
 #' @return the year as a character scalar, or NA
-#' @noRd
+#' @export
 nptdr_archive_year <- function(path) {
   m <- regmatches(basename(path), regexpr("(19|20)[0-9]{2}", basename(path)))
   if (length(m) == 0) NA_character_ else m[[1]]
 }
 
 
+#' Import Nataional Public Transport Data Repository (NPTDR) data as GTFS
+#'
+#' @details
+#' NPTDR is a UK-wide dataset of timetables, 
+#' and is available from data.gov.uk. The data is distributed as a zip file 
+#' containing a number of CIF files, one for each local authority area. 
+#' The function imports the CIF files and returns a GTFS object.
+#'
+#' @param path Path to zipped folder for NPTDR data
+#' @param silent Logical, should messages be returned
+#' @param n_files debug option numerical vector for files to be passed e.g. 1:10
+#' @param enhance_stops Logical, if TRUE will download current NaPTAN to add in any missing stops
+#' @param naptan Naptan Locations from get_naptan()
+#' @param year Year of the NPTDR archive, used to apply standard_mode_overrides() rules
+#' @return A gtfs object: a named list of data frames representing the tables
+#'   of a GTFS file
+#'
 #' @export
 nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NPTDR/October-2006.zip",
                        silent = FALSE,

@@ -51,7 +51,9 @@ utils::globalVariables(c(
   # standard_modes.R
   'TMP_sys', 'n_hit', 'share',
   # gtfs_interpolate_times.R
-  'batch', 'tstart', 'tend', 'i.tend'
+  'batch', 'tstart', 'tend', 'i.tend',
+  # gtfs_merge.R
+  'file_id'
 ))
 
 
