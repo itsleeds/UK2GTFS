@@ -117,7 +117,10 @@
 - [`noc_operator_key()`](https://itsleeds.github.io/UK2GTFS/reference/noc_operator_key.md)
   : Which operator does each agency record belong to?
 - [`nptdr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nptdr2gtfs.md)
-  : Import the .CIF file
+  : Import Nataional Public Transport Data Repository (NPTDR) data as
+  GTFS
+- [`nptdr_archive_year()`](https://itsleeds.github.io/UK2GTFS/reference/nptdr_archive_year.md)
+  : Which NPTDR archive a path names
 - [`nr2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/nr2gtfs.md)
   : ATOC to GTFS (Network Rail Version)
 - [`nrdp_fares()`](https://itsleeds.github.io/UK2GTFS/reference/nrdp_fares.md)

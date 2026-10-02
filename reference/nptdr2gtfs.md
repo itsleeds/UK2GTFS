@@ -1,6 +1,6 @@
-# Import the .CIF file
+# Import Nataional Public Transport Data Repository (NPTDR) data as GTFS
 
-Import the .CIF file
+Import Nataional Public Transport Data Repository (NPTDR) data as GTFS
 
 ## Usage
 
@@ -10,7 +10,8 @@ nptdr2gtfs(
   silent = FALSE,
   n_files = NULL,
   enhance_stops = TRUE,
-  naptan = get_naptan()
+  naptan = get_naptan(),
+  year = nptdr_archive_year(path)
 )
 ```
 
@@ -37,6 +38,11 @@ nptdr2gtfs(
 
   Naptan Locations from get_naptan()
 
+- year:
+
+  Year of the NPTDR archive, used to apply standard_mode_overrides()
+  rules
+
 ## Value
 
 A gtfs object: a named list of data frames representing the tables of a
@@ -44,4 +50,7 @@ GTFS file
 
 ## Details
 
-Imports the CIF file and returns data.frame
+NPTDR is a UK-wide dataset of timetables, and is available from
+data.gov.uk. The data is distributed as a zip file containing a number
+of CIF files, one for each local authority area. The function imports
+the CIF files and returns a GTFS object.
