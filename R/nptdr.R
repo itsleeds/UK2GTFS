@@ -9,6 +9,7 @@
 #' @param path path to an NPTDR archive zip
 #' @return the year as a character scalar, or NA
 #' @noRd
+#' @export
 nptdr_archive_year <- function(path) {
   m <- regmatches(basename(path), regexpr("(19|20)[0-9]{2}", basename(path)))
   if (length(m) == 0) NA_character_ else m[[1]]
