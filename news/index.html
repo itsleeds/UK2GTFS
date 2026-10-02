@@ -106,6 +106,7 @@
 <li><p><code><a href="../reference/get_naptan.html">get_naptan()</a></code> returns numeric coordinates.</p></li>
 <li><p>NPTDR conversion handles HHMM times and empty exception tables.</p></li>
 <li><p>Package state is kept in an internal cache environment instead of modifying locked namespace bindings; <code><a href="../reference/load_data.html">load_data()</a></code> loads into the caller’s environment instead of the global environment.</p></li>
+<li><p><code><a href="../reference/gtfs_validate_internal.html">gtfs_validate_internal()</a></code> no longer stops with “missing value where TRUE/FALSE needed” when <code>calendar</code> has a missing day-of-week flag. The flag is reported as an invalid value, as before, and the check for services that can never run now treats it as a day the service does not operate.</p></li>
 </ul></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
