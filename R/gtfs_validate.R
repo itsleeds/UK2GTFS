@@ -671,8 +671,11 @@ gtfs_validate_internal <- function(gtfs, good_news = FALSE) {
                             "friday", "saturday", "sunday"),
                           names(gtfs$calendar))
     if (length(day_cols) == 7) {
+      # na.rm: a missing day flag is reported by check_enum above, it must not
+      # stop this check from running
       active <- rowSums(as.data.frame(
-        lapply(day_cols, function(cc) as.numeric(gtfs$calendar[[cc]])))) > 0
+        lapply(day_cols, function(cc) as.numeric(gtfs$calendar[[cc]]))),
+        na.rm = TRUE) > 0
       added <- if (has_rows("calendar_dates") &&
                    all(c("service_id", "exception_type") %in%
                        names(gtfs$calendar_dates))) {

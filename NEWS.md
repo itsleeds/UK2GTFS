@@ -278,3 +278,7 @@
 * Package state is kept in an internal cache environment instead of
   modifying locked namespace bindings; `load_data()` loads into the caller's
   environment instead of the global environment.
+* `gtfs_validate_internal()` no longer stops with "missing value where
+  TRUE/FALSE needed" when `calendar` has a missing day-of-week flag. The flag
+  is reported as an invalid value, as before, and the check for services that
+  can never run now treats it as a day the service does not operate.
