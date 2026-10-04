@@ -464,6 +464,20 @@ txc_overlap_plan <- function(meta) {
           sj <- out$new_start[j]; ej <- out$new_end[j]
           if (max(si, sj) > min(ei, ej)) next          # no overlap
 
+          # Siblings, not registrations. Some publishers split one timetable
+          # across several files with their own ServiceCodes, all written in
+          # the same export: First Essex publishes route X30 as
+          # SE_FG_FESX_X30_1 and X30_2_A to X30_4_A, one operator, one
+          # description, one line, one period and one CreationDateTime. They
+          # carry different journeys, and the rules below kept only one of
+          # them (126 of the 301 vehicle journeys). A successor registration
+          # is written later than the file it replaces, so equal creation
+          # times with different codes are left alone.
+          if (!is.na(meta$CreationDateTime[i]) &&
+              !is.na(meta$CreationDateTime[j]) &&
+              meta$CreationDateTime[i] == meta$CreationDateTime[j] &&
+              meta$ServiceCode[i] != meta$ServiceCode[j]) next
+
           if (si == sj && ei == ej) {
             # Identical periods: nothing to truncate, so the most recently
             # created file wins and the other is a duplicate registration.

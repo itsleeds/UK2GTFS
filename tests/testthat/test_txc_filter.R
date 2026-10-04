@@ -268,12 +268,16 @@ test_that("same start and a different end moves the longer period's start", {
   dir.create(dir)
   on.exit(unlink(dir, recursive = TRUE))
 
+  # Successive registrations, so they are written at different instants. Two
+  # files of one operator written at the SAME instant under different
+  # ServiceCodes are parts of one export rather than competing registrations,
+  # and are left alone - see the sibling test below.
   files <- c(
     make_txc(dir, "short.xml", "SVC_A", "2026-07-11", "1",
              "2026-07-01T00:00:00", lines = "9", enddate = "2026-08-31",
              desc = "Town - Village", noc = "OPER"),
     make_txc(dir, "long.xml", "SVC_B", "2026-07-11", "1",
-             "2026-07-01T00:00:00", lines = "9", enddate = "2026-12-23",
+             "2026-07-02T00:00:00", lines = "9", enddate = "2026-12-23",
              desc = "Town - Village", noc = "OPER")
   )
 
@@ -282,6 +286,81 @@ test_that("same start and a different end moves the longer period's start", {
   starts <- vapply(res, function(f) period_of(f)[["start"]], "")
   expect_true("2026-09-01" %in% starts)
   expect_true("2026-07-11" %in% starts)
+})
+
+
+test_that("files written in one export are siblings, not registrations", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # The First Essex pattern. Route X30 is published as four files - X30_1 and
+  # X30_2_A to X30_4_A - with their own ServiceCodes but one operator, one
+  # description, one line, one operating period and one CreationDateTime.
+  # They carry different journeys between them, so they are one timetable
+  # split across four files, not four competing registrations. Grouped as
+  # usual, their periods are identical, every tie-break is equal, and the
+  # rules kept one of the four: 126 of route X30's 301 vehicle journeys.
+  # A successor is always written later than the file it replaces, so equal
+  # creation times with different codes mean an export, and the pair is
+  # skipped. Measured over the July 2026 TNDS archive this recovers 110
+  # files and 2,603 vehicle journeys nationally.
+  mk <- function(name, code, enddate) {
+    make_txc(dir, name, code, "2026-07-26", "1", "2026-07-14T06:59:42",
+             lines = "X30", enddate = enddate,
+             desc = "Sweyne Park School", noc = "FESX")
+  }
+  files <- c(mk("X30_1.xml",   "SE_FG_FESX_X30_1", "2026-08-01"),
+             mk("X30_2_A.xml", "SE_FG_FESX_X30_2", "2026-08-01"),
+             mk("X30_3_A.xml", "SE_FG_FESX_X30_3", "2026-08-01"),
+             mk("X30_4_A.xml", "SE_FG_FESX_X30_4", "2026-08-01"))
+
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(sort(basename(res)),
+               c("X30_1.xml", "X30_2_A.xml", "X30_3_A.xml", "X30_4_A.xml"))
+  # and none of them has had its period rewritten
+  starts <- vapply(res, function(f) period_of(f)[["start"]], "")
+  expect_true(all(starts == "2026-07-26"))
+
+  # The same-start rule is skipped for siblings too, not only the
+  # identical-period one: a shorter sibling must not push the longer one's
+  # start past its end.
+  dir2 <- tempfile("txctest")
+  dir.create(dir2)
+  on.exit(unlink(dir2, recursive = TRUE), add = TRUE)
+  sib <- c(
+    make_txc(dir2, "a.xml", "SE_FG_FESX_C7_1", "2026-07-26", "1",
+             "2026-07-14T06:59:42", lines = "C7", enddate = "2026-08-01",
+             desc = "Chelmsford", noc = "FESX"),
+    make_txc(dir2, "b.xml", "SE_FG_FESX_C7_2", "2026-07-26", "1",
+             "2026-07-14T06:59:42", lines = "C7", enddate = "2026-12-23",
+             desc = "Chelmsford", noc = "FESX")
+  )
+  res2 <- txc_filter_files(sib, date = as.Date("2026-07-26"))
+  expect_equal(length(res2), 2)
+  expect_true(all(vapply(res2, function(f) period_of(f)[["start"]], "") ==
+                    "2026-07-26"))
+})
+
+
+test_that("one publisher re-registering at one instant is still reconciled", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # The sibling rule keys on the ServiceCode differing as well as the creation
+  # time matching, so a re-upload of the SAME code at the same instant is
+  # still a duplicate registration and one copy goes.
+  files <- c(
+    make_txc(dir, "dup1.xml", "SE_FG_FESX_55_1", "2026-07-26", "1",
+             "2026-07-14T06:59:42", lines = "55", enddate = "2026-08-01",
+             desc = "Chelmsford - Maldon", noc = "FESX"),
+    make_txc(dir, "dup2.xml", "SE_FG_FESX_55_1", "2026-07-26", "2",
+             "2026-07-14T06:59:42", lines = "55", enddate = "2026-08-01",
+             desc = "Chelmsford - Maldon", noc = "FESX")
+  )
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(basename(res), "dup2.xml")
 })
 
 
