@@ -17,6 +17,18 @@ count_weekday_runs <- function(cal){
 
   cal$TMP_d <- as.integer(cal$end_date - cal$start_date) + 1
   cal$TMP_d[is.na(cal$TMP_d)] <- 0
+  # A calendar row whose end_date precedes its start_date describes no service
+  # at all, so it contributes no days of any weekday. Without this it reaches
+  # seq(length.out = negative) below and the whole count dies with
+  # "'length.out' must be a non-negative number", naming a purrr index and no
+  # service_id - which is a long way from the one impossible row that caused
+  # it. Feeds do carry such rows: an operator published NW_05_VISB_66_2.xml in
+  # the October 2026 TNDS archive with an OperatingPeriod of 2026-10-25 to
+  # 2026-10-24, and transxchange2gtfs can synthesise one when it intersects an
+  # operating period with the days a service actually runs. Counting zero days
+  # for them is right either way, and the zero path is already exercised by
+  # the is.na() line above.
+  cal$TMP_d[cal$TMP_d < 0] <- 0
 
   dow = c("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
 
