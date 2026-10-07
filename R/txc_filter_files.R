@@ -29,6 +29,48 @@ normalise_description <- function(x) {
 }
 
 
+#' Expand TransXChange DaysOfWeek names to individual days
+#'
+#' The children of `<DaysOfWeek>` are not all single days: the schema also
+#' allows ranges and negations (`MondayToSaturday`, `Weekend`, `NotSunday`).
+#' Compared as the strings they are written in, `MondayToSaturday` and
+#' `Saturday` look like different days when one contains the other, and a
+#' publisher writing `MondayToFriday` in one file and five separate days in
+#' the next looks like two different timetables.
+#'
+#' Expanding to the set of individual days settles both. Anything unrecognised
+#' is kept as itself, so an unexpected value groups with its own kind rather
+#' than silently matching everything.
+#'
+#' @param x character vector of DaysOfWeek child element names
+#' @return a sorted character vector of day names, possibly empty
+#' @noRd
+expand_days_of_week <- function(x) {
+  wk <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+  all7 <- c(wk, "Saturday", "Sunday")
+  map <- list(
+    MondayToFriday = wk,
+    MondayToSaturday = c(wk, "Saturday"),
+    MondayToSunday = all7,
+    MondayToThursday = wk[1:4],
+    Weekend = c("Saturday", "Sunday"),
+    NotMonday = setdiff(all7, "Monday"),
+    NotTuesday = setdiff(all7, "Tuesday"),
+    NotWednesday = setdiff(all7, "Wednesday"),
+    NotThursday = setdiff(all7, "Thursday"),
+    NotFriday = setdiff(all7, "Friday"),
+    NotSaturday = setdiff(all7, "Saturday"),
+    NotSunday = setdiff(all7, "Sunday")
+  )
+  x <- x[!is.na(x) & nzchar(x)]
+  if (!length(x)) return(character(0))
+  out <- unlist(lapply(x, function(d) {
+    if (!is.null(map[[d]])) map[[d]] else d
+  }), use.names = FALSE)
+  sort(unique(out))
+}
+
+
 #' Does this TransXChange Mode run on fixed track?
 #'
 #' Fixed track here means anything that is not a road vehicle: a named line on
@@ -99,15 +141,21 @@ fixed_track_mode <- function(mode) {
 #' in. Where no operator code can be read the code alone is used.
 #'
 #' \enumerate{
-#'   \item For each distinct operating-period start date **and line**, only the
-#'     file with the highest `RevisionNumber` (ties broken by the most recent
-#'     `ModificationDateTime`) - repeated uploads of the same timetable
-#'     period are duplicates. A file is kept if it is the best available file
-#'     for at least one of the lines it publishes. The line matters because a
-#'     `ServiceCode` does not identify one timetable: operators such as
-#'     Nottingham City Transport split a single registration into one file per
-#'     line, all sharing the `ServiceCode` and operating period, and keying on
-#'     the `ServiceCode` alone would discard every line but one.
+#'   \item For each distinct operating-period start date, **line** and **day
+#'     type**, only the file with the highest `RevisionNumber` (ties broken by
+#'     the most recent `ModificationDateTime`) - repeated uploads of the same
+#'     timetable period are duplicates. A file is kept if it is the best
+#'     available file for at least one of the lines it publishes. The line
+#'     matters because a `ServiceCode` does not identify one timetable:
+#'     operators such as Nottingham City Transport split a single registration
+#'     into one file per line, all sharing the `ServiceCode` and operating
+#'     period, and keying on the `ServiceCode` alone would discard every line
+#'     but one. The day type matters for the same reason: Brighton & Hove
+#'     files one document per day type, so a weekday, a Saturday and a Sunday
+#'     file share the code, the line and the period and differ only in their
+#'     `RegularDayType`. Day sets are read from `DaysOfWeek` and expanded, so
+#'     that `MondayToFriday` and the five days listed separately compare
+#'     equal.
 #'   \item Of the start dates on or before `date`, only the most recent -
 #'     this is the version operative on `date`; earlier versions have been
 #'     superseded.
@@ -140,6 +188,14 @@ fixed_track_mode <- function(mode) {
 #' line on rails is unique to its operator in a way a bus route number is not,
 #' so the description is not needed there; on the road it is kept, because one
 #' operator really can run a route "1" in two towns.
+#'
+#' Two files in a group whose operating **days** do not intersect are left
+#' alone, however their periods overlap: a weekday file and a Saturday file
+#' cannot be alternative versions of one timetable. The test is disjointness,
+#' not inequality, so a successor registration that merely drops Saturday
+#' still shares the weekdays with the file it replaces and is reconciled as
+#' usual. Without this, a publisher filing one document per day type had the
+#' identical-period rule below keep the newest and call the rest duplicates.
 #'
 #' Within a group the overlaps are reconciled:
 #'
@@ -204,12 +260,20 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
       # identify a timetable on its own - see the note on rule 1 below.
       lns <- xml2::xml_text(xml2::xml_find_all(xml, "//d1:LineName"))
       lns <- sort(unique(trimws(lns[!is.na(lns)])))
+      # Which days of the week this file's journeys run. Needed for the same
+      # reason as the lines: a ServiceCode, a line and an operating period
+      # still do not identify a timetable, because some publishers file one
+      # document per day type and the documents differ only here.
+      dys <- xml2::xml_name(xml2::xml_children(
+        xml2::xml_find_all(xml, "//d1:RegularDayType/d1:DaysOfWeek")))
+      dys <- expand_days_of_week(dys)
       data.frame(file = f, ServiceCode = sc, StartDate = sd, EndDate = ed,
                  Description = desc, Mode = mode, NOC = noc,
                  NOCs = paste(nocs, collapse = "\r"),
                  RevisionNumber = rev, ModificationDateTime = mod,
                  CreationDateTime = cre,
                  Lines = paste(lns, collapse = "\r"),
+                 Days = paste(dys, collapse = "\r"),
                  stringsAsFactors = FALSE)
     }, silent = TRUE)
 
@@ -225,6 +289,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
                          ModificationDateTime = NA_character_,
                          CreationDateTime = NA_character_,
                          Lines = NA_character_,
+                         Days = NA_character_,
                          stringsAsFactors = FALSE)
     }
     meta
@@ -313,6 +378,24 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
     # lines, so a later revision wins them all) and still removes a superseded
     # revision whose lines are all covered by a newer file, while keeping every
     # line that is only published once.
+    #
+    # The day type is part of the key for the same reason the line is. Some
+    # publishers file one document per day type for a single registration, all
+    # sharing the ServiceCode, the line and the operating period and differing
+    # only in their RegularDayType. Brighton & Hove publishes ServiceCode
+    # PK0001213:1 line 2 for the week of 2026-10-04 as three files - weekdays,
+    # Saturday and Sunday - at the same RevisionNumber. Keyed without the day
+    # type they collided and two of the three were deleted: across that
+    # operator's files in a fortnight, 263 of the 285 rule 1 removed carried a
+    # different day set from the file that displaced them, leaving 8 of 36
+    # services with no Saturday or Sunday timetable at all.
+    #
+    # Day sets are compared for equality, not for overlap, so two files whose
+    # days partly coincide (weekdays against Monday-to-Saturday) now both
+    # survive and the shared days are published twice. That is the safe
+    # direction - a surviving duplicate rather than deleted service, the same
+    # trade made when the operator was added to svc_key - and what remains is
+    # left to gtfs_deduplicate().
     lines_list <- strsplit(meta$Lines, "\r", fixed = TRUE)
     # a file naming no line at all still has to be groupable
     lines_list[lengths(lines_list) == 0] <- ""
@@ -320,9 +403,11 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
     ex <- data.frame(row = idx,
                      svc_key = meta$svc_key[idx],
                      StartDate = meta$StartDate[idx],
+                     Days = ifelse(is.na(meta$Days[idx]), "",
+                                   meta$Days[idx]),
                      Line = unlist(lines_list),
                      stringsAsFactors = FALSE)
-    ex <- ex[!duplicated(ex[, c("svc_key", "StartDate", "Line")]), ]
+    ex <- ex[!duplicated(ex[, c("svc_key", "StartDate", "Days", "Line")]), ]
     meta <- meta[sort(unique(ex$row)), ]
 
     # rules 2 and 3: keep the version operative on `date` plus future versions
@@ -402,6 +487,10 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
 #' @noRd
 txc_overlap_plan <- function(meta) {
 
+  # Days is read by txc_filter_files(); default it so this stays callable with
+  # metadata built by hand, as the tests do.
+  if (is.null(meta$Days)) meta$Days <- NA_character_
+
   out <- data.frame(file = meta$file,
                     new_start = meta$StartDate,
                     new_end = meta$EndDate,
@@ -477,6 +566,25 @@ txc_overlap_plan <- function(meta) {
               !is.na(meta$CreationDateTime[j]) &&
               meta$CreationDateTime[i] == meta$CreationDateTime[j] &&
               meta$ServiceCode[i] != meta$ServiceCode[j]) next
+
+          # Different days, not competing registrations. A publisher filing one
+          # document per day type gives this group a weekday file, a Saturday
+          # file and a Sunday file sharing an operating period exactly, and the
+          # identical-period branch below would keep the newest and call the
+          # other two duplicates. Two files whose operating days do not
+          # intersect cannot be alternative versions of one timetable, whatever
+          # their periods say.
+          #
+          # Disjointness, not inequality: a successor registration that drops
+          # Saturday still shares the weekdays with the file it replaces, so it
+          # overlaps here and is reconciled as before. Only genuinely
+          # complementary files are left alone.
+          if (!is.na(meta$Days[i]) && !is.na(meta$Days[j]) &&
+              nzchar(meta$Days[i]) && nzchar(meta$Days[j])) {
+            di <- strsplit(meta$Days[i], "\r", fixed = TRUE)[[1]]
+            dj <- strsplit(meta$Days[j], "\r", fixed = TRUE)[[1]]
+            if (!length(intersect(di, dj))) next
+          }
 
           if (si == sj && ei == ej) {
             # Identical periods: nothing to truncate, so the most recently
