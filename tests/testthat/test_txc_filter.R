@@ -357,6 +357,160 @@ test_that("files written in one export are siblings, not registrations", {
 })
 
 
+# A file with real vehicle journeys: each departs `stop` at one of `times`
+# ("HH:MM"), so that txc_journey_keys() has something to read.
+make_txc_vj <- function(dir, name, service, startdate, enddate, createtime,
+                        line, desc, noc, stop, times, so = "") {
+  # `so`, if given, is a ServicedOrganisationDayType body, e.g.
+  # "<DaysOfOperation><WorkingDays><ServicedOrganisationRef>STU</ServicedOrganisationRef></WorkingDays></DaysOfOperation>"
+  so_xml <- if (nzchar(so)) paste0("<ServicedOrganisationDayType>", so,
+                                   "</ServicedOrganisationDayType>") else ""
+  vj <- paste0(sprintf(paste0(
+    "<VehicleJourney><OperatingProfile><RegularDayType><DaysOfWeek>",
+    "<MondayToFriday/></DaysOfWeek></RegularDayType>", so_xml, "</OperatingProfile>",
+    "<VehicleJourneyCode>%d</VehicleJourneyCode><ServiceRef>%s</ServiceRef>",
+    "<LineRef>L1</LineRef><JourneyPatternRef>JP1</JourneyPatternRef>",
+    "<DepartureTime>%s:00</DepartureTime></VehicleJourney>"),
+    seq_along(times), service, times), collapse = "")
+  xml <- sprintf(
+'<?xml version="1.0"?>
+<TransXChange xmlns="http://www.transxchange.org.uk/" CreationDateTime="%s" ModificationDateTime="%s" RevisionNumber="1">
+  <Operators><Operator><NationalOperatorCode>%s</NationalOperatorCode></Operator></Operators>
+  <JourneyPatternSections><JourneyPatternSection id="JPS1">
+    <JourneyPatternTimingLink><From><StopPointRef>%s</StopPointRef></From>
+    <To><StopPointRef>X</StopPointRef></To></JourneyPatternTimingLink>
+  </JourneyPatternSection></JourneyPatternSections>
+  <Services><Service RevisionNumber="1" ModificationDateTime="%s">
+    <ServiceCode>%s</ServiceCode><Description>%s</Description>
+    <Lines><Line id="L1"><LineName>%s</LineName></Line></Lines>
+    <OperatingPeriod><StartDate>%s</StartDate><EndDate>%s</EndDate></OperatingPeriod>
+    <StandardService><JourneyPattern id="JP1">
+      <JourneyPatternSectionRefs>JPS1</JourneyPatternSectionRefs>
+    </JourneyPattern></StandardService>
+  </Service></Services>
+  <VehicleJourneys>%s</VehicleJourneys>
+</TransXChange>', createtime, createtime, noc, stop, createtime, service, desc,
+    line, startdate, enddate, vj)
+  f <- file.path(dir, name)
+  writeLines(xml, f)
+  f
+}
+
+
+test_that("siblings from different exports keep their periods", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # First Essex route 371 in the July 2026 TNDS archive: SE_FG_FESX_371_1
+  # (one journey a day, exported 14 July, 26 Jul - 1 Aug) and
+  # SE_FG_FESX_371_4 (the rest of the route, exported 7 July, 26 Jul - 29
+  # Aug). Different exports, so the equal-CreationDateTime test does not
+  # catch them, and "same start, different end" moved the main file's start
+  # to 2 August - a week of the route deleted. They share no journeys.
+  files <- c(
+    make_txc_vj(dir, "371_1.xml", "SE_FG_FESX_371_1", "2026-07-26", "2026-08-01",
+                "2026-07-14T06:59:42", "371", "Chelmsford - Danbury", "FESX",
+                "1500A", "16:40"),
+    make_txc_vj(dir, "371_4.xml", "SE_FG_FESX_371_4", "2026-07-26", "2026-08-29",
+                "2026-07-07T07:12:01", "371", "Chelmsford - Danbury", "FESX",
+                "1500A", c("06:30", "07:30", "08:30", "09:30", "10:30")))
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(sort(basename(res)), c("371_1.xml", "371_4.xml"))
+  expect_true(all(vapply(res, function(f) period_of(f)[["start"]], "") ==
+                    "2026-07-26"))
+})
+
+
+test_that("rule 2 keeps a line whose ServiceCode sibling starts later", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+  # Arriva Cymru, July 2026: ServiceCode "12/X12", line 12 from 7 June and
+  # line X12 from 8 June. Keyed on the code, line 12 was "superseded".
+  files <- c(make_txc(dir, "12.xml", "12/X12", "2026-06-07", "0",
+                      "2026-07-14T14:19:51", lines = "12", noc = "ACYM"),
+             make_txc(dir, "X12.xml", "12/X12", "2026-06-08", "0",
+                      "2026-07-14T14:19:49", lines = "X12", noc = "ACYM"))
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(sort(basename(res)), c("12.xml", "X12.xml"))
+})
+
+
+test_that("rule 1 keeps siblings in one export that carry different journeys", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+  # Stirling UL: same ServiceCode, line, period and days, created 41 ms
+  # apart, different journeys. A repeated upload would repeat them.
+  mk <- function(name, cre, times) {
+    make_txc_vj(dir, name, "MBLB_UL", "2026-07-10", "2027-07-09", cre, "UL",
+                "Stirling - University", "MBLB", "S1", times)
+  }
+  files <- c(mk("a.xml", "2026-07-10T17:12:34.381", c("07:00", "08:00", "09:00")),
+             mk("b.xml", "2026-07-10T17:12:34.422", c("07:30", "08:30", "09:30")))
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(sort(basename(res)), c("a.xml", "b.xml"))
+
+  # and a true repeated upload, same journeys, is still reduced to one
+  dir2 <- tempfile("txctest")
+  dir.create(dir2)
+  on.exit(unlink(dir2, recursive = TRUE), add = TRUE)
+  rep2 <- c(make_txc_vj(dir2, "a.xml", "MBLB_UL", "2026-07-10", "2027-07-09",
+                        "2026-07-10T17:12:34", "UL", "Stirling", "MBLB", "S1",
+                        c("07:00", "08:00")),
+            make_txc_vj(dir2, "b.xml", "MBLB_UL", "2026-07-10", "2027-07-09",
+                        "2026-07-11T17:12:34", "UL", "Stirling", "MBLB", "S1",
+                        c("07:00", "08:00")))
+  expect_length(txc_filter_files(rep2, date = as.Date("2026-07-26")), 1)
+})
+
+
+test_that("term and outside-term versions of one timetable both survive", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+  # Stirling UL, July 2026: one file on the university's working days, one on
+  # every other day. Code, line, period and weekdays all equal; times close
+  # enough that a dense timetable matches the sparse one.
+  wd <- function(side) sprintf(paste0("<%s><WorkingDays><ServicedOrganisationRef>",
+                                      "STU</ServicedOrganisationRef></WorkingDays></%s>"),
+                               side, side)
+  files <- c(
+    make_txc_vj(dir, "term.xml", "MBLB_UL", "2026-07-10", "2027-07-09",
+                "2026-07-10T17:12:34.422", "UL", "Stirling", "MBLB", "S1",
+                c("07:07", "07:37", "08:07"), so = wd("DaysOfOperation")),
+    make_txc_vj(dir, "hol.xml", "MBLB_UL", "2026-07-10", "2027-07-09",
+                "2026-07-10T17:12:34.381", "UL", "Stirling", "MBLB", "S1",
+                c("07:10", "07:30", "08:10"), so = wd("DaysOfNonOperation")))
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  expect_equal(sort(basename(res)), c("hol.xml", "term.xml"))
+})
+
+
+test_that("a new-code successor repeating the journeys is still reconciled", {
+  dir <- tempfile("txctest")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+
+  # The case the overlap rules exist for, now with journeys: a publisher
+  # mints a new ServiceCode for a re-registration whose journeys move by a
+  # minute or two. The journeys match, so the predecessor is still closed.
+  t0 <- c("06:30", "07:30", "08:30", "09:30", "10:30")
+  t1 <- c("06:31", "07:32", "08:30", "09:29", "10:33")
+  files <- c(
+    make_txc_vj(dir, "old.xml", "PB0001:1", "2026-01-01", "2099-12-31",
+                "2026-01-01T09:00:00", "7", "Town - Village", "ABCD", "S1", t0),
+    make_txc_vj(dir, "new.xml", "PB0001:9", "2026-07-01", "2099-12-31",
+                "2026-06-20T09:00:00", "7", "Town - Village", "ABCD", "S1", t1))
+  res <- txc_filter_files(files, date = as.Date("2026-07-26"))
+  per <- lapply(res, period_of)
+  names(per) <- sub("_[0-9a-f]{8}[.]xml$", ".xml", basename(res))
+  expect_equal(per[["old.xml"]][["end"]], "2026-06-30")
+  expect_equal(per[["new.xml"]][["start"]], "2026-07-01")
+})
+
+
 test_that("one publisher re-registering at one instant is still reconciled", {
   dir <- tempfile("txctest")
   dir.create(dir)

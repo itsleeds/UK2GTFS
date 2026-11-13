@@ -502,6 +502,137 @@ test_that("gtfs_stop_frequency counts frequency-based departures", {
 })
 
 
+# One fixture for the service-day rules, over the window 2-29 Oct 2023:
+# S1: T1 on SV1, weekdays 2-29 Oct (20 days), less one cancellation.
+# S2: T2 on SVX, a service that exists only in calendar_dates.txt and adds
+#     three dates, one of them outside the window.
+# S3: T3 on SV3, whose calendar row ends on 6 Oct (5 weekdays) but which
+#     adds Saturday 14 Oct - outside its own date range - and Tuesday 17 Oct,
+#     a weekday it would run on were the range longer. It also cancels Friday
+#     20 Oct, outside its range, which is a no-op.
+# S4: T4 on SV4, whose calendar row lies wholly before the window but which
+#     adds one date inside it.
+# S5: T5 on SV1 too. SV1 cancels Saturday 7 Oct, which it never runs on
+#     (ignored), and Monday 9 Oct, which it does (one fewer).
+mk_service_day_gtfs <- function() {
+  gtfs <- mk_freq_gtfs()
+  gtfs$frequencies <- gtfs$frequencies[0, ]
+  gtfs$stops <- data.frame(stop_id = paste0("S", 1:5), stop_name = letters[1:5],
+                           stop_lon = -1.5, stop_lat = 53.8,
+                           stringsAsFactors = FALSE)
+  gtfs$trips <- data.frame(route_id = "R1",
+                           service_id = c("SV1", "SVX", "SV3", "SV4", "SV1"),
+                           trip_id = paste0("T", 1:5), stringsAsFactors = FALSE)
+  gtfs$stop_times <- data.frame(trip_id = paste0("T", 1:5),
+                                arrival_time = lubridate::hms(rep("12:00:00", 5)),
+                                departure_time = lubridate::hms(rep("12:00:00", 5)),
+                                stop_id = paste0("S", 1:5), stop_sequence = 1L,
+                                stringsAsFactors = FALSE)
+  wk <- data.frame(monday = 1L, tuesday = 1L, wednesday = 1L, thursday = 1L,
+                   friday = 1L, saturday = 0L, sunday = 0L)
+  gtfs$calendar <- data.frame(
+    service_id = c("SV1", "SV3", "SV4"), wk[c(1, 1, 1), ],
+    start_date = as.Date(c("2023-10-02", "2023-10-02", "2023-09-01")),
+    end_date = as.Date(c("2023-10-29", "2023-10-06", "2023-09-08")),
+    stringsAsFactors = FALSE)
+  gtfs$calendar_dates <- data.frame(
+    service_id = c("SVX", "SVX", "SVX", "SV3", "SV3", "SV4", "SV1", "SV1",
+                   "SV3"),
+    date = as.Date(c("2023-10-03", "2023-10-21", "2023-11-15",
+                     "2023-10-14", "2023-10-17", "2023-10-10",
+                     "2023-10-07", "2023-10-09", "2023-10-20")),
+    exception_type = c(1L, 1L, 1L, 1L, 1L, 1L, 2L, 2L, 2L),
+    stringsAsFactors = FALSE)
+  gtfs
+}
+
+
+test_that("gtfs_stop_frequency follows the GTFS service-day rules", {
+  stops <- suppressMessages(gtfs_stop_frequency(
+    mk_service_day_gtfs(),
+    startdate = lubridate::ymd("2023-10-02"),
+    enddate = lubridate::ymd("2023-10-29")))
+  tot <- stats::setNames(stops$stops_total, stops$stop_id)
+
+  expect_equal(tot[["S2"]], 2)  # was NA: the service had no calendar.txt row
+  expect_equal(tot[["S3"]], 7)  # was 5: additions outside the row's range lost
+  expect_equal(tot[["S4"]], 1)  # was NA: the row did not reach the window
+  # A cancellation removes a day the service runs, and one of a day it does
+  # not run is ignored rather than subtracted (S1 and S5 share SV1)
+  expect_equal(tot[["S1"]], 19)
+  expect_equal(tot[["S5"]], 19)
+})
+
+
+test_that("gtfs_trips_per_zone counts service days date by date", {
+  gtfs <- mk_service_day_gtfs()
+  # One zone per stop, so each zone holds exactly one trip
+  gtfs$stops$stop_lon <- -1.5 + 0.1 * (1:5)
+  zone <- sf::st_sf(
+    zone_id = paste0("Z", 1:5),
+    geometry = sf::st_sfc(lapply(1:5, function(i) {
+      sf::st_buffer(sf::st_point(c(-1.5 + 0.1 * i, 53.8)), 0.01)
+    }), crs = 4326))
+
+  res <- suppressWarnings(suppressMessages(
+    gtfs_trips_per_zone(gtfs, zone,
+                        startdate = lubridate::ymd("2023-10-02"),
+                        enddate = lubridate::ymd("2023-10-29"))))
+  res <- as.data.frame(res)
+  mid <- grep("^runs_[A-Za-z]{3}_Midday$", names(res), value = TRUE)
+  tot <- stats::setNames(rowSums(res[, mid]), res$zone_id)
+
+  # The same answers gtfs_stop_frequency() gives for the same fixture
+  expect_equal(tot[["Z1"]], 19)
+  expect_equal(tot[["Z2"]], 2)
+  # was 6: Tuesday 17 Oct, added after SV3's row ends, was taken for a no-op
+  # because the row flags Tuesdays
+  expect_equal(tot[["Z3"]], 7)
+  expect_equal(res$runs_Tue_Midday[res$zone_id == "Z3"], 2)
+  expect_equal(tot[["Z4"]], 1)
+  expect_equal(tot[["Z5"]], 19)
+})
+
+
+test_that("gtfs_trim_dates keeps additions by the GTFS rules", {
+  res <- suppressMessages(gtfs_trim_dates(
+    mk_service_day_gtfs(),
+    startdate = lubridate::ymd("2023-10-02"),
+    enddate = lubridate::ymd("2023-10-29")))
+  cd <- res$calendar_dates
+  key <- paste(cd$service_id, format(cd$date), cd$exception_type)
+
+  # SV4's row ends before the window, but it adds 10 Oct: the trip survives,
+  # as a calendar_dates-only service (was: trip dropped)
+  expect_true("T4" %in% res$trips$trip_id)
+  expect_false("SV4" %in% res$calendar$service_id)
+  expect_true("SV4 2023-10-10 1" %in% key)
+  # SV3's additions outside its own row's range survive (was: both dropped)
+  expect_true(all(c("SV3 2023-10-14 1", "SV3 2023-10-17 1") %in% key))
+  # ...but its removal outside that range, a no-op, does not
+  expect_false("SV3 2023-10-20 2" %in% key)
+  # The calendar_dates-only service and the removals inside SV1's range are
+  # unchanged, and dates outside the window are still trimmed
+  expect_true(all(c("SVX 2023-10-03 1", "SVX 2023-10-21 1",
+                    "SV1 2023-10-07 2", "SV1 2023-10-09 2") %in% key))
+  expect_false(any(cd$date > as.Date("2023-10-29")))
+  expect_setequal(res$trips$trip_id, paste0("T", 1:5))
+
+  # gtfs_read() returns data.tables, which index differently from data
+  # frames; the first version of this fix failed on them alone
+  dtg <- lapply(mk_service_day_gtfs(), data.table::as.data.table)
+  res_dt <- suppressMessages(gtfs_trim_dates(
+    dtg,
+    startdate = lubridate::ymd("2023-10-02"),
+    enddate = lubridate::ymd("2023-10-29")))
+  key_dt <- paste(res_dt$calendar_dates$service_id,
+                  format(res_dt$calendar_dates$date),
+                  res_dt$calendar_dates$exception_type)
+  expect_setequal(key_dt, key)
+  expect_setequal(res_dt$trips$trip_id, res$trips$trip_id)
+})
+
+
 test_that("gtfs_trim_dates keeps frequencies consistent with trips", {
   gtfs <- mk_freq_gtfs()
   # second service entirely outside the window, also frequency-based

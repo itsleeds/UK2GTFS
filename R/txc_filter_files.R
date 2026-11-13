@@ -267,6 +267,20 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
       dys <- xml2::xml_name(xml2::xml_children(
         xml2::xml_find_all(xml, "//d1:RegularDayType/d1:DaysOfWeek")))
       dys <- expand_days_of_week(dys)
+      # Term and holiday versions of one timetable are told apart by their
+      # ServicedOrganisationDayType, not by DaysOfWeek: Stirling's line UL is
+      # one file running on the university's working days and one running on
+      # every other day, sharing code, line, period and weekdays. Without
+      # this rule 1 took them for a repeated upload and deleted the summer
+      # timetable - 1,182 journeys in the July 2026 window. Recorded as which
+      # side of the organisation's calendar the file runs on.
+      so <- xml2::xml_find_all(
+        xml, "//d1:ServicedOrganisationDayType/*/*")
+      if (length(so)) {
+        dys <- c(dys, unique(paste0("SO:", xml2::xml_name(xml2::xml_parent(so)),
+                                    ":", xml2::xml_name(so))))
+        dys <- sort(dys)
+      }
       data.frame(file = f, ServiceCode = sc, StartDate = sd, EndDate = ed,
                  Description = desc, Mode = mode, NOC = noc,
                  NOCs = paste(nocs, collapse = "\r"),
@@ -407,12 +421,50 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
                                    meta$Days[idx]),
                      Line = unlist(lines_list),
                      stringsAsFactors = FALSE)
-    ex <- ex[!duplicated(ex[, c("svc_key", "StartDate", "Days", "Line")]), ]
+    grp <- paste(ex$svc_key, ex$StartDate, ex$Days, ex$Line, sep = "\r")
+    dup <- duplicated(grp)
+    # Siblings, not repeated uploads. Some exports write one timetable as
+    # several files that share every field the key uses: Stirling's University
+    # line UL is two files, ServiceCode MBLB_UL, same line, period and days,
+    # created 41 ms apart, carrying 247 and 434 different journeys. A repeated
+    # upload repeats the journeys; a sibling does not. So a duplicate is only
+    # dropped where it shares most of its journeys with the file it defers to.
+    if (any(dup)) {
+      jc <- list()
+      jk <- function(f) {
+        if (is.null(jc[[f]])) jc[[f]] <<- txc_journey_keys(f)
+        jc[[f]]
+      }
+      winner <- ex$row[match(grp, grp)]
+      for (k in which(dup & winner != ex$row)) {
+        share <- txc_journey_share(jk(meta$file[ex$row[k]]),
+                                   jk(meta$file[winner[k]]))
+        if (!is.na(share) && share < 0.5) dup[k] <- FALSE
+      }
+    }
+    ex <- ex[!dup, ]
     meta <- meta[sort(unique(ex$row)), ]
 
     # rules 2 and 3: keep the version operative on `date` plus future versions
-    meta_split <- split(meta, meta$svc_key)
-    keep <- lapply(meta_split, function(x) {
+    #
+    # Per line and day set, like rule 1, not per ServiceCode. Arriva Cymru
+    # registers lines 12 and X12 under one ServiceCode "12/X12" in two files
+    # whose periods start a day apart (7 and 8 June 2026); keyed on the code
+    # alone the X12 file, 16 journeys, was "the latest version" and the line
+    # 12 file, 453 journeys, was deleted as superseded. In the July 2026 TNDS
+    # archive that removed 24 files, 10 of them whole lines with nothing in
+    # their place. A file is kept where it is the operative version of at
+    # least one of its lines.
+    lines_list <- strsplit(meta$Lines, "\r", fixed = TRUE)
+    lines_list[lengths(lines_list) == 0] <- ""
+    idx <- rep(seq_len(nrow(meta)), lengths(lines_list))
+    ex2 <- data.frame(file = meta$file[idx],
+                      StartDate = meta$StartDate[idx],
+                      key = paste(meta$svc_key[idx],
+                                  ifelse(is.na(meta$Days[idx]), "", meta$Days[idx]),
+                                  unlist(lines_list), sep = "\r"),
+                      stringsAsFactors = FALSE)
+    keep <- lapply(split(ex2, ex2$key), function(x) {
       past <- x$StartDate <= date
       operative <- character()
       if (any(past)) {
@@ -420,7 +472,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
       }
       c(operative, x$file[!past])
     })
-    keep <- unlist(keep, use.names = FALSE)
+    keep <- unique(unlist(keep, use.names = FALSE))
   }
 
   n_superseded <- length(files) - length(keep) - length(unknown)
@@ -485,7 +537,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
 #' @return data.frame with columns file, new_start, new_end, drop, changed and
 #'   an attribute "nested" counting the pairs left unresolved
 #' @noRd
-txc_overlap_plan <- function(meta) {
+txc_overlap_plan <- function(meta, sibling_share = 0.5) {
 
   # Days is read by txc_filter_files(); default it so this stays callable with
   # metadata built by hand, as the tests do.
@@ -537,6 +589,14 @@ txc_overlap_plan <- function(meta) {
   groups <- split(seq_len(nrow(meta))[usable], key[usable])
   groups <- groups[lengths(groups) > 1]
 
+  # Journeys are read only for files in an overlapping pair, once each.
+  journey_cache <- list()
+  journeys <- function(k) {
+    f <- meta$file[k]
+    if (is.null(journey_cache[[f]])) journey_cache[[f]] <<- txc_journey_keys(f)
+    journey_cache[[f]]
+  }
+
   for (g in groups) {
     # Work in start-date order so that "the later registration" is always the
     # one further down the group.
@@ -567,6 +627,21 @@ txc_overlap_plan <- function(meta) {
               meta$CreationDateTime[i] == meta$CreationDateTime[j] &&
               meta$ServiceCode[i] != meta$ServiceCode[j]) next
 
+          # Siblings written in different exports. The same publisher splits
+          # route 371 into SE_FG_FESX_371_1 (one journey a day) and
+          # SE_FG_FESX_371_4 (the other 47), exported a week apart, so the
+          # test above does not see them; "same start, different end" then
+          # moved the main file's start past the one-journey file's end and
+          # deleted a week of the route. A successor registration repeats most
+          # of the journeys of the file it replaces, a sibling repeats almost
+          # none, so the journeys decide. That holds for a shared ServiceCode
+          # too: two files with one code reach this point only because rules
+          # 1 and 2 kept both, and rule 1 keeps exactly the files whose
+          # journeys differ. Only a mismatch stops the reconciliation: a file
+          # without readable journeys is treated as before.
+          share <- txc_journey_share(journeys(i), journeys(j))
+          if (!is.na(share) && share < sibling_share) next
+
           # Different days, not competing registrations. A publisher filing one
           # document per day type gives this group a weekday file, a Saturday
           # file and a Sunday file sharing an operating period exactly, and the
@@ -584,6 +659,13 @@ txc_overlap_plan <- function(meta) {
             di <- strsplit(meta$Days[i], "\r", fixed = TRUE)[[1]]
             dj <- strsplit(meta$Days[j], "\r", fixed = TRUE)[[1]]
             if (!length(intersect(di, dj))) next
+            # Term and outside-term versions share their weekdays but run on
+            # opposite sides of a ServicedOrganisation calendar: disjoint
+            # dates, so not competing registrations either.
+            si_so <- grep("^SO:", di, value = TRUE)
+            sj_so <- grep("^SO:", dj, value = TRUE)
+            if (length(si_so) && length(sj_so) &&
+                !length(intersect(si_so, sj_so))) next
           }
 
           if (si == sj && ei == ej) {
@@ -650,6 +732,62 @@ txc_overlap_plan <- function(meta) {
     (out$new_start != meta$StartDate | out$new_end != meta$EndDate)
   attr(out, "nested") <- nested
   out
+}
+
+
+#' First stop and departure minute of every vehicle journey in a file
+#'
+#' Internal helper for [txc_overlap_plan()]. Enough to tell whether two files
+#' carry the same journeys: a successor registration repeats them, a file that
+#' merely shares the route publishes others.
+#'
+#' @param file path to a TransXchange file
+#' @return data.frame of stop and minute, zero rows if none can be read
+#' @noRd
+txc_journey_keys <- function(file) {
+  none <- data.frame(stop = character(0), minute = numeric(0))
+  x <- try(xml2::read_xml(file), silent = TRUE)
+  if (inherits(x, "try-error")) return(none)
+  vj <- xml2::xml_find_all(x, "//d1:VehicleJourneys/d1:VehicleJourney")
+  if (!length(vj)) return(none)
+  dep <- xml2::xml_text(xml2::xml_find_first(vj, "d1:DepartureTime"))
+  jpref <- xml2::xml_text(xml2::xml_find_first(vj, "d1:JourneyPatternRef"))
+  jp <- xml2::xml_find_all(x, "//d1:JourneyPattern")
+  jp_sec <- stats::setNames(
+    xml2::xml_text(xml2::xml_find_first(jp, "d1:JourneyPatternSectionRefs")),
+    xml2::xml_attr(jp, "id"))
+  sec <- xml2::xml_find_all(x, "//d1:JourneyPatternSection")
+  sec_stop <- stats::setNames(
+    xml2::xml_text(xml2::xml_find_first(
+      sec, "d1:JourneyPatternTimingLink/d1:From/d1:StopPointRef")),
+    xml2::xml_attr(sec, "id"))
+  stop <- unname(sec_stop[jp_sec[jpref]])
+  minute <- suppressWarnings(as.numeric(substr(dep, 1, 2)) * 60 +
+                               as.numeric(substr(dep, 4, 5)))
+  ok <- !is.na(stop) & !is.na(minute)
+  data.frame(stop = stop[ok], minute = minute[ok])
+}
+
+
+#' Share of the smaller file's journeys that the other file also runs
+#'
+#' Internal helper for [txc_overlap_plan()]. A journey matches when the other
+#' file has one from the same first stop within `tol` minutes - the times of a
+#' re-registered timetable move by a minute or two, its stops do not.
+#'
+#' @param a,b data.frames from txc_journey_keys()
+#' @param tol minutes
+#' @return a number between 0 and 1, or NA when either file has no journeys
+#' @noRd
+txc_journey_share <- function(a, b, tol = 3) {
+  if (!nrow(a) || !nrow(b)) return(NA_real_)
+  if (nrow(a) > nrow(b)) { t <- a; a <- b; b <- t }
+  by_stop <- split(b$minute, b$stop)
+  hit <- vapply(seq_len(nrow(a)), function(k) {
+    m <- by_stop[[a$stop[k]]]
+    !is.null(m) && any(abs(m - a$minute[k]) <= tol)
+  }, logical(1))
+  mean(hit)
 }
 
 
