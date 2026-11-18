@@ -1323,3 +1323,144 @@ test_that("gtfs_write replaces a corrupt destination and leaves no part file", {
   # and nothing is left behind next to it
   expect_equal(list.files(tmp), "feed.zip")
 })
+
+
+test_that("clean_pass folds passed stops without blanking other links", {
+  # Tanat Valley's X81 (BODS, November 2026) marks only its passes; every
+  # other link leaves To.Activity out. Indexing rows by To.Activity != "pass"
+  # turned those NA tests into rows of NA and the whole file failed.
+  jps <- data.frame(
+    JPS_id = "S1",
+    From.StopPointRef = c("A", "P", "Q", "B"),
+    From.Activity = NA_character_,
+    From.TimingStatus = "PTP",
+    From.SequenceNumber = as.character(1:4),
+    From.WaitTime = "0",
+    To.StopPointRef = c("P", "Q", "B", "C"),
+    To.Activity = c("pass", "pass", NA, NA),
+    RunTime = c("60", "120", "180", "240"),
+    stringsAsFactors = FALSE)
+  out <- clean_pass(jps)
+  expect_equal(nrow(out), 2)
+  expect_false(anyNA(out$JPS_id))
+  expect_equal(out$To.StopPointRef, c("B", "C"))
+  # both passes' running time is carried into the link that follows them
+  expect_equal(out$RunTime, c(360L, 240L))
+  # and the merged link starts where the first folded link did
+  expect_equal(out$From.StopPointRef, c("A", "B"))
+})
+
+
+test_that("a journey with no operating profile anywhere runs every day", {
+  # strsplit("") is character(0) and all() of an empty test is TRUE, so an
+  # empty day pattern used to come out as no days at all.
+  expect_equal(clean_days(""), rep(1, 7))
+  expect_equal(clean_days(NA_character_), rep(1, 7))
+  expect_equal(clean_days("Monday Friday"), c(1, 0, 0, 0, 1, 0, 0))
+  expect_equal(clean_days("MondayToFriday"), c(1, 1, 1, 1, 1, 0, 0))
+})
+
+
+test_that("only journeys that run on booking are left out as bookable", {
+  # Scheduled services that sell tickets in advance or mark one request stop
+  # used to be removed with any note containing "book".
+  keep <- c("Pre-book online",
+            "Foot passengers must book in advance and arrive at least 15 minutes before",
+            "Church Hanborough can be served but only by request to driver or by pre-booking",
+            "Pre-book online for: Bridge of Don (Balgownie Crescent), Old Aberdeen",
+            "Pre-booking is strongly advised, please call 07438 870658",
+            "Low floor bus", NA,
+            "Times are indicative only, actual journey times will vary on demand.")
+  drop <- c("Must be booked at least one hour before departure.",
+            "Demand responsive service: journey times will vary. Actual journey time confirmed when booking.",
+            "Journeys must be booked in advance. Call 01473 826242.",
+            "Journeys must be pre-booked.",
+            "You must pre-book this service using the App or on 01983 752917")
+  expect_false(any(bookable_note(keep)))
+  expect_true(all(bookable_note(drop)))
+})
+
+
+test_that("a service whose profile is HolidaysOnly has no regular days", {
+  # Arriva North East publishes route 43's bank-holiday timetable as a file
+  # whose Service profile is <HolidaysOnly/>, with no profile on the
+  # journeys. Read as an empty day pattern, it ran every day of the week.
+  svc <- function(profile) {
+    f <- tempfile(fileext = ".xml")
+    on.exit(unlink(f))
+    writeLines(paste0(
+      '<?xml version="1.0"?><TransXChange xmlns="http://www.transxchange.org.uk/" CreationDateTime="2026-09-01T00:00:00" ModificationDateTime="2026-09-01T00:00:00" RevisionNumber="1">',
+      '<StopPoints><AnnotatedStopPointRef><StopPointRef>A</StopPointRef><CommonName>A</CommonName></AnnotatedStopPointRef>',
+      '<AnnotatedStopPointRef><StopPointRef>B</StopPointRef><CommonName>B</CommonName></AnnotatedStopPointRef></StopPoints>',
+      '<JourneyPatternSections><JourneyPatternSection id="JPS1"><JourneyPatternTimingLink id="L1">',
+      '<From><StopPointRef>A</StopPointRef><TimingStatus>PTP</TimingStatus></From>',
+      '<To><StopPointRef>B</StopPointRef><TimingStatus>PTP</TimingStatus></To><RunTime>PT5M</RunTime>',
+      '</JourneyPatternTimingLink></JourneyPatternSection></JourneyPatternSections>',
+      '<Operators><Operator id="O1"><NationalOperatorCode>ANEA</NationalOperatorCode><OperatorShortName>Arriva</OperatorShortName></Operator></Operators>',
+      '<Services><Service><ServiceCode>PB0002717:15</ServiceCode><Lines><Line id="L1"><LineName>43</LineName></Line></Lines>',
+      '<OperatingPeriod><StartDate>2026-09-27</StartDate></OperatingPeriod>', profile,
+      '<RegisteredOperatorRef>O1</RegisteredOperatorRef><Mode>bus</Mode><Description>Durham - Esh Winning</Description>',
+      '<StandardService><Origin>Durham</Origin><Destination>Esh Winning</Destination>',
+      '<JourneyPattern id="JP1"><Direction>outbound</Direction><JourneyPatternSectionRefs>JPS1</JourneyPatternSectionRefs></JourneyPattern>',
+      '</StandardService></Service></Services>',
+      '<VehicleJourneys><VehicleJourney><VehicleJourneyCode>1</VehicleJourneyCode><ServiceRef>PB0002717:15</ServiceRef>',
+      '<LineRef>L1</LineRef><JourneyPatternRef>JP1</JourneyPatternRef><DepartureTime>09:00:00</DepartureTime></VehicleJourney></VehicleJourneys>',
+      '</TransXChange>'), f)
+    transxchange_import(f, full_import = FALSE)$Services_main$DaysOfWeek
+  }
+  expect_equal(svc("<OperatingProfile><RegularDayType><HolidaysOnly/></RegularDayType></OperatingProfile>"),
+               "HolidaysOnly")
+  expect_equal(svc("<OperatingProfile><RegularDayType><DaysOfWeek><Saturday/></DaysOfWeek></RegularDayType></OperatingProfile>"),
+               "Saturday")
+  # no profile at all stays empty, which the export reads as every day
+  expect_equal(svc(""), "")
+  expect_equal(clean_days("HolidaysOnly"), rep(0, 7))
+})
+
+
+test_that("journeys inherit their pattern's or service's whole profile", {
+  # A journey with no OperatingProfile runs to its journey pattern's, else its
+  # service's, and the inherited profile brings its bank holidays, term days
+  # and special days with it. The import used to take only the service's days
+  # of the week, and ignored journey-pattern profiles.
+  f <- tempfile(fileext = ".xml")
+  on.exit(unlink(f))
+  vj <- function(code, jp, prof = "") paste0(
+    '<VehicleJourney>', prof, '<VehicleJourneyCode>', code, '</VehicleJourneyCode>',
+    '<ServiceRef>S1</ServiceRef><LineRef>L1</LineRef><JourneyPatternRef>', jp,
+    '</JourneyPatternRef><DepartureTime>09:00:00</DepartureTime></VehicleJourney>')
+  writeLines(paste0(
+    '<?xml version="1.0"?><TransXChange xmlns="http://www.transxchange.org.uk/" CreationDateTime="2026-09-01T00:00:00" ModificationDateTime="2026-09-01T00:00:00" RevisionNumber="1">',
+    '<StopPoints><AnnotatedStopPointRef><StopPointRef>A</StopPointRef><CommonName>A</CommonName></AnnotatedStopPointRef>',
+    '<AnnotatedStopPointRef><StopPointRef>B</StopPointRef><CommonName>B</CommonName></AnnotatedStopPointRef></StopPoints>',
+    '<JourneyPatternSections><JourneyPatternSection id="JPS1"><JourneyPatternTimingLink id="TL1">',
+    '<From><StopPointRef>A</StopPointRef><TimingStatus>PTP</TimingStatus></From>',
+    '<To><StopPointRef>B</StopPointRef><TimingStatus>PTP</TimingStatus></To><RunTime>PT5M</RunTime>',
+    '</JourneyPatternTimingLink></JourneyPatternSection></JourneyPatternSections>',
+    '<Operators><Operator id="O1"><NationalOperatorCode>OPA</NationalOperatorCode><OperatorShortName>A</OperatorShortName></Operator></Operators>',
+    '<Services><Service><ServiceCode>S1</ServiceCode><Lines><Line id="L1"><LineName>1</LineName></Line></Lines>',
+    '<OperatingPeriod><StartDate>2026-09-27</StartDate></OperatingPeriod>',
+    '<OperatingProfile><RegularDayType><DaysOfWeek><MondayToFriday/></DaysOfWeek></RegularDayType>',
+    '<SpecialDaysOperation><DaysOfNonOperation><DateRange><StartDate>2026-12-24</StartDate><EndDate>2027-01-02</EndDate></DateRange></DaysOfNonOperation></SpecialDaysOperation>',
+    '<BankHolidayOperation><DaysOfNonOperation><AllBankHolidays/></DaysOfNonOperation></BankHolidayOperation></OperatingProfile>',
+    '<RegisteredOperatorRef>O1</RegisteredOperatorRef><Mode>bus</Mode><Description>A - B</Description>',
+    '<StandardService><Origin>A</Origin><Destination>B</Destination>',
+    '<JourneyPattern id="JP1"><Direction>outbound</Direction><JourneyPatternSectionRefs>JPS1</JourneyPatternSectionRefs></JourneyPattern>',
+    '<JourneyPattern id="JP2"><OperatingProfile><RegularDayType><DaysOfWeek><Saturday/></DaysOfWeek></RegularDayType></OperatingProfile>',
+    '<Direction>outbound</Direction><JourneyPatternSectionRefs>JPS1</JourneyPatternSectionRefs></JourneyPattern>',
+    '</StandardService></Service></Services><VehicleJourneys>',
+    vj(1, "JP1"), vj(2, "JP2"),
+    vj(3, "JP1", '<OperatingProfile><RegularDayType><DaysOfWeek><Sunday/></DaysOfWeek></RegularDayType></OperatingProfile>'),
+    '</VehicleJourneys></TransXChange>'), f)
+  obj <- transxchange_import(f, full_import = FALSE)
+  v <- obj$VehicleJourneys
+  v <- v[order(v$VehicleJourneyCode), ]
+  expect_equal(v$DaysOfWeek, c("MondayToFriday", "Saturday", "Sunday"))
+  expect_equal(v$BHDaysOfNonOperation, c("AllBankHolidays", "NA", "NA"))
+  # the service's special days reach journey 1 alone, as a whole range
+  expect_null(obj$SpecialDaysOperation)
+  expect_equal(unique(obj$DaysOfNonOperation$VehicleJourneyCode), "1")
+  expect_equal(as.character(obj$DaysOfNonOperation$EndDate), "2027-01-02")
+  # an open-ended period runs until further notice, not for a year
+  expect_gt(as.Date(obj$Services_main$EndDate), as.Date("2030-01-01"))
+})

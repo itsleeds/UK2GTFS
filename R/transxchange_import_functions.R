@@ -193,9 +193,34 @@ import_services <- function(service, full_import = TRUE) {
   if (length(RegisteredOperatorRef) == 0) {
     RegisteredOperatorRef <- rep(NA, length(ServiceCode))
   }
-  StartDate <- xml2::xml_text(xml2::xml_find_first(service, ".//d1:StartDate"))
-  EndDate <- xml2::xml_text(xml2::xml_find_first(service, ".//d1:EndDate"))
+  # the Service's own OperatingPeriod: ".//" also finds the date ranges of
+  # special days and journey-pattern profiles, and an open-ended service then
+  # ended on the first of those (a Christmas range ended it on 2 January)
+  StartDate <- xml2::xml_text(xml2::xml_find_first(service, "./d1:Service/d1:OperatingPeriod/d1:StartDate"))
+  EndDate <- xml2::xml_text(xml2::xml_find_first(service, "./d1:Service/d1:OperatingPeriod/d1:EndDate"))
+  # The service's own operating profile decides. Searching ".//d1:DaysOfWeek"
+  # alone found nothing for a service whose profile is <HolidaysOnly/> and
+  # returned "", which the export reads as "no profile, every day": Arriva
+  # North East's holidays-only file for route 43 (BODS, November 2026) then
+  # ran on every day of the week. A profile with HolidaysOnly, or with no
+  # RegularDayType at all (special days only), has no regular days. A
+  # service with no profile of its own keeps the old search, which can find
+  # a journey pattern's days, and is "" (every day) only when that finds
+  # nothing either.
   DaysOfWeek <- paste(xml2::xml_name(xml2::xml_children(xml2::xml_find_first(service, ".//d1:DaysOfWeek"))), collapse = " ")
+  # `service` is the <Services> container; its first <Service> is the one
+  # whose other fields are read here
+  svc_op <- xml2::xml_find_first(service, "./d1:Service/d1:OperatingProfile")
+  if (!inherits(svc_op, "xml_missing")) {
+    rdt <- xml2::xml_find_first(svc_op, "./d1:RegularDayType")
+    if (inherits(rdt, "xml_missing") ||
+        !inherits(xml2::xml_find_first(rdt, "./d1:HolidaysOnly"), "xml_missing")) {
+      DaysOfWeek <- "HolidaysOnly"
+    } else {
+      DaysOfWeek <- paste(xml2::xml_name(xml2::xml_children(
+        xml2::xml_find_first(rdt, "./d1:DaysOfWeek"))), collapse = " ")
+    }
+  }
   StopRequirements <- import_simple(service, ".//d1:StopRequirements")
   if (length(StopRequirements) == 0) {
     StopRequirements <- rep(NA, length(ServiceCode))

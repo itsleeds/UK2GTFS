@@ -287,6 +287,16 @@ clean_route_type <- function(rt, guess_bus = FALSE) {
 #' @param days character of days
 #' @noRd
 clean_days <- function(days) {
+  # No operating profile at all - none on the journey, its pattern or the
+  # service - is every day, as the branch further down intends. It has to be
+  # caught first: strsplit("") is character(0), and all() of an empty test is
+  # TRUE, so it used to fall into the named-days branch and come out as no
+  # days at all. Tanat Valley's X81 (BODS, November 2026) publishes no
+  # OperatingProfile anywhere and converted to a service that never ran.
+  if (length(days) == 1 && (is.na(days) || !nzchar(trimws(days)) ||
+                            days == "NA")) {
+    return(c(1, 1, 1, 1, 1, 1, 1))
+  }
   days_ul <- unlist(strsplit(days, " "))
   if (all(days_ul %in% c("Monday", "Tuesday", "Wednesday", "Thursday",
                          "Friday", "Saturday", "Sunday"))) {
@@ -664,17 +674,79 @@ make_stop_times <- function(jps, trips, ss) {
 #' @param jps journeypatternsections
 #' @noRd
 clean_pass <- function(jps) {
-  if ("pass" %in% jps$To.Activity) {
-    is_pass <- jps$To.Activity %in% "pass"
-    pass_post <- c(FALSE, is_pass[seq(1, length(is_pass) - 1)])
-    runtime1 <- as.integer(jps$RunTime)
-    runtime2 <- c(0, runtime1[seq(1, length(runtime1) - 1)])
-    runtime3 <- ifelse(pass_post, runtime1 + runtime2, runtime1)
-    jps$RunTime <- runtime3
-    jps <- jps[jps$To.Activity != "pass", ]
-  } else {
-    jps$RunTime <- as.integer(jps$RunTime)
+  jps$RunTime <- as.integer(jps$RunTime)
+  is_pass <- jps$To.Activity %in% "pass"
+  if (any(is_pass)) {
+    # A link ending at a stop the bus passes is folded into the link after it:
+    # the passed stop disappears and its running time is carried forward. A
+    # run of passes carries all of their times, not just the last one's.
+    # The merged link also starts where the first folded link started, so
+    # links still chain end to start and expand_stop_times2() does not take
+    # the gap for a file in the wrong order.
+    rt <- jps$RunTime
+    carry <- 0L
+    start <- NA_integer_
+    from_cols <- intersect(c("From.StopPointRef", "From.Activity",
+                             "From.TimingStatus", "From.SequenceNumber",
+                             "From.WaitTime"), names(jps))
+    for (k in seq_along(rt)) {
+      if (is_pass[k]) {
+        carry <- carry + rt[k]
+        if (is.na(start)) start <- k
+      } else {
+        rt[k] <- rt[k] + carry
+        if (!is.na(start) && identical(jps$JPS_id[start], jps$JPS_id[k])) {
+          jps[k, from_cols] <- jps[start, from_cols]
+        }
+        carry <- 0L
+        start <- NA_integer_
+      }
+    }
+    jps$RunTime <- rt
+    # Drop by the logical vector, not by `To.Activity != "pass"`: an omitted
+    # activity is NA, and indexing rows with NA turns each such row into a row
+    # of NAs. Tanat Valley's X81 (BODS, November 2026) names only its passes,
+    # so every other link became NA and the whole file failed to convert.
+    jps <- jps[!is_pass, ]
   }
   return(jps)
 }
 
+
+
+#' Whether a journey note makes the journey run only when booked
+#'
+#' transxchange_export() leaves out journeys that run only on demand. It used
+#' to leave out every journey whose note contained "book", which also removed
+#' scheduled services that merely sell tickets in advance or mark one request
+#' stop: Ember's express coaches ("Pre-book online", 11,680 journeys in the
+#' November 2026 TNDS snapshot), ferries whose foot passengers must book, and
+#' journeys noting that one village "can be served but only by request to
+#' driver or by pre-booking". A journey is now left out only where the note
+#' says the journey itself depends on booking: a demand responsive service,
+#' or journeys that must be booked.
+#'
+#' @param x character vector of NoteText
+#' @return logical, TRUE for notes that make the journey demand responsive
+#' @noRd
+bookable_note <- function(x) {
+  x <- tolower(ifelse(is.na(x), "", x))
+  on_demand <- grepl(paste(
+    "demand.responsive", "dial.a.ride", "journey times will vary",
+    "(journeys?|services?|this service|this journey) (must|should|need to) be (pre-?)?booked",
+    "must be (pre-?)?booked", "booking (is )?(required|essential|necessary)",
+    "(only )?(runs|operates) (only )?(if|when) (pre-?)?booked",
+    "you must pre-?book this service",
+    sep = "|"), x)
+  # booking that concerns a ticket, a kind of passenger or one stop, not
+  # whether the journey runs
+  not_journey <- grepl(paste(
+    "^pre-?book online", "foot passengers must book", "vehicles must book",
+    "can be served", "pre-?book(ing|ed)? (online )?for:", "request stop",
+    "advise/book with driver", "strongly advised", "if you require the bus to stop",
+    sep = "|"), x)
+  # never wider than the old test: a note that does not mention booking at all
+  # does not make the journey bookable. Felixstowe's foot ferry notes "Times
+  # are indicative only, actual journey times will vary on demand" and runs.
+  grepl("book", x) & on_demand & !not_journey
+}

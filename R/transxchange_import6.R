@@ -125,6 +125,11 @@ txc_prune_to_service <- function(xml, i) {
 txc_import_single <- function(xml, file, run_debug = TRUE,
                              full_import = FALSE) {
 
+  # Journeys without a profile of their own take their journey pattern's or
+  # their service's, whole; written into each journey so that everything
+  # below reads exactly one profile per journey. See txc_inherit_profiles().
+  txc_inherit_profiles(xml)
+
   ## StopPoints ##########################################
   StopPoints <- xml2::xml_child(xml, "d1:StopPoints")
   StopPoints <- import_stoppoints(StopPoints, full_import = full_import)
@@ -192,7 +197,12 @@ txc_import_single <- function(xml, file, run_debug = TRUE,
     Services <- import_services(Services, full_import = full_import)
     StandardService <- Services$StandardService
     Services_main <- Services$Services_main
-    SpecialDaysOperation <- Services$SpecialDaysOperation
+    # The service's (and journey patterns') special days now reach the
+    # journeys through txc_inherit_profiles(), date ranges intact. Applying
+    # them again here would add them to journeys with profiles of their own,
+    # which TransXChange says replace the service's, and this import kept
+    # only the first day of each range.
+    SpecialDaysOperation <- NULL
     Lines <- Services$Lines
     rm(Services)
   } else {
@@ -203,8 +213,15 @@ txc_import_single <- function(xml, file, run_debug = TRUE,
 
 
 
-  # Handle NA in service date
-  # Sometimes end date is missing in which case assume service runs for one year
+  # An OperatingPeriod with no EndDate runs "until further notice" (UK PTI
+  # profile). GTFS needs a date, so one is set this many days after the
+  # latest of the start, creation and modification dates. It used to be 365,
+  # which ended timetables that had simply not been re-published for a year:
+  # 283 open-ended files in the November 2026 BODS archive that are the only
+  # version of their line, and that TNDS also runs, stopped before the
+  # window (Travel Express 1 and 11, Weardale 725, ...). Set the option
+  # UK2GTFS_opt_openEndedDays to 365 for the old behaviour.
+  open_days <- getOption("UK2GTFS_opt_openEndedDays", default = 3650)
 
   CreationDate <- as.Date(lubridate::ymd_hms(xml2::xml_attr(xml, "CreationDateTime")))
   ModifiedDate <- as.Date(lubridate::ymd_hms(xml2::xml_attr(xml, "ModificationDateTime")))
@@ -213,7 +230,7 @@ txc_import_single <- function(xml, file, run_debug = TRUE,
     is.na(Services_main$EndDate),
     as.character(
       max(lubridate::ymd(Services_main$StartDate), CreationDate, ModifiedDate, na.rm=TRUE) +
-       lubridate::days(365)),
+       lubridate::days(open_days)),
     as.character(Services_main$EndDate)
   )
 
@@ -294,4 +311,43 @@ txc_import_single <- function(xml, file, run_debug = TRUE,
   )
 
   return(finalres)
+}
+
+
+#' Give every vehicle journey the operating profile it inherits, in place
+#'
+#' In TransXChange a vehicle journey without an OperatingProfile of its own
+#' runs to its journey pattern's profile, else its service's, and a profile
+#' replaces the less specific one entirely rather than merging with it (UK
+#' PTI profile 5.3.3.1). The import reads profiles per journey only, so a
+#' journey with none used to take just the service's days of the week: its
+#' bank holiday, school-term (ServicedOrganisation) and special-days rules
+#' were lost, and a journey pattern's profile was ignored altogether. A copy
+#' of the inherited profile is added to each such journey instead, so every
+#' rule reaches it through the one code path.
+#'
+#' @param xml a parsed single-service TransXchange document, modified in place
+#' @return number of journeys given a profile, invisibly
+#' @noRd
+txc_inherit_profiles <- function(xml) {
+  vjs <- xml2::xml_find_all(xml, "d1:VehicleJourneys/d1:VehicleJourney")
+  if (!length(vjs)) return(invisible(0L))
+  own <- !is.na(xml2::xml_name(xml2::xml_find_first(vjs, "d1:OperatingProfile")))
+  if (all(own)) return(invisible(0L))
+  svc <- xml2::xml_find_first(xml, "d1:Services/d1:Service/d1:OperatingProfile")
+  has_svc <- !is.na(xml2::xml_name(svc))
+  jps <- xml2::xml_find_all(xml, "d1:Services/d1:Service//d1:JourneyPattern")
+  jp_prof <- xml2::xml_find_first(jps, "d1:OperatingProfile")
+  has_jp <- !is.na(xml2::xml_name(jp_prof))
+  jp_ids <- xml2::xml_attr(jps, "id")
+  jpref <- xml2::xml_text(xml2::xml_find_first(vjs, "d1:JourneyPatternRef"))
+  n <- 0L
+  for (k in which(!own)) {
+    m <- match(jpref[k], jp_ids)
+    prof <- if (!is.na(m) && has_jp[m]) jp_prof[[m]] else if (has_svc) svc else NULL
+    if (is.null(prof)) next
+    xml2::xml_add_child(vjs[[k]], prof)
+    n <- n + 1L
+  }
+  invisible(n)
 }

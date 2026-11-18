@@ -87,7 +87,8 @@ transxchange_export <- function(obj,
 
   # Remove Bookeable Services
   if (inherits(VehicleJourneys_notes, "data.frame")) {
-    VehicleJourneys_notes <- VehicleJourneys_notes[grepl("book", VehicleJourneys_notes$NoteText), ]
+    VehicleJourneys_notes <- VehicleJourneys_notes[
+      bookable_note(VehicleJourneys_notes$NoteText), ]
     vjc_remove <- unique(VehicleJourneys_notes$VehicleJourneyCode)
     VehicleJourneys <- VehicleJourneys[!VehicleJourneys$VehicleJourneyCode %in% vjc_remove, ]
     if (nrow(VehicleJourneys) == 0) {
