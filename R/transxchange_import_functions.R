@@ -40,8 +40,17 @@ clean_sequence2 <- function(x, y, displace = FALSE) {
 #' @param full_import logical
 #' @noRd
 import_stoppoints <- function(StopPoints, full_import = TRUE) {
-  StopPointRef <- import_simple(StopPoints, ".//d1:StopPointRef")
-
+  if (full_import) {
+    StopPointRef <- import_simple(StopPoints, ".//d1:StopPointRef")
+  } else {
+    # One id per declared stop, whichever form declares it: a reference to a
+    # NaPTAN stop (<AnnotatedStopPointRef><StopPointRef>) or a full definition
+    # (<StopPoint><AtcoCode>, as Transport for London publishes). Looking only
+    # for StopPointRef read nothing from a file of full definitions.
+    StopPointRef <- import_simple(
+      StopPoints,
+      "d1:AnnotatedStopPointRef/d1:StopPointRef | d1:StopPoint/d1:AtcoCode")
+  }
 
   if (full_import) {
     CommonName <- import_simple(StopPoints, ".//d1:CommonName")
@@ -60,6 +69,65 @@ import_stoppoints <- function(StopPoints, full_import = TRUE) {
     StopPoints <- data.frame(StopPointRef = StopPointRef)
   }
   return(StopPoints)
+}
+
+
+#' Import the stop locations a TransXchange file declares
+#'
+#' A file lists its stops under `<StopPoints>`, either as references to NaPTAN
+#' (`<AnnotatedStopPointRef>`, usually just an id and a name) or as full
+#' definitions (`<StopPoint>`, with an `<AtcoCode>` and a `<Place><Location>`).
+#' Transport for London's files, for example, define every stop in full.
+#' The location may be an OS grid reference (`<Easting>`/`<Northing>`), a
+#' WGS84 position (`<Longitude>`/`<Latitude>`) or both, directly under
+#' `<Location>` or inside a `<Translation>`.
+#'
+#' Each stop is read on its own, so a stop with no location, or no name, gives
+#' NA in that column rather than shifting the columns of the stops after it.
+#'
+#' @param StopPoints the `<StopPoints>` node of a TransXchange document
+#' @return data.frame with one row per declared stop: stop_id, stop_name,
+#'   easting, northing (OSGB36 / British National Grid), lon, lat (WGS84) and
+#'   form ("StopPoint" or "AnnotatedStopPointRef"). Coordinates are NA where
+#'   the file gives none; nothing is converted here.
+#' @noRd
+import_stop_locations <- function(StopPoints) {
+  empty <- data.frame(stop_id = character(0), stop_name = character(0),
+                      easting = numeric(0), northing = numeric(0),
+                      lon = numeric(0), lat = numeric(0), form = character(0),
+                      stringsAsFactors = FALSE)
+  if (inherits(StopPoints, "xml_missing")) {
+    return(empty)
+  }
+  kids <- xml2::xml_find_all(StopPoints,
+                             "d1:StopPoint | d1:AnnotatedStopPointRef")
+  if (length(kids) == 0) {
+    return(empty)
+  }
+  # xml_find_first() over a node set gives one result per node, a missing
+  # node where there is no match, which xml_text() turns into NA.
+  ns <- xml2::xml_ns(StopPoints)
+  first_text <- function(path) {
+    xml2::xml_text(xml2::xml_find_first(kids, path, ns))
+  }
+  first_num <- function(path) suppressWarnings(as.numeric(first_text(path)))
+  loc <- "(d1:Place/d1:Location | d1:Location)"
+  res <- data.frame(
+    stop_id = first_text("d1:AtcoCode | d1:StopPointRef"),
+    stop_name = first_text("d1:Descriptor/d1:CommonName | d1:CommonName"),
+    easting = first_num(paste0(loc, "//d1:Easting")),
+    northing = first_num(paste0(loc, "//d1:Northing")),
+    lon = first_num(paste0(loc, "//d1:Longitude")),
+    lat = first_num(paste0(loc, "//d1:Latitude")),
+    form = xml2::xml_name(kids),
+    stringsAsFactors = FALSE
+  )
+  # A grid reference on the Irish grid is not a British National Grid one.
+  grid <- first_text(paste0(loc, "//d1:GridType"))
+  irish <- !is.na(grid) & grid != "UKOS"
+  res$easting[irish] <- NA
+  res$northing[irish] <- NA
+  res[!is.na(res$stop_id), ]
 }
 
 

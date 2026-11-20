@@ -224,10 +224,18 @@ PUBLIC_SERVICE_CATEGORY = c("OL", "OU", "OO", "OW", "XC", "XD", "XI",
 #' @export
 gtfs_clean <- function(gtfs, public_only =  FALSE) {
   # 0 Remove stops with no coordinates
-  gtfs$stops <- gtfs$stops[!is.na(gtfs$stops$stop_lon) & !is.na(gtfs$stops$stop_lat), ]
+  located <- !is.na(gtfs$stops$stop_lon) & !is.na(gtfs$stops$stop_lat)
+  n_unlocated <- sum(!located)
+  gtfs$stops <- gtfs$stops[located, ]
 
-  # 1 Remove stop times with no locations
-  gtfs$stop_times <- gtfs$stop_times[gtfs$stop_times$stop_id %in% unique(gtfs$stops$stop_id), ]
+  # 1 Remove stop times with no locations. Said out loud: a stop missing from
+  # the NaPTAN table a conversion used lands here, and every call at it goes.
+  keep <- gtfs$stop_times$stop_id %in% unique(gtfs$stops$stop_id)
+  if (n_unlocated > 0 || !all(keep)) {
+    message("gtfs_clean: removed ", n_unlocated, " stops with no coordinates and ",
+            sum(!keep), " stop_times at stops with no location")
+  }
+  gtfs$stop_times <- gtfs$stop_times[keep, ]
 
   # 2 Remove trips with less than two stops
   stop_count <- gtfs$stop_times

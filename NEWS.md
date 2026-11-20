@@ -1,3 +1,29 @@
+# UK2GTFS 0.4.1
+
+## New features
+
+* `transxchange2gtfs()` gains `stop_locations`, choosing where stop
+  coordinates come from: `"naptan_fill"` (the new default: NaPTAN, and the
+  TransXchange file's own location for any stop NaPTAN lacks), `"naptan"`
+  (NaPTAN only, the previous behaviour), `"txc"` (the files only) or
+  `"txc_fill"` (the files, then NaPTAN). Previously only NaPTAN was used, so
+  a stop missing from the NaPTAN table passed in - typically one created after
+  it was downloaded - got no coordinates, and `gtfs_clean()` then removed it
+  and every call at it, although files that define their stops in full
+  (Transport for London's, for example) say exactly where it is. A stop
+  defined by several files takes the median of their positions. The result
+  carries a `"stop_location_report"` attribute comparing the two sources for
+  every stop, and the conversion reports how many stops each source located.
+
+## Bug fixes
+
+* The list of a file's declared stops now includes stops given as full
+  `<StopPoint>` definitions (`<AtcoCode>`), not only `<AnnotatedStopPointRef>`
+  ones. This only changed the order of rows in `stops`.
+* `gtfs_clean()` now reports how many stops it removes for having no
+  coordinates, and how many stop_times go with them, instead of removing them
+  silently.
+
 # UK2GTFS 0.4.0
 
 ## Breaking changes
