@@ -171,12 +171,36 @@ transxchange2gtfs <- function(path_in,
 
   }
 
+  # The record of what this conversion decides; see conversion_report()
+  report <- conversion_report_new(list(
+    path_in = basename(path_in),
+    uk2gtfs_version = as.character(utils::packageVersion("UK2GTFS")),
+    run_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    xml_files = length(files),
+    filter_duplicate_files = filter_duplicate_files,
+    filter_date = if (filter_duplicate_files) as.character(filter_date) else "",
+    stop_locations = stop_locations,
+    scotland = scotland,
+    bank_holidays = if (is.data.frame(cal) && nrow(cal)) {
+      paste0(nrow(cal), " dates, ", min(cal$date, na.rm = TRUE), " to ",
+             max(cal$date, na.rm = TRUE))
+    } else "",
+    naptan_stops = if (is.data.frame(naptan)) nrow(naptan) else NA,
+    ncores = ncores, try_mode = try_mode, force_merge = force_merge))
+  report$files <- data.frame(file = basename(files), decision = "kept",
+                             rule = "", reason = "not filtered", by = "",
+                             path = files, stringsAsFactors = FALSE)
+
   # Remove superseded versions of the same service (see Details)
   if (filter_duplicate_files) {
     if(!silent){ message(paste0(Sys.time(), " Filtering duplicate / superseded files"))}
     n_before <- length(files)
     files <- txc_filter_files(files, date = filter_date, ncores = ncores,
                               quiet = silent)
+    if (!is.null(attr(files, "filter_report"))) {
+      report$files <- attr(files, "filter_report")
+    }
+    files <- as.vector(files)
     message(paste0(Sys.time(), " Removed ", n_before - length(files),
                    " superseded / duplicate files, ", length(files), " remain"))
     if (length(files) == 0) {
@@ -301,6 +325,21 @@ transxchange2gtfs <- function(path_in,
 
   gtfs_all_message <- gtfs_all[sapply(gtfs_all, class) == "character"]
   gtfs_all <- gtfs_all[sapply(gtfs_all, class) == "list"]
+  fail <- function(stage, msg) {
+    msg <- unlist(msg)
+    if (!length(msg)) return(NULL)
+    data.frame(stage = stage, detail = as.character(msg),
+               stringsAsFactors = FALSE)
+  }
+  report$failures <- rbind(
+    data.frame(stage = character(0), detail = character(0)),
+    fail("import", res_all_message), fail("convert", gtfs_all_message))
+  if (nrow(report$failures)) {
+    hit <- vapply(report$files$file, function(f) {
+      any(grepl(f, report$failures$detail, fixed = TRUE))
+    }, logical(1))
+    report$files$decision[hit & report$files$decision != "dropped"] <- "failed"
+  }
   if(length(gtfs_all_message) > 0){
     message(" ")
     message("Failed to convert files: ")
@@ -362,6 +401,13 @@ transxchange2gtfs <- function(path_in,
   gtfs_validate_internal(gtfs_merged)
 
   attr(gtfs_merged, "stop_location_report") <- lr
+  report$stop_locations <- as.data.frame(lr)
+  report$steps <- rbind(report$steps, data.frame(
+    step = "transxchange2gtfs",
+    detail = c("files converted", "stops without a position"),
+    n = c(length(gtfs_all), sum(lr$source == "none")),
+    stringsAsFactors = FALSE))
+  attr(gtfs_merged, "conversion_report") <- report
   return(gtfs_merged)
 }
 

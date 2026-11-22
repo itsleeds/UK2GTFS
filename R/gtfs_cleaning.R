@@ -223,6 +223,7 @@ PUBLIC_SERVICE_CATEGORY = c("OL", "OU", "OO", "OW", "XC", "XD", "XI",
 #' @return a gtfs object
 #' @export
 gtfs_clean <- function(gtfs, public_only =  FALSE) {
+  n_trips_in <- if (is.null(gtfs$trips)) 0L else nrow(gtfs$trips)
   # 0 Remove stops with no coordinates
   located <- !is.na(gtfs$stops$stop_lon) & !is.na(gtfs$stops$stop_lat)
   n_unlocated <- sum(!located)
@@ -327,5 +328,11 @@ gtfs_clean <- function(gtfs, public_only =  FALSE) {
   # invalid and can cause routing engines (e.g. R5) to reject the whole feed.
   gtfs <- gtfs_prune_orphans(gtfs)
 
+  gtfs <- conversion_report_step(
+    gtfs, "gtfs_clean",
+    c("stops removed: no coordinates", "stop_times removed: stop has no location",
+      "trips removed"),
+    c(n_unlocated, sum(!keep),
+      n_trips_in - if (is.null(gtfs$trips)) 0L else nrow(gtfs$trips)))
   return(gtfs)
 }

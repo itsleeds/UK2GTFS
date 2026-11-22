@@ -1,3 +1,32 @@
+# UK2GTFS 0.4.2
+
+## New features
+
+* New `gtfs_deduplicate_copies()` removes one timetable published twice by
+  two files. `gtfs_deduplicate()` needs identical times at every stop under
+  one operator name, so it misses copies whose publishers interpolate the
+  stops between timing points differently or name the operator differently -
+  in the November 2026 TNDS, Arriva's X6 in both the East and West Midlands
+  zips ("Arriva" against "Arriva Midlands") and London route 439 as both
+  Transport for London's current file and Go-Ahead's superseded 2024 export.
+  Two services of one line and mode are copies when at least 80% of one's
+  journeys leave the same first stop at the same minute as the other's; the
+  lower ranked copy (the older calendar, then fewer stops, then fewer
+  journeys) loses those journeys on the dates both run. Dates are respected:
+  a superseded open-ended file keeps its journeys before its successor
+  starts. Every pair found is described in the `"copies_report"` attribute.
+* New `conversion_report()` and `write_conversion_report()`: what a
+  conversion decided, after the fact. `transxchange2gtfs()` now records its
+  settings, one row per input file (kept, dropped, truncated or added, the
+  filter rule and reason, and the file it gave way to), the files that failed
+  to import or convert, and where every stop's position came from.
+  `gtfs_clean()`, `gtfs_deduplicate()` and `gtfs_deduplicate_copies()` add
+  what they removed, and `gtfs_merge()` stacks the reports of the feeds it
+  merges. `write_conversion_report()` saves it as CSV tables with a Markdown
+  summary.
+* `txc_filter_files()` returns a `"filter_report"` attribute: the decision,
+  rule, reason and successor for every file.
+
 # UK2GTFS 0.4.1
 
 ## New features

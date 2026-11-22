@@ -109,7 +109,12 @@ fixed_track_mode <- function(mode) {
 #'   session-temporary directory. The originals are never modified.
 #' @return a character vector, the subset of `files` to convert. Where an
 #'   operating period was truncated the returned path points at a rewritten
-#'   copy in `out_dir` rather than at the original file.
+#'   copy in `out_dir` rather than at the original file. Attribute
+#'   `"filter_report"` holds one row per input file saying what was done with
+#'   it: `decision` ("kept", "dropped", "truncated", or "added" for the
+#'   remaining days of a split file), the `rule` (1, 2 or 4 below) and
+#'   `reason`, the file it gave way to (`by`), and any new operating period.
+#'   [transxchange2gtfs()] carries it into its [conversion_report()].
 #'
 #' @details
 #' Archives of TransXchange data (such as the Bus Open Data Service change
@@ -418,6 +423,13 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
   # always keep files whose ServiceCode could not be read
   unknown <- meta$file[is.na(meta$ServiceCode)]
   meta <- meta[!is.na(meta$ServiceCode), ]
+  # for the report: every file, and why each one that goes went
+  meta0 <- meta
+  r1 <- data.frame(file = character(0), by = character(0))
+  r2 <- new.env()
+  keep_r23 <- character(0)
+  out_path <- character(0)
+  plan <- NULL
 
   # A ServiceCode is unique within an operator, not nationally, so rules 1 to 3
   # key on the operator as well. Five South East operators publish ServiceCode
@@ -523,6 +535,12 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
         }
       }
     }
+    win_row <- ex$row[match(grp, grp)]
+    gone <- setdiff(seq_len(nrow(meta)), unique(ex$row[!dup]))
+    if (length(gone)) {
+      r1 <- data.frame(file = meta$file[gone],
+                       by = meta$file[win_row[match(gone, ex$row)]])
+    }
     ex <- ex[!dup, ]
     meta <- meta[sort(unique(ex$row)), ]
 
@@ -602,10 +620,14 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
           }, logical(1))
           if (all(!is.na(v) & !v)) operative <- c(operative, f)
         }
+        for (f in setdiff(unique(x$file[past]), operative)) {
+          assign(f, newest[1], envir = r2)
+        }
       }
       c(operative, x$file[!past])
     })
     keep <- unique(unlist(keep, use.names = FALSE))
+    keep_r23 <- keep
   }
 
   n_superseded <- length(files) - length(keep) - length(unknown)
@@ -669,6 +691,7 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
             n_split <- n_split + 1L
           }
         } else if (!is.na(new_path)) {
+          out_path[changed$file[i]] <- new_path
           keep[keep == changed$file[i]] <- new_path
           rewritten <- c(rewritten, new_path)
         }
@@ -679,6 +702,8 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
   keep <- c(keep, unknown)
   # `keep` may now name rewritten copies, so it is the result in its own right
   result <- unique(keep)
+  attr(result, "filter_report") <- txc_filter_report(
+    meta0, unknown, r1, r2, keep_r23, plan, out_path, date)
 
   if (!quiet) {
     message(Sys.time(), " txc_filter_files: kept ", length(result), " of ",
@@ -711,6 +736,104 @@ txc_filter_files <- function(files, date = Sys.Date(), ncores = 1, quiet = TRUE,
   return(result)
 }
 
+
+
+#' Build txc_filter_files()'s per-file report
+#'
+#' Internal helper. One row per input file saying what the filter did with it
+#' and why: kept, dropped (and by which rule, in favour of which file),
+#' truncated (to which period), or added as the remaining days of a split.
+#' @noRd
+txc_filter_report <- function(meta0, unknown, r1, r2, keep_r23, plan,
+                              out_path, date) {
+  fmt_lines <- function(x) gsub("\r", " ", ifelse(is.na(x), "", x))
+  rep <- data.frame(
+    file = basename(meta0$file),
+    service_code = meta0$ServiceCode,
+    operator = fmt_lines(meta0$NOCs),
+    lines = fmt_lines(meta0$Lines),
+    start = meta0$StartDate,
+    end = ifelse(meta0$open_ended, NA, as.character(meta0$EndDate)),
+    journeys = if (is.null(meta0$Journeys)) NA_integer_ else meta0$Journeys,
+    decision = "kept",
+    rule = "",
+    reason = "",
+    by = "",
+    new_start = as.Date(NA),
+    new_end = as.Date(NA),
+    path = meta0$file,
+    stringsAsFactors = FALSE)
+  rep$end <- as.Date(rep$end)
+
+  set_row <- function(f, decision, rule, reason, by = "") {
+    k <- match(f, rep$path)
+    ok <- !is.na(k)
+    rep$decision[k[ok]] <<- decision
+    rep$rule[k[ok]] <<- rule
+    rep$reason[k[ok]] <<- if (length(reason) > 1) reason[ok] else reason
+    rep$by[k[ok]] <<- if (length(by) > 1) basename(by[ok]) else basename(by)
+  }
+
+  # rule 1: a repeated upload of the same period, line and day type
+  if (nrow(r1)) {
+    set_row(r1$file, "dropped", "1",
+            "repeated upload: a higher revision of the same period, line and days",
+            r1$by)
+  }
+  # rules 2 and 3: an earlier version than the one operative on `date`
+  r1_files <- r1$file
+  sup <- setdiff(meta0$file, c(keep_r23, r1_files))
+  if (length(sup)) {
+    by <- vapply(sup, function(f) {
+      if (exists(f, envir = r2, inherits = FALSE)) get(f, envir = r2) else ""
+    }, character(1))
+    set_row(sup, "dropped", "2",
+            paste0("superseded: an earlier version than the one operative on ",
+                   format(as.Date(date))), by)
+  }
+  # rule 4: overlapping registrations
+  if (!is.null(plan) && nrow(plan)) {
+    base <- plan[!plan$split, , drop = FALSE]
+    d <- base[base$drop, , drop = FALSE]
+    if (nrow(d)) {
+      why <- ifelse(is.na(d$reason), "overlap: emptied by truncation", d$reason)
+      set_row(d$file, "dropped", "4", why, ifelse(is.na(d$by), "", d$by))
+    }
+    ch <- base[!base$drop & base$changed, , drop = FALSE]
+    if (nrow(ch)) {
+      set_row(ch$file, "truncated", "4",
+              ifelse(is.na(ch$reason), "overlap: period shortened", ch$reason),
+              ifelse(is.na(ch$by), "", ch$by))
+      k <- match(ch$file, rep$path)
+      rep$new_start[k] <- ch$new_start
+      rep$new_end[k] <- ch$new_end
+      hit <- ch$file %in% names(out_path)
+      rep$path[k[hit]] <- out_path[ch$file[hit]]
+    }
+    sp <- plan[plan$split & !plan$drop, , drop = FALSE]
+    if (nrow(sp)) {
+      extra <- rep[match(sp$file, meta0$file), , drop = FALSE]
+      extra$decision <- "added"
+      extra$rule <- "4"
+      extra$reason <- ifelse(is.na(sp$reason), "split", sp$reason)
+      extra$by <- ifelse(is.na(sp$by), "", sp$by)
+      extra$new_start <- sp$new_start
+      extra$new_end <- sp$new_end
+      rep <- rbind(rep, extra)
+    }
+  }
+  if (length(unknown)) {
+    rep <- rbind(rep, data.frame(
+      file = basename(unknown), service_code = NA_character_, operator = "",
+      lines = "", start = as.Date(NA), end = as.Date(NA),
+      journeys = NA_integer_, decision = "kept", rule = "",
+      reason = "ServiceCode unreadable: kept without checks", by = "",
+      new_start = as.Date(NA), new_end = as.Date(NA), path = unknown,
+      stringsAsFactors = FALSE))
+  }
+  rownames(rep) <- NULL
+  rep
+}
 
 #' Whether two files are versions of one timetable rather than siblings
 #'
@@ -786,7 +909,15 @@ txc_overlap_plan <- function(meta, date = NA) {
                     # the row they were split from
                     exclude = 0L,
                     split = FALSE,
+                    # why the row was dropped or rewritten, and the file it
+                    # gave way to, for txc_filter_files()'s report
+                    reason = NA_character_,
+                    by = NA_character_,
                     stringsAsFactors = FALSE)
+  note <- function(k, reason, by) {
+    out$reason[k] <<- reason
+    out$by[k] <<- paste(basename(by), collapse = ";")
+  }
   nested <- 0L
   split_pairs <- data.frame(split = character(0), by = character(0))
 
@@ -1007,6 +1138,8 @@ txc_overlap_plan <- function(meta, date = NA) {
         }, logical(1))]
         if (length(later)) {
           out$drop[i] <- TRUE
+          note(i, "stale: open-ended file over a year old, retired by a later version",
+               meta$file[later[1]])
           n_stale <- n_stale + 1L
         }
       }
@@ -1205,6 +1338,8 @@ txc_overlap_plan <- function(meta, date = NA) {
             if (!other_export(i, j) && !is.na(jn_all[older]) && !is.na(jn_all[newer]) &&
                 jn_all[newer] < 0.5 * jn_all[older]) next
             out$drop[older] <- TRUE
+            note(older, "identical period: the older upload of the same registration",
+                 meta$file[newer])
             acted <- TRUE
           } else if (si == sj) {
             # Same start, different end: let the shorter, more specific period
@@ -1236,6 +1371,8 @@ txc_overlap_plan <- function(meta, date = NA) {
                 !all(d_long %in% d_short)) next
             out$new_start[long] <- out$new_end[short] + 1
             out$changed[long] <- TRUE
+            note(long, "same start: postponed until the shorter period ends",
+                 meta$file[short])
             acted <- TRUE
           } else {
             early <- if (si < sj) i else j
@@ -1294,6 +1431,8 @@ txc_overlap_plan <- function(meta, date = NA) {
                 out$exclude[k] <- bitwOr(out$exclude[early], day_mask(d_l))
                 out$split[k] <- TRUE
                 out$changed[k] <- TRUE
+                note(k, "split: kept on the days a term-time successor does not run",
+                     meta$file[late])
                 split_pairs[nrow(split_pairs) + 1, ] <- c(meta$file[early],
                                                           meta$file[late])
                 g <- c(g, k)
@@ -1303,6 +1442,8 @@ txc_overlap_plan <- function(meta, date = NA) {
               # close the predecessor the day before the successor starts.
               out$new_end[early] <- out$new_start[late] - 1
               out$changed[early] <- TRUE
+              note(early, "staggered: closed the day before its successor starts",
+                   meta$file[late])
               acted <- TRUE
             }
             # The remaining case is a later period sitting wholly inside an
@@ -1382,6 +1523,8 @@ txc_overlap_plan <- function(meta, date = NA) {
           if (is.na(sh) || sh < 0.5) next
           out$new_end[early] <- out$new_start[late] - 1
           out$changed[early] <- TRUE
+          note(early, "handover: another operator took the route over",
+               meta$file[late])
           n_handover <- n_handover + 1L
           handover_pairs[nrow(handover_pairs) + 1, ] <- c(meta$file[early],
                                                           meta$file[late])
@@ -1451,9 +1594,15 @@ txc_overlap_plan <- function(meta, date = NA) {
       if (length(dk) && !all(dk %in% unlist(days_of2[succ]))) next
       out$new_end[k] <- meta$ClosedEnd[k]
       out$changed[k] <- TRUE
+      note(k, "handover: ended with its operator's last edition, another operator follows",
+           meta$file[succ])
       if (length(copies)) {
         out$new_start[copies] <- ce1
         out$changed[copies] <- TRUE
+        for (cc in copies) {
+          note(cc, "handover: copy of the outgoing timetable, starts at the takeover",
+               meta$file[k])
+        }
       }
       n_handover <- n_handover + 1L
       handover_pairs[nrow(handover_pairs) + 1, ] <- c(meta$file[k],
