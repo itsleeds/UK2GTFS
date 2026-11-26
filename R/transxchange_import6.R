@@ -132,6 +132,10 @@ txc_import_single <- function(xml, file, run_debug = TRUE,
 
   ## StopPoints ##########################################
   StopPoints <- xml2::xml_child(xml, "d1:StopPoints")
+  # The locations the file itself gives, kept apart from the stops table:
+  # transxchange2gtfs() decides after merging whether to use them (see its
+  # stop_locations argument).
+  StopLocations <- import_stop_locations(StopPoints)
   StopPoints <- import_stoppoints(StopPoints, full_import = full_import)
 
   ## RouteSections ##########################################
@@ -297,7 +301,7 @@ txc_import_single <- function(xml, file, run_debug = TRUE,
     SpecialDaysOperation, StopPoints, VehicleJourneys,
     DaysOfOperation, DaysOfNonOperation,
     VehicleJourneysTimingLinks, VehicleJourneys_notes,
-    ServicedOrganisations, Lines,
+    ServicedOrganisations, Lines, StopLocations,
     basename(file)
   )
   names(finalres) <- c(
@@ -306,7 +310,7 @@ txc_import_single <- function(xml, file, run_debug = TRUE,
     "SpecialDaysOperation", "StopPoints", "VehicleJourneys",
     "DaysOfOperation", "DaysOfNonOperation",
     "VehicleJourneysTimingLinks", "VehicleJourneys_notes",
-    "ServicedOrganisations", "Lines",
+    "ServicedOrganisations", "Lines", "StopLocations",
     "filename"
   )
 

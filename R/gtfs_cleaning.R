@@ -223,11 +223,20 @@ PUBLIC_SERVICE_CATEGORY = c("OL", "OU", "OO", "OW", "XC", "XD", "XI",
 #' @return a gtfs object
 #' @export
 gtfs_clean <- function(gtfs, public_only =  FALSE) {
+  n_trips_in <- if (is.null(gtfs$trips)) 0L else nrow(gtfs$trips)
   # 0 Remove stops with no coordinates
-  gtfs$stops <- gtfs$stops[!is.na(gtfs$stops$stop_lon) & !is.na(gtfs$stops$stop_lat), ]
+  located <- !is.na(gtfs$stops$stop_lon) & !is.na(gtfs$stops$stop_lat)
+  n_unlocated <- sum(!located)
+  gtfs$stops <- gtfs$stops[located, ]
 
-  # 1 Remove stop times with no locations
-  gtfs$stop_times <- gtfs$stop_times[gtfs$stop_times$stop_id %in% unique(gtfs$stops$stop_id), ]
+  # 1 Remove stop times with no locations. Said out loud: a stop missing from
+  # the NaPTAN table a conversion used lands here, and every call at it goes.
+  keep <- gtfs$stop_times$stop_id %in% unique(gtfs$stops$stop_id)
+  if (n_unlocated > 0 || !all(keep)) {
+    message("gtfs_clean: removed ", n_unlocated, " stops with no coordinates and ",
+            sum(!keep), " stop_times at stops with no location")
+  }
+  gtfs$stop_times <- gtfs$stop_times[keep, ]
 
   # 2 Remove trips with less than two stops
   stop_count <- gtfs$stop_times
@@ -319,5 +328,11 @@ gtfs_clean <- function(gtfs, public_only =  FALSE) {
   # invalid and can cause routing engines (e.g. R5) to reject the whole feed.
   gtfs <- gtfs_prune_orphans(gtfs)
 
+  gtfs <- conversion_report_step(
+    gtfs, "gtfs_clean",
+    c("stops removed: no coordinates", "stop_times removed: stop has no location",
+      "trips removed"),
+    c(n_unlocated, sum(!keep),
+      n_trips_in - if (is.null(gtfs$trips)) 0L else nrow(gtfs$trips)))
   return(gtfs)
 }

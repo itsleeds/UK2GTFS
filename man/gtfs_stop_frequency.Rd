@@ -26,4 +26,20 @@ Count the number of trips stopping at each stop between two dates
 \details{
 For frequency-based services (frequencies.txt), each trip is
   counted once per departure implied by its frequency windows.
+
+  Service days follow the GTFS rules exactly, date by date. A service runs
+  on a date when its `calendar.txt` row covers the date and flags its
+  weekday; an `exception_type = 1` row in `calendar_dates.txt` adds a date
+  it would not otherwise run on, and an `exception_type = 2` row removes a
+  date it would. A cancellation of a date the service does not run on
+  anyway is ignored, as is an addition of a date it already runs on.
+  Services defined in `calendar_dates.txt` alone, with no `calendar.txt`
+  row, are counted on the dates they add.
+
+  Until version 0.4.0 this function kept only trips whose `service_id` was
+  in `calendar.txt`, and only additions falling inside that row's own date
+  range. Both lost real service, and unevenly: the DfT's Bus Open Data
+  Service GTFS publishes its school-holiday timetables as
+  `calendar_dates.txt`-only services (about 5% of its trips), so the stop
+  counts of that one source came out low.
 }

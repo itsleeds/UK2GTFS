@@ -34,6 +34,8 @@ gtfs_merge <- function(gtfs_list, force = FALSE, quiet = TRUE, condenseServicePa
 
   # remove any empty input GTFS objects
   gtfs_list <- gtfs_list[lengths(gtfs_list) != 0]
+  # the inputs' conversion reports, combined (see conversion_report())
+  merged_report <- conversion_report_combine(gtfs_list)
 
   # Normalise GTFS time-of-day columns to numeric seconds before binding.
   # gtfs_read() returns these as lubridate Periods (S4), which
@@ -437,6 +439,7 @@ gtfs_merge <- function(gtfs_list, force = FALSE, quiet = TRUE, condenseServicePa
     }
   }
 
+  if (!is.null(merged_report)) attr(res_final, "conversion_report") <- merged_report
   return (res_final)
 }
 

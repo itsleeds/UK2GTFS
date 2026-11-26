@@ -611,6 +611,8 @@ gtfs_deduplicate <- function(gtfs,
             " duplicate trips of ", length(trip_id_all),
             " (", round(100 * length(drop_ids) / length(trip_id_all), 2), "%)")
   }
+  gtfs <- conversion_report_step(gtfs, "gtfs_deduplicate",
+                                 "identical trips removed", length(drop_ids))
   if (length(drop_ids) == 0L) {
     return(gtfs)
   }

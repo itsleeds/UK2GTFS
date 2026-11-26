@@ -11,6 +11,23 @@
 #' @param ncores Numeric, When parallel processing how many cores to use
 #' @param cal Calendar object from get_bank_holidays()
 #' @param naptan Naptan stop locations from get_naptan()
+#' @param stop_locations character, where stop coordinates come from. A
+#'   TransXchange file may define its stops in full, with a location
+#'   (Transport for London's do), as well as naming them; NaPTAN is the
+#'   national register. One of:
+#'   * `"naptan_fill"` (default): NaPTAN, and the file's own location for any
+#'     stop NaPTAN lacks.
+#'   * `"naptan"`: NaPTAN only, as before 0.4.1. A stop missing from `naptan`
+#'     has no coordinates, and [gtfs_clean()] removes it and its calls.
+#'   * `"txc"`: the files' locations only.
+#'   * `"txc_fill"`: the files' locations, and NaPTAN for stops they do not
+#'     locate.
+#'
+#'   A stop several files locate takes the median of their positions. The
+#'   result carries a `"stop_location_report"` attribute: one row per stop
+#'   with both positions, how far apart they are, how many file definitions
+#'   there were and how far they spread, which source was used, and the
+#'   number of calls at the stop. See Details.
 #' @param scotland character, should Scottish bank holidays be used? Can be
 #'   "auto" (default), "yes", "no". If "auto" and path_in ends with "S.zip"
 #'   Scottish bank holidays will be used, otherwise England and Wales bank
@@ -28,6 +45,16 @@
 #'   `filter_duplicate_files = TRUE`.
 #' @return A GTFS named list
 #' @details
+#'
+#' Stop locations
+#'
+#' NaPTAN tables go out of date: a stop opened after `naptan` was downloaded is
+#' not in it. With `stop_locations = "naptan"` such a stop gets no coordinates
+#' and [gtfs_clean()] later deletes every call at it, although the file may
+#' say exactly where the stop is. The default, `"naptan_fill"`, keeps NaPTAN's
+#' positions and fills the gaps from the files. A message reports how many
+#' stops each source located and how many stops, and calls, remain without a
+#' location.
 #'
 #' This is a meta function which aids TransXchange to GTFS conversion. It simple
 #' runs transxchange_import(), transxchange_export(), gtfs_merge(), gtfs_write()
@@ -68,7 +95,9 @@ transxchange2gtfs <- function(path_in,
                               try_mode = TRUE,
                               force_merge = FALSE,
                               filter_duplicate_files = FALSE,
-                              filter_date = Sys.Date()) {
+                              filter_date = Sys.Date(),
+                              stop_locations = c("naptan_fill", "naptan",
+                                                 "txc", "txc_fill")) {
   # Check inputs
   checkmate::assert_numeric(ncores)
   checkmate::assert_logical(silent)
@@ -76,6 +105,7 @@ transxchange2gtfs <- function(path_in,
   checkmate::assert_file_exists(path_in)
   checkmate::assert_logical(try_mode)
   checkmate::assert_logical(filter_duplicate_files)
+  stop_locations <- match.arg(stop_locations)
 
   if (ncores == 1) {
     message(paste0(Sys.time(), " This will take some time, make sure you use 'ncores' to enable multi-core processing"))
@@ -86,7 +116,7 @@ transxchange2gtfs <- function(path_in,
     stop("Calendar is missing")
   }
 
-  if(!nrow(naptan) > 0){
+  if (stop_locations != "txc" && !nrow(naptan) > 0) {
     stop("Naptan is missing")
   }
 
@@ -141,12 +171,36 @@ transxchange2gtfs <- function(path_in,
 
   }
 
+  # The record of what this conversion decides; see conversion_report()
+  report <- conversion_report_new(list(
+    path_in = basename(path_in),
+    uk2gtfs_version = as.character(utils::packageVersion("UK2GTFS")),
+    run_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    xml_files = length(files),
+    filter_duplicate_files = filter_duplicate_files,
+    filter_date = if (filter_duplicate_files) as.character(filter_date) else "",
+    stop_locations = stop_locations,
+    scotland = scotland,
+    bank_holidays = if (is.data.frame(cal) && nrow(cal)) {
+      paste0(nrow(cal), " dates, ", min(cal$date, na.rm = TRUE), " to ",
+             max(cal$date, na.rm = TRUE))
+    } else "",
+    naptan_stops = if (is.data.frame(naptan)) nrow(naptan) else NA,
+    ncores = ncores, try_mode = try_mode, force_merge = force_merge))
+  report$files <- data.frame(file = basename(files), decision = "kept",
+                             rule = "", reason = "not filtered", by = "",
+                             path = files, stringsAsFactors = FALSE)
+
   # Remove superseded versions of the same service (see Details)
   if (filter_duplicate_files) {
     if(!silent){ message(paste0(Sys.time(), " Filtering duplicate / superseded files"))}
     n_before <- length(files)
     files <- txc_filter_files(files, date = filter_date, ncores = ncores,
                               quiet = silent)
+    if (!is.null(attr(files, "filter_report"))) {
+      report$files <- attr(files, "filter_report")
+    }
+    files <- as.vector(files)
     message(paste0(Sys.time(), " Removed ", n_before - length(files),
                    " superseded / duplicate files, ", length(files), " remain"))
     if (length(files) == 0) {
@@ -176,6 +230,7 @@ transxchange2gtfs <- function(path_in,
       res_all_message <- unlist(res_all_message)
       message(paste(res_all_message, collapse = ",  "))
     }
+    txc_locations <- txc_collect_stop_locations(res_all)
     message(paste0(Sys.time(), " Converting to GTFS, single core"))
     gtfs_all <- purrr::map(res_all,
                           transxchange_export_try,
@@ -228,6 +283,7 @@ transxchange2gtfs <- function(path_in,
       message(" ")
       message("All files imported")
     }
+    txc_locations <- txc_collect_stop_locations(res_all)
 
     # NAPTAN is no longer needed in the workers at all: the export emits bare
     # stop_ids and the stop columns are joined on once, below, after merging.
@@ -269,6 +325,21 @@ transxchange2gtfs <- function(path_in,
 
   gtfs_all_message <- gtfs_all[sapply(gtfs_all, class) == "character"]
   gtfs_all <- gtfs_all[sapply(gtfs_all, class) == "list"]
+  fail <- function(stage, msg) {
+    msg <- unlist(msg)
+    if (!length(msg)) return(NULL)
+    data.frame(stage = stage, detail = as.character(msg),
+               stringsAsFactors = FALSE)
+  }
+  report$failures <- rbind(
+    data.frame(stage = character(0), detail = character(0)),
+    fail("import", res_all_message), fail("convert", gtfs_all_message))
+  if (nrow(report$failures)) {
+    hit <- vapply(report$files$file, function(f) {
+      any(grepl(f, report$failures$detail, fixed = TRUE))
+    }, logical(1))
+    report$files$decision[hit & report$files$decision != "dropped"] <- "failed"
+  }
   if(length(gtfs_all_message) > 0){
     message(" ")
     message("Failed to convert files: ")
@@ -301,7 +372,21 @@ transxchange2gtfs <- function(path_in,
   # handful of corrections while the Docklands Light Railway stayed heavy rail
   # and the Glasgow Subway stayed a tram. See test_txc_mode_after_naptan.R.
   if(!silent){ message(paste0(Sys.time(), " Adding stop locations"))}
+  # NaPTAN is joined even for "txc", so the report can say how far apart the
+  # two positions are; txc_apply_stop_locations() decides which is used.
   gtfs_merged$stops <- txc_join_naptan(gtfs_merged$stops, naptan)
+  loc <- txc_apply_stop_locations(gtfs_merged$stops, txc_locations,
+                                  stop_locations, gtfs_merged$stop_times)
+  gtfs_merged$stops <- loc$stops
+  lr <- loc$report
+  message("Stop locations (", stop_locations, "): ",
+          sum(lr$source == "naptan"), " from NaPTAN, ",
+          sum(lr$source == "txc"), " from the TransXchange files, ",
+          sum(lr$source == "none"), " with none",
+          if (any(lr$source == "none")) {
+            paste0(" (", sum(lr$calls[lr$source == "none"]),
+                   " calls; gtfs_clean() will remove them)")
+          } else "")
 
   # TransXChange declares a Mode per service and publishers do not agree about
   # the light railways: TNDS files the Docklands Light Railway as heavy rail,
@@ -315,6 +400,14 @@ transxchange2gtfs <- function(path_in,
   # Validate the feed we are actually returning, once, now that it is complete.
   gtfs_validate_internal(gtfs_merged)
 
+  attr(gtfs_merged, "stop_location_report") <- lr
+  report$stop_locations <- as.data.frame(lr)
+  report$steps <- rbind(report$steps, data.frame(
+    step = "transxchange2gtfs",
+    detail = c("files converted", "stops without a position"),
+    n = c(length(gtfs_all), sum(lr$source == "none")),
+    stringsAsFactors = FALSE))
+  attr(gtfs_merged, "conversion_report") <- report
   return(gtfs_merged)
 }
 
