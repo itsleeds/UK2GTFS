@@ -1,5 +1,79 @@
 # Changelog
 
+## UK2GTFS 0.4.2
+
+### New features
+
+- New
+  [`gtfs_deduplicate_copies()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate_copies.md)
+  removes one timetable published twice by two files.
+  [`gtfs_deduplicate()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.md)
+  needs identical times at every stop under one operator name, so it
+  misses copies whose publishers interpolate the stops between timing
+  points differently or name the operator differently - in the November
+  2026 TNDS, Arriva’s X6 in both the East and West Midlands zips
+  (“Arriva” against “Arriva Midlands”) and London route 439 as both
+  Transport for London’s current file and Go-Ahead’s superseded 2024
+  export. Two services of one line and mode are copies when at least 80%
+  of one’s journeys leave the same first stop at the same minute as the
+  other’s; the lower ranked copy (the older calendar, then fewer stops,
+  then fewer journeys) loses those journeys on the dates both run. Dates
+  are respected: a superseded open-ended file keeps its journeys before
+  its successor starts. Every pair found is described in the
+  `"copies_report"` attribute.
+- New
+  [`conversion_report()`](https://itsleeds.github.io/UK2GTFS/reference/conversion_report.md)
+  and
+  [`write_conversion_report()`](https://itsleeds.github.io/UK2GTFS/reference/conversion_report.md):
+  what a conversion decided, after the fact.
+  [`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
+  now records its settings, one row per input file (kept, dropped,
+  truncated or added, the filter rule and reason, and the file it gave
+  way to), the files that failed to import or convert, and where every
+  stop’s position came from.
+  [`gtfs_clean()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.md),
+  [`gtfs_deduplicate()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.md)
+  and
+  [`gtfs_deduplicate_copies()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate_copies.md)
+  add what they removed, and
+  [`gtfs_merge()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_merge.md)
+  stacks the reports of the feeds it merges.
+  [`write_conversion_report()`](https://itsleeds.github.io/UK2GTFS/reference/conversion_report.md)
+  saves it as CSV tables with a Markdown summary.
+- [`txc_filter_files()`](https://itsleeds.github.io/UK2GTFS/reference/txc_filter_files.md)
+  returns a `"filter_report"` attribute: the decision, rule, reason and
+  successor for every file.
+
+## UK2GTFS 0.4.1
+
+### New features
+
+- [`transxchange2gtfs()`](https://itsleeds.github.io/UK2GTFS/reference/transxchange2gtfs.md)
+  gains `stop_locations`, choosing where stop coordinates come from:
+  `"naptan_fill"` (the new default: NaPTAN, and the TransXchange file’s
+  own location for any stop NaPTAN lacks), `"naptan"` (NaPTAN only, the
+  previous behaviour), `"txc"` (the files only) or `"txc_fill"` (the
+  files, then NaPTAN). Previously only NaPTAN was used, so a stop
+  missing from the NaPTAN table passed in - typically one created after
+  it was downloaded - got no coordinates, and
+  [`gtfs_clean()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.md)
+  then removed it and every call at it, although files that define their
+  stops in full (Transport for London’s, for example) say exactly where
+  it is. A stop defined by several files takes the median of their
+  positions. The result carries a `"stop_location_report"` attribute
+  comparing the two sources for every stop, and the conversion reports
+  how many stops each source located.
+
+### Bug fixes
+
+- The list of a file’s declared stops now includes stops given as full
+  `<StopPoint>` definitions (`<AtcoCode>`), not only
+  `<AnnotatedStopPointRef>` ones. This only changed the order of rows in
+  `stops`.
+- [`gtfs_clean()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_clean.md)
+  now reports how many stops it removes for having no coordinates, and
+  how many stop_times go with them, instead of removing them silently.
+
 ## UK2GTFS 0.4.0
 
 ### Breaking changes

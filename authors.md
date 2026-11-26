@@ -15,13 +15,13 @@ Source:
 [`DESCRIPTION`](https://github.com/itsleeds/uk2gtfs/blob/master/DESCRIPTION)
 
 Morgan M, O'Neill O (2026). *UK2GTFS: Convert UK Transport Timetable
-Datasets to GTFS Format*. R package version 0.4.0,
+Datasets to GTFS Format*. R package version 0.4.2,
 <https://github.com/itsleeds/uk2gtfs>.
 
     @Manual{,
       title = {UK2GTFS: Convert UK Transport Timetable Datasets to GTFS Format},
       author = {Malcolm Morgan and Owen O'Neill},
       year = {2026},
-      note = {R package version 0.4.0},
+      note = {R package version 0.4.2},
       url = {https://github.com/itsleeds/uk2gtfs},
     }

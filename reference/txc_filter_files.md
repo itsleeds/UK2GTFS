@@ -53,7 +53,13 @@ txc_filter_files(
 
 a character vector, the subset of \`files\` to convert. Where an
 operating period was truncated the returned path points at a rewritten
-copy in \`out_dir\` rather than at the original file.
+copy in \`out_dir\` rather than at the original file. Attribute
+\`"filter_report"\` holds one row per input file saying what was done
+with it: \`decision\` ("kept", "dropped", "truncated", or "added" for
+the remaining days of a split file), the \`rule\` (1, 2 or 4 below) and
+\`reason\`, the file it gave way to (\`by\`), and any new operating
+period. \[transxchange2gtfs()\] carries it into its
+\[conversion_report()\].
 
 ## Details
 

@@ -39,3 +39,16 @@ service then runs on exactly the dates listed with \`exception_type =
 window. The DfT's Bus Open Data Service GTFS uses them heavily (for
 example for school-holiday timetables), so dropping them silently
 removes real service.
+
+Exceptions follow the GTFS rules rather than the calendar row's date
+range. An addition (\`exception_type = 1\`) inside the window is kept
+even when it falls outside its service's own
+\`start_date\`-\`end_date\`: GTFS adds the date regardless. A service
+whose \`calendar.txt\` row does not reach the window at all, but which
+adds dates inside it, is kept too. Its row is dropped, so it comes out
+as a \`calendar_dates.txt\`-only service running on exactly those dates.
+A removal (\`exception_type = 2\`) is still clipped to the row's range,
+because outside it the service does not run and the removal does
+nothing.
+
+Until version 0.4.0 both kinds of addition were discarded.

@@ -20,6 +20,7 @@
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/as_data_table_naptan_stop_point.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/atoc2gtfs.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/atoc_fares_read.html</loc></url>
+<url><loc>https://itsleeds.github.io/UK2GTFS/reference/conversion_report.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/dl_example_file.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/get_bank_holidays.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/get_naptan.html</loc></url>
@@ -33,6 +34,7 @@
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_clip.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_compress.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.html</loc></url>
+<url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate_copies.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_stops.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_trips.html</loc></url>
 <url><loc>https://itsleeds.github.io/UK2GTFS/reference/gtfs_force_valid.html</loc></url>

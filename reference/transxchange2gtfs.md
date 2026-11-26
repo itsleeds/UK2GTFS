@@ -15,7 +15,8 @@ transxchange2gtfs(
   try_mode = TRUE,
   force_merge = FALSE,
   filter_duplicate_files = FALSE,
-  filter_date = Sys.Date()
+  filter_date = Sys.Date(),
+  stop_locations = c("naptan_fill", "naptan", "txc", "txc_fill")
 )
 ```
 
@@ -74,6 +75,24 @@ transxchange2gtfs(
   which version of each service is operative (default \`Sys.Date()\`).
   Only used when \`filter_duplicate_files = TRUE\`.
 
+- stop_locations:
+
+  character, where stop coordinates come from. A TransXchange file may
+  define its stops in full, with a location (Transport for London's do),
+  as well as naming them; NaPTAN is the national register. One of: \*
+  \`"naptan_fill"\` (default): NaPTAN, and the file's own location for
+  any stop NaPTAN lacks. \* \`"naptan"\`: NaPTAN only, as before 0.4.1.
+  A stop missing from \`naptan\` has no coordinates, and
+  \[gtfs_clean()\] removes it and its calls. \* \`"txc"\`: the files'
+  locations only. \* \`"txc_fill"\`: the files' locations, and NaPTAN
+  for stops they do not locate.
+
+  A stop several files locate takes the median of their positions. The
+  result carries a \`"stop_location_report"\` attribute: one row per
+  stop with both positions, how far apart they are, how many file
+  definitions there were and how far they spread, which source was used,
+  and the number of calls at the stop. See Details.
+
 ## Value
 
 A GTFS named list
@@ -81,6 +100,16 @@ A GTFS named list
 ## Details
 
 Convert transxchange files to GTFS
+
+Stop locations
+
+NaPTAN tables go out of date: a stop opened after \`naptan\` was
+downloaded is not in it. With \`stop_locations = "naptan"\` such a stop
+gets no coordinates and \[gtfs_clean()\] later deletes every call at it,
+although the file may say exactly where the stop is. The default,
+\`"naptan_fill"\`, keeps NaPTAN's positions and fills the gaps from the
+files. A message reports how many stops each source located and how many
+stops, and calls, remain without a location.
 
 This is a meta function which aids TransXchange to GTFS conversion. It
 simple runs transxchange_import(), transxchange_export(), gtfs_merge(),

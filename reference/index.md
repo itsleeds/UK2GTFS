@@ -20,6 +20,10 @@
   : ATOC to GTFS
 - [`atoc_fares_read()`](https://itsleeds.github.io/UK2GTFS/reference/atoc_fares_read.md)
   : Read a National Rail (DTD/RSPS5045) fares feed
+- [`conversion_report()`](https://itsleeds.github.io/UK2GTFS/reference/conversion_report.md)
+  [`write_conversion_report()`](https://itsleeds.github.io/UK2GTFS/reference/conversion_report.md)
+  [`print(`*`<uk2gtfs_conversion_report>`*`)`](https://itsleeds.github.io/UK2GTFS/reference/conversion_report.md)
+  : What a conversion did: the choices made and what they removed
 - [`dl_example_file()`](https://itsleeds.github.io/UK2GTFS/reference/dl_example_file.md)
   : Download Test Files
 - [`get_bank_holidays()`](https://itsleeds.github.io/UK2GTFS/reference/get_bank_holidays.md)
@@ -46,6 +50,8 @@
   : Reduce file size of a GTFS object
 - [`gtfs_deduplicate()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate.md)
   : Remove duplicated trips from a GTFS object
+- [`gtfs_deduplicate_copies()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_deduplicate_copies.md)
+  : Remove copies of one service published in two files
 - [`gtfs_fast_stops()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_stops.md)
   : Find fast stops
 - [`gtfs_fast_trips()`](https://itsleeds.github.io/UK2GTFS/reference/gtfs_fast_trips.md)
